@@ -434,8 +434,41 @@ Update this section at the end of every Claude Code session.
 - In Supabase dashboard → Auth → URL Configuration → add `https://simmer-rho-eight.vercel.app` to Redirect URLs so Google OAuth works in production (localhost is already handled by Supabase defaults)
 
 ### Session 2 — Recipe book: data + import flows
-**Status:** Not started  
-**Depends on:** Session 1 complete, Supabase running, Google OAuth working
+**Status:** ✅ Complete  
+**Completed:** 2026-05-10
+
+**What was built:**
+
+*Foundation*
+- DB migration `0002`: added `tags text[]` + `difficulty text` to `recipes`; added `create_initial_family()` security-definer function for first-user family bootstrap
+- 2 Supabase Edge Functions deployed: `fetch-url` (scrapes any URL → plain text, 12k char cap) and `ai-call` (proxies Anthropic API server-side, avoids CORS)
+- `src/lib/ai/anthropic.ts` — real Anthropic adapter calling the `ai-call` Edge Function with `VITE_DEV_ANTHROPIC_KEY`
+- `src/lib/recipeParser.ts` — full implementation: system prompt + JSON schema, parses Claude's response, sets `flag: "confirm_quantity"` on vague amounts
+- `useEnsureFamilyId` hook — bootstraps `family_id` on first login via `create_initial_family()` RPC
+- `useRecipes` hook — full React Query implementation: list with filters (mealType, tag, quickOnly, search), `useRecipe`, `useRecipeIngredients`, `useRecipeSteps`, `useSaveRecipe` (upserts ingredients_catalog + inserts recipe + recipe_ingredients + recipe_steps), `useDeleteRecipe`
+- `useIngredientsCatalog` hook — catalog list + `matchIngredient()` fuzzy matcher
+
+*Recipe grid (s-recipes)*
+- `RecipeCard` — NB2 placeholder with deterministic retro-pop color from recipe ID, emoji, "NB2 · rendering" label, cook time, meal type badge
+- `RecipesScreen` — 2-col grid, search bar, filter pills (All / Dinner / Lunch / Breakfast / Quick), link + plus header icons, empty state
+
+*Add/import flow*
+- `RecipeEntryScreen` — textarea, "Structure with Claude" → `/recipes/loading`
+- `RecipeImportScreen` — URL input, "Import & review" → `/recipes/loading` with sourceUrl
+- `RecipeLoadingScreen` — calls AI, animates 5-step progress, navigates to review on completion, "Skip to review →" + error handling
+- `RecipeReviewScreen` — NB2 placeholder, editable basics, ingredient flags (✓ catalog match / ⚠ confirm quantity / + new), inline qty edit, editable steps, "Edit text" + "Save recipe" → Supabase
+
+*Recipe detail + cooking mode*
+- `RecipeDetailScreen` — hero image/placeholder, cook time + servings badges, servings scaler with live quantity math, Ingredients/Instructions tab switcher, ingredient rows with scaled quantities, step list, "Add to meal plan" stub sheet, "Start cooking" button
+- `CookingMode` overlay — full-screen, progress bar, step counter, large text, ingredient chips, Prev/Next nav, "Done ✓" exits
+
+**Schema changes:** Added `tags text[]` and `difficulty text` to `recipes` table (migration 0002)
+
+**Notes for Session 3:**
+- `VITE_DEV_ANTHROPIC_KEY` must be set in `.env.local` (already done) and in Vercel env vars for production (do this before Session 3)
+- NB2 image generation is stubbed — `image_status: 'pending'` on all saved recipes; Session 3 implements actual generation
+- Ingredient emoji on RecipeCard uses meal_type fallback — a recipe-level emoji field would be cleaner (consider adding in Session 3)
+- Cooking mode ingredient chips show all ingredients on step 1 only; wire `ingredient_ids[]` per step in Session 4
 
 ### Session 3 — Recipe book: image generation + cooking mode
 **Status:** Not started  

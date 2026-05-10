@@ -1,0 +1,423 @@
+import { useState, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { ArrowLeft, Check, AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import type { ParsedRecipe, ParsedIngredient, ParsedStep } from '../lib/recipeParser'
+import { useSaveRecipe } from '../hooks/useRecipes'
+import { useIngredientsCatalog, matchIngredient } from '../hooks/useIngredientsCatalog'
+
+// 6 card colors — pick same one used by RecipeCard
+const CARD_COLORS = ['#d4e8d4', '#f0e8d0', '#f0e0d8', '#d8e0ea', '#dce8e0', '#ecdae2']
+function tempColor() { return CARD_COLORS[Math.floor(Math.random() * CARD_COLORS.length)] }
+
+export function RecipeReviewScreen() {
+  const navigate   = useNavigate()
+  const location   = useLocation()
+  const state      = location.state as { parsed?: ParsedRecipe; rawText?: string; sourceUrl?: string; partial?: boolean } | null
+
+  const parsed     = state?.parsed
+  const { data: catalog = [] } = useIngredientsCatalog()
+  const saveRecipe = useSaveRecipe()
+
+  // Editable recipe basics
+  const [name,       setName]       = useState(parsed?.name ?? '')
+  const [servings,   setServings]   = useState(parsed?.servings ?? 4)
+  const [cookTime,   setCookTime]   = useState<string>(parsed?.cook_time_minutes != null ? String(parsed.cook_time_minutes) : '')
+  const [mealType,   setMealType]   = useState(parsed?.meal_type ?? '')
+
+  // Editable ingredients
+  const [ingredients, setIngredients] = useState<ParsedIngredient[]>(parsed?.ingredients ?? [])
+
+  // Editable steps
+  const [steps, setSteps]           = useState<ParsedStep[]>(parsed?.steps ?? [])
+
+  const [saving, setSaving]         = useState(false)
+  const [saveError, setSaveError]   = useState<string | null>(null)
+  const placeholderColor            = useRef(tempColor())
+
+  if (!parsed && !state?.partial) {
+    // No state — redirect back
+    navigate('/recipes/new', { replace: true })
+    return null
+  }
+
+  const flaggedCount = ingredients.filter(i => i.flag === 'confirm_quantity').length
+
+  // ── Ingredient helpers ──────────────────────────────────────────
+  function updateIngredientQty(idx: number, qty: string) {
+    setIngredients(prev => prev.map((ing, i) =>
+      i === idx ? { ...ing, quantity: qty ? parseFloat(qty) : null, flag: null } : ing
+    ))
+  }
+  function removeIngredient(idx: number) {
+    setIngredients(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  // ── Step helpers ─────────────────────────────────────────────────
+  function updateStep(idx: number, instruction: string) {
+    setSteps(prev => prev.map((s, i) => i === idx ? { ...s, instruction } : s))
+  }
+  function addStep() {
+    setSteps(prev => [...prev, { step_number: prev.length + 1, instruction: '' }])
+  }
+  function removeStep(idx: number) {
+    setSteps(prev => prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, step_number: i + 1 })))
+  }
+
+  // ── Save ─────────────────────────────────────────────────────────
+  async function handleSave() {
+    if (!name.trim()) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const id = await saveRecipe.mutateAsync({
+        name: name.trim(),
+        servings,
+        cook_time_minutes: cookTime ? parseInt(cookTime) : null,
+        meal_type: mealType || null,
+        tags: parsed?.tags ?? [],
+        difficulty: parsed?.difficulty ?? null,
+        ingredients: ingredients.map(ing => {
+          const match = matchIngredient(ing.name, catalog)
+          return {
+            catalogId: match?.id,
+            name: ing.name,
+            emoji: ing.emoji,
+            quantity: ing.quantity,
+            unit: ing.unit,
+            prep_note: ing.prep_note,
+            serving_note: ing.serving_note,
+          }
+        }),
+        steps,
+      })
+      navigate(`/recipes/${id}`, { replace: true })
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save recipe')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--dk)' }}>
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '80px' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 16px 0' }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ts)', padding: '4px' }}
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div style={{ flex: 1 }}>
+            {flaggedCount > 0 && (
+              <div style={{ fontSize: '11px', color: 'var(--am)', fontWeight: 500, marginBottom: '2px' }}>
+                ⚠ {flaggedCount} item{flaggedCount > 1 ? 's' : ''} need review
+              </div>
+            )}
+            <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)' }}>Review &amp; save</div>
+          </div>
+        </div>
+
+        {/* NB2 placeholder image */}
+        <div style={{ margin: '16px 16px 0', borderRadius: '13px', overflow: 'hidden' }}>
+          <div
+            style={{
+              width: '100%',
+              height: '180px',
+              backgroundColor: placeholderColor.current,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              position: 'relative',
+            }}
+          >
+            <span style={{ fontSize: '48px', opacity: 0.4 }}>
+              {parsed?.meal_type === 'breakfast' ? '🍳' : parsed?.meal_type === 'lunch' ? '🥗' : '🍽️'}
+            </span>
+            <span style={{ fontSize: '9px', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)', fontWeight: 500 }}>
+              NB2 · queued
+            </span>
+          </div>
+        </div>
+
+        {/* Recipe basics */}
+        <Section title="Recipe basics">
+          <Field label="Recipe name">
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Recipe name"
+              style={inputStyle}
+            />
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <Field label="Servings">
+              <input
+                type="number"
+                value={servings}
+                onChange={e => setServings(parseInt(e.target.value) || 4)}
+                min={1}
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="Cook time (min)">
+              <input
+                type="number"
+                value={cookTime}
+                onChange={e => setCookTime(e.target.value)}
+                placeholder="45"
+                style={inputStyle}
+              />
+            </Field>
+          </div>
+          <Field label="Meal type">
+            <select
+              value={mealType}
+              onChange={e => setMealType(e.target.value)}
+              style={{ ...inputStyle, appearance: 'none' }}
+            >
+              <option value="">—</option>
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+            </select>
+          </Field>
+        </Section>
+
+        {/* Ingredients */}
+        <Section title={`Ingredients — tap qty to edit`}>
+          {ingredients.map((ing, idx) => {
+            const catalogMatch = matchIngredient(ing.name, catalog)
+            const isNew        = !catalogMatch
+            const needsReview  = ing.flag === 'confirm_quantity'
+
+            return (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '9px 14px',
+                  borderBottom: idx < ingredients.length - 1 ? '0.5px solid var(--br)' : 'none',
+                }}
+              >
+                {/* Flag icon */}
+                <div style={{ width: '16px', flexShrink: 0 }}>
+                  {needsReview ? (
+                    <AlertTriangle size={13} color="var(--am)" />
+                  ) : (
+                    <Check size={13} color="var(--gl)" />
+                  )}
+                </div>
+
+                {/* Emoji + name */}
+                <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
+                    {ing.name}
+                    {isNew && (
+                      <span style={{ fontSize: '9px', color: 'var(--gl)', marginLeft: '5px', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px' }}>
+                        + new
+                      </span>
+                    )}
+                  </div>
+                  {ing.prep_note && (
+                    <div style={{ fontSize: '11px', color: 'var(--ts)' }}>{ing.prep_note}</div>
+                  )}
+                  {needsReview && (
+                    <div style={{ fontSize: '10px', color: 'var(--am)', marginTop: '1px' }}>confirm quantity</div>
+                  )}
+                </div>
+
+                {/* Quantity — tappable to edit */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                  <input
+                    type="number"
+                    value={ing.quantity ?? ''}
+                    onChange={e => updateIngredientQty(idx, e.target.value)}
+                    placeholder="?"
+                    style={{
+                      width: '44px',
+                      backgroundColor: needsReview ? 'rgba(239,159,39,0.1)' : 'var(--dk3)',
+                      border: `0.5px solid ${needsReview ? 'var(--am)' : 'var(--br)'}`,
+                      borderRadius: '6px',
+                      padding: '3px 5px',
+                      fontSize: '12px',
+                      color: 'var(--tp)',
+                      textAlign: 'right',
+                      outline: 'none',
+                    }}
+                  />
+                  {ing.unit && (
+                    <span style={{ fontSize: '11px', color: 'var(--ts)' }}>{ing.unit}</span>
+                  )}
+                </div>
+
+                {/* Remove */}
+                <button
+                  onClick={() => removeIngredient(idx)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            )
+          })}
+        </Section>
+
+        {/* Steps */}
+        <Section title="Steps">
+          {steps.map((step, idx) => (
+            <div
+              key={idx}
+              style={{
+                padding: '10px 14px',
+                borderBottom: idx < steps.length - 1 ? '0.5px solid var(--br)' : 'none',
+              }}
+            >
+              <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--am)', letterSpacing: '0.8px', marginBottom: '4px' }}>
+                STEP {step.step_number}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  onBlur={e => updateStep(idx, e.currentTarget.textContent ?? '')}
+                  style={{
+                    flex: 1,
+                    fontSize: '13px',
+                    color: 'var(--tp)',
+                    lineHeight: 1.5,
+                    outline: 'none',
+                    minHeight: '20px',
+                  }}
+                >
+                  {step.instruction}
+                </div>
+                <button
+                  onClick={() => removeStep(idx)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0, marginTop: '1px' }}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Add step */}
+          <button
+            onClick={addStep}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              width: '100%',
+              padding: '11px 14px',
+              background: 'none',
+              border: 'none',
+              borderTop: steps.length > 0 ? '0.5px solid var(--br)' : 'none',
+              cursor: 'pointer',
+              fontSize: '12px',
+              color: 'var(--ts)',
+            }}
+          >
+            <Plus size={13} />
+            Add a step
+          </button>
+        </Section>
+
+        {saveError && (
+          <p style={{ fontSize: '12px', color: 'var(--rd)', padding: '0 16px 12px', margin: 0 }}>
+            {saveError}
+          </p>
+        )}
+      </div>
+
+      {/* Pinned bottom bar */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0, left: 0, right: 0,
+          backgroundColor: 'var(--dk2)',
+          borderTop: '0.5px solid var(--br)',
+          padding: '12px 16px',
+          display: 'flex',
+          gap: '10px',
+        }}
+      >
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            flex: 0,
+            padding: '12px 16px',
+            backgroundColor: 'transparent',
+            border: '0.5px solid var(--br)',
+            borderRadius: '11px',
+            color: 'var(--ts)',
+            fontSize: '13px',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Edit text
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving || !name.trim()}
+          style={{
+            flex: 1,
+            padding: '12px',
+            backgroundColor: saving || !name.trim() ? 'var(--dk3)' : 'var(--am)',
+            color: saving || !name.trim() ? 'var(--tm)' : '#1a1612',
+            border: 'none',
+            borderRadius: '11px',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: saving || !name.trim() ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {saving ? 'Saving…' : 'Save recipe'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Small UI helpers ───────────────────────────────────────────
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: '20px 16px 0' }}>
+      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
+        {title}
+      </div>
+      <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: '10px 14px', borderBottom: '0.5px solid var(--br)' }}>
+      <div style={{ fontSize: '10px', color: 'var(--ts)', marginBottom: '5px', fontWeight: 500 }}>{label}</div>
+      {children}
+    </div>
+  )
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  backgroundColor: 'var(--dk3)',
+  border: '0.5px solid var(--brh)',
+  borderRadius: '8px',
+  padding: '8px 10px',
+  fontSize: '13px',
+  color: 'var(--tp)',
+  outline: 'none',
+  fontFamily: 'inherit',
+}
