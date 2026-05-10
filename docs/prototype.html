@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simmer — Interactive Prototype</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
+<style>
+
+:root{
+  --dk:#141820;--dk2:#1a2028;--dk3:#1e2330;--dkc:#1e2330;
+  --am:#7BAF8A;--aml:#A8CDB5;
+  --tp:#EEF0F4;--ts:#8A95A8;--tm:#4A5568;
+  --br:rgba(255,255,255,0.08);--brh:rgba(255,255,255,0.15);
+  --gn:#7BAF8A;--gl:#7BAF8A;--tl:#4A7A5A;--rd:#C0625A;
+}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;}
+*{box-sizing:border-box;margin:0;padding:0;}
+.app{font-family:system-ui,-apple-system,sans-serif;width:390px;background:var(--dk);border-radius:20px;overflow:hidden;border:0.5px solid var(--brh);height:680px;position:relative;flex-shrink:0;}
+.scr{display:none;flex-direction:column;height:680px;position:absolute;inset:0;}
+.scr.active{display:flex;}
+.sb{background:var(--dk);padding:10px 18px 3px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ts);flex-shrink:0;}
+.hd{padding:6px 16px 10px;background:var(--dk);flex-shrink:0;}
+.hd h1{font-size:20px;font-weight:500;color:var(--tp);letter-spacing:-0.3px;}
+.hd p{font-size:11px;color:var(--ts);margin-top:2px;}
+.sc{flex:1;overflow-y:auto;padding:0 16px 90px;scrollbar-width:none;}
+.sc::-webkit-scrollbar{display:none;}
+.bn{position:absolute;bottom:0;left:0;right:0;background:var(--dk2);border-top:0.5px solid var(--br);padding:8px 0 16px;display:flex;justify-content:space-around;z-index:100;}
+.ni{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 8px;border:none;background:none;color:var(--tm);}
+.ni.active{color:var(--am);}
+.ni i{font-size:21px;}
+.ni span{font-size:9px;font-weight:500;}
+.bb{display:flex;align-items:center;gap:5px;color:var(--am);font-size:12px;cursor:pointer;background:none;border:none;font-family:system-ui,-apple-system,sans-serif;padding:0;margin-bottom:8px;}
+.sb2{display:flex;align-items:center;gap:7px;background:var(--dk3);border:0.5px solid var(--br);border-radius:11px;padding:8px 12px;margin:0 0 11px;}
+.sb2 i{color:var(--tm);font-size:16px;}
+.sb2 input{background:none;border:none;outline:none;color:var(--tp);font-size:12px;flex:1;font-family:system-ui,-apple-system,sans-serif;}
+.sb2 input::placeholder{color:var(--tm);}
+.slbl{font-size:9px;font-weight:500;letter-spacing:0.8px;color:var(--tm);text-transform:uppercase;margin:12px 0 7px;}
+.crd{background:var(--dkc);border:0.5px solid var(--br);border-radius:13px;padding:12px;margin-bottom:9px;}
+.abtn{background:var(--am);color:#1a1612;border:none;border-radius:12px;padding:11px;font-size:13px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:7px;}
+
+/* ── GROCERY GRID ── */
+.stbs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px;}
+.stbs::-webkit-scrollbar{display:none;}
+.stb{flex-shrink:0;font-size:11px;font-weight:500;padding:6px 12px;border-radius:18px;border:0.5px solid var(--brh);color:var(--ts);cursor:pointer;background:none;font-family:system-ui,-apple-system,sans-serif;}
+.stb.active{background:var(--am);color:#1a1612;border-color:var(--am);}
+
+/* grid of item boxes */
+.g-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px;}
+.g-box{
+  background:var(--dkc);border:0.5px solid var(--br);border-radius:12px;
+  padding:10px 8px;display:flex;flex-direction:column;align-items:center;
+  gap:5px;cursor:pointer;transition:border-color 0.15s;min-height:80px;
+  justify-content:center;position:relative;
+}
+.g-box:active{border-color:var(--am);}
+.g-box.done{opacity:0.38;border-color:var(--br);}
+.g-box-icon{font-size:26px;line-height:1;}
+.g-box-name{font-size:10px;color:var(--tp);font-weight:500;text-align:center;line-height:1.3;}
+.g-box-qty{font-size:9px;color:var(--am);font-weight:500;}
+.g-box-brand{font-size:8px;color:var(--tm);font-style:italic;text-align:center;line-height:1.2;}
+.g-box-ck{
+  position:absolute;top:5px;right:5px;
+  width:16px;height:16px;border-radius:50%;
+  background:var(--gn);border:none;
+  display:none;align-items:center;justify-content:center;
+}
+.g-box.done .g-box-ck{display:flex;}
+.g-box.done .g-box-name{text-decoration:line-through;color:var(--tm);}
+.g-box.done .g-box-qty{color:var(--tm);}
+
+/* crossed-off section at bottom, no caret */
+.crossed-section{margin-top:4px;}
+.crossed-lbl{font-size:10px;color:var(--tm);margin-bottom:8px;display:flex;align-items:center;gap:5px;}
+.crossed-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+
+/* ADD BAR pinned */
+.abw{position:absolute;bottom:68px;left:0;right:0;padding:6px 16px 7px;background:var(--dk);border-top:0.5px solid var(--br);z-index:5;}
+.abi{display:flex;align-items:center;gap:7px;background:var(--dk3);border:0.5px solid var(--brh);border-radius:12px;padding:8px 12px;cursor:pointer;}
+.abi i{color:var(--tm);font-size:16px;}
+.abi span{font-size:12px;color:var(--tm);}
+
+/* grocery top action row */
+.g-actions{display:flex;gap:8px;margin-bottom:12px;}
+.g-action-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;border-radius:10px;border:0.5px solid var(--brh);background:none;font-size:11px;font-weight:500;color:var(--ts);cursor:pointer;font-family:system-ui,-apple-system,sans-serif;}
+.g-action-btn.primary{background:rgba(239,159,39,0.12);border-color:rgba(239,159,39,0.3);color:var(--am);}
+
+/* KB PANE */
+.kbp{display:none;position:absolute;bottom:68px;left:0;right:0;background:var(--dk2);border-top:0.5px solid var(--brh);z-index:20;padding:9px 16px 11px;}
+.kbp.op{display:block;}
+.kbs{display:flex;align-items:center;gap:7px;background:var(--dk3);border:0.5px solid var(--am);border-radius:11px;padding:8px 12px;margin-bottom:9px;}
+.kbs i{color:var(--am);font-size:16px;}
+.kbs input{flex:1;background:none;border:none;outline:none;color:var(--tp);font-size:12px;font-family:system-ui,-apple-system,sans-serif;}
+.kbg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.kbi{background:var(--dkc);border:0.5px solid var(--br);border-radius:9px;padding:7px 3px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;}
+.kbi:active{border-color:var(--am);}
+.kbi .ke{font-size:20px;}
+.kbi .kn{font-size:8px;color:var(--ts);text-align:center;line-height:1.2;}
+
+/* STORE ASSIGN */
+.sas{position:absolute;bottom:68px;left:0;right:0;background:var(--dk2);border-top:0.5px solid var(--brh);border-radius:14px 14px 0 0;padding:12px 16px 16px;z-index:30;display:none;}
+.sas.op{display:block;}
+.store-opt{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--br);cursor:pointer;}
+.store-opt:last-child{border-bottom:none;}
+.soc{width:19px;height:19px;border-radius:50%;border:1.5px solid var(--brh);display:flex;align-items:center;justify-content:center;}
+.soc.sel{background:var(--am);border-color:var(--am);}
+
+/* NB2 */
+.ni2{width:100%;height:140px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;flex-shrink:0;}
+.ni2 .ph{display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0.45;}
+.ni2 .ph .em{font-size:32px;}
+.ni2 .ph .lb{font-size:7px;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;color:var(--ts);}
+.ni2 .bdg{position:absolute;top:5px;left:5px;background:rgba(0,0,0,0.28);border-radius:4px;padding:2px 5px;font-size:7px;color:rgba(255,255,255,0.55);display:flex;align-items:center;gap:2px;}
+.pt{background:#d4e8d4;}.pa{background:#f0e8d0;}.pc{background:#f0e0d8;}.ps{background:#d8e0ea;}.pg{background:#dce8e0;}.pr2{background:#ecdae2;}
+.rg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding-top:5px;}
+.rc{border-radius:14px;overflow:hidden;border:0.5px solid var(--br);cursor:pointer;background:var(--dkc);display:flex;flex-direction:column;}
+.rc:active{border-color:var(--am);}
+.ri{padding:8px 9px 10px;}
+.ri h3{font-size:11px;font-weight:500;color:var(--tp);line-height:1.3;margin-bottom:4px;}
+.rm{display:flex;gap:5px;align-items:center;}
+.rt{font-size:9px;color:var(--ts);}
+.rb{font-size:8px;background:rgba(239,159,39,0.18);color:var(--aml);padding:2px 4px;border-radius:3px;}
+
+/* RECIPE DETAIL */
+.rdi{width:100%;height:185px;flex-shrink:0;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.rdo{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(20,14,10,0.96));padding:28px 15px 12px;}
+.rdt{font-size:18px;font-weight:500;color:var(--tp);}
+.rdm{display:flex;gap:11px;margin-top:4px;font-size:10px;color:var(--ts);}
+.tw{display:flex;background:var(--dk3);border-radius:9px;padding:3px;margin-bottom:12px;}
+.tb{flex:1;text-align:center;font-size:11px;font-weight:500;padding:6px;border-radius:7px;cursor:pointer;color:var(--tm);background:none;border:none;font-family:system-ui,-apple-system,sans-serif;}
+.tb.active{background:var(--dkc);color:var(--tp);}
+.sr{display:flex;align-items:center;gap:11px;margin-bottom:12px;padding:8px 12px;background:var(--dkc);border-radius:10px;border:0.5px solid var(--br);}
+.sr label{font-size:11px;color:var(--ts);flex:1;}
+.sc2{display:flex;align-items:center;gap:10px;}
+.svb{width:25px;height:25px;border-radius:50%;border:1.5px solid var(--brh);background:none;color:var(--tp);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;}
+.ir{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--br);}
+.ir:last-child{border-bottom:none;}
+.ii{font-size:18px;width:26px;text-align:center;flex-shrink:0;padding-top:1px;}
+.it{flex:1;}
+.in2{font-size:12px;color:var(--tp);}
+.ino{font-size:10px;color:var(--tm);font-style:italic;margin-top:1px;}
+.iq{font-size:11px;color:var(--am);font-weight:500;flex-shrink:0;padding-top:2px;}
+.stpc{background:var(--dkc);border:0.5px solid var(--br);border-radius:12px;padding:11px;margin-bottom:7px;}
+.stpn{font-size:9px;font-weight:500;color:var(--am);letter-spacing:0.4px;margin-bottom:5px;}
+.stpt{font-size:12px;color:var(--tp);line-height:1.6;outline:none;min-height:18px;}
+.stpt:focus{border-bottom:1px dashed rgba(239,159,39,0.4);}
+.start-cook-btn{width:100%;padding:14px;border-radius:13px;background:var(--am);color:#1a1612;border:none;font-size:14px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;}
+
+/* COOKING FULLSCREEN */
+.cook-full{position:absolute;inset:0;background:var(--dk);z-index:50;display:none;flex-direction:column;}
+.cook-full.open{display:flex;}
+.cook-progress{height:3px;background:var(--dk3);flex-shrink:0;}
+.cook-fill{height:100%;background:var(--am);transition:width 0.3s;}
+.cook-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:24px 20px;}
+.cook-step-num{font-size:11px;font-weight:500;color:var(--am);letter-spacing:0.5px;margin-bottom:12px;}
+.cook-step-text{font-size:18px;color:var(--tp);line-height:1.6;}
+.cook-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;}
+.cook-chip{font-size:11px;background:var(--dkc);color:var(--ts);padding:5px 11px;border-radius:20px;border:0.5px solid var(--br);}
+.cook-nav{display:flex;gap:10px;padding:20px;}
+.cpb{flex:1;padding:14px;border-radius:13px;border:0.5px solid var(--brh);background:none;color:var(--tp);font-size:14px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;}
+.cnb{flex:2;padding:14px;border-radius:13px;background:var(--am);color:#1a1612;border:none;font-size:14px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;}
+
+/* ── PLANNER — expanded, stacked dishes, col toggle ── */
+.wn{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;}
+.wnb{background:none;border:0.5px solid var(--br);border-radius:7px;padding:5px 8px;color:var(--ts);cursor:pointer;font-family:system-ui,-apple-system,sans-serif;font-size:11px;display:flex;align-items:center;gap:3px;}
+
+/* column visibility toggles */
+.col-toggles{display:flex;gap:6px;margin-bottom:10px;}
+.col-tog{font-size:10px;font-weight:500;padding:5px 11px;border-radius:18px;border:0.5px solid var(--brh);color:var(--ts);cursor:pointer;background:none;font-family:system-ui,-apple-system,sans-serif;transition:all 0.15s;}
+.col-tog.on{background:var(--dkc);border-color:var(--brh);color:var(--tp);}
+.col-tog.off{background:none;border-color:var(--br);color:var(--tm);text-decoration:line-through;}
+
+/* planner table */
+.pt2{width:100%;border-collapse:collapse;margin-bottom:4px;}
+.pth{font-size:9px;font-weight:500;color:var(--tm);text-align:center;padding:4px 2px;letter-spacing:0.3px;}
+.pdl{font-size:9px;font-weight:500;color:var(--tm);padding:4px 4px 4px 0;text-align:left;vertical-align:top;white-space:nowrap;}
+.pdl.tdr{color:var(--am);}
+.pc2{padding:2px;vertical-align:top;}
+
+/* meal slot — taller, stacked dishes */
+.ms{
+  background:var(--dk3);border:0.5px solid var(--br);border-radius:8px;
+  min-height:72px;cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-start;padding:5px 3px 4px;gap:2px;
+  transition:border-color 0.15s;
+}
+.ms:active{border-color:var(--am);}
+.ms.fi{background:var(--dkc);border-color:var(--brh);}
+.ms-dish{display:flex;flex-direction:column;align-items:center;gap:1px;width:100%;}
+.ms-emoji{font-size:15px;line-height:1;}
+.ms-name{font-size:6px;color:var(--ts);text-align:center;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-width:100%;}
+.ms-div{width:75%;height:0.5px;background:rgba(255,255,255,0.1);margin:2px 0;}
+.ms-add{font-size:8px;color:var(--am);opacity:0.7;margin-top:1px;}
+.ms-plus{font-size:17px;color:var(--tm);margin-top:16px;}
+
+/* slot popover */
+.slot-pop{position:absolute;background:var(--dk2);border:0.5px solid var(--brh);border-radius:13px;padding:12px;z-index:40;width:230px;left:50%;top:45%;transform:translate(-50%,-50%);}
+.slot-pop-title{font-size:10px;font-weight:500;color:var(--tm);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
+.slot-dish-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--br);}
+.slot-dish-row:last-child{border-bottom:none;}
+.slot-dish-name{flex:1;font-size:12px;color:var(--tp);font-weight:500;}
+.slot-dish-del{background:none;border:none;cursor:pointer;color:var(--tm);font-size:14px;padding:2px;}
+.slot-add-row{display:flex;align-items:center;gap:7px;padding:8px 0 0;}
+.slot-add-in{flex:1;background:var(--dk3);border:0.5px solid var(--brh);border-radius:8px;padding:6px 9px;color:var(--tp);font-size:11px;font-family:system-ui,-apple-system,sans-serif;outline:none;}
+.slot-add-btn{background:var(--am);border:none;border-radius:7px;padding:6px 10px;color:#1a1612;font-size:11px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;}
+
+/* STAGING */
+.zone{border-radius:12px;padding:11px;margin-bottom:10px;}
+.zone-buy{background:rgba(99,153,34,0.08);border:0.5px solid rgba(99,153,34,0.25);}
+.zone-check{background:rgba(239,159,39,0.08);border:0.5px solid rgba(239,159,39,0.25);}
+.zone-staples{background:rgba(29,158,117,0.08);border:0.5px solid rgba(29,158,117,0.2);}
+.zone-all{background:var(--dkc);border:0.5px solid var(--br);}
+.zone-title{font-size:11px;font-weight:500;margin-bottom:2px;}
+.zone-sub{font-size:10px;margin-bottom:9px;line-height:1.5;}
+.zone-hint{font-size:9px;font-style:italic;color:var(--tm);margin-top:7px;padding-top:7px;border-top:0.5px solid rgba(255,255,255,0.05);}
+.zt-buy{color:var(--gl);}
+.zt-check{color:var(--am);}
+.zt-staples{color:#5DCAA5;}
+.zt-all{color:var(--ts);}
+.zs-buy{color:rgba(93,202,165,0.7);}
+.zs-check{color:rgba(239,159,39,0.6);}
+.zs-staples{color:rgba(29,158,117,0.6);}
+.zs-all{color:var(--tm);}
+.zone-item{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:0.5px solid rgba(255,255,255,0.05);}
+.zone-item:last-child{border-bottom:none;}
+.zi-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0;}
+.zi-body{flex:1;}
+.zi-name{font-size:12px;color:var(--tp);font-weight:500;}
+.zi-note{font-size:9px;color:var(--ts);margin-top:1px;}
+.zi-yn{display:flex;gap:5px;flex-shrink:0;}
+.yn-y{background:rgba(99,153,34,0.2);border:0.5px solid rgba(99,153,34,0.4);border-radius:7px;padding:4px 9px;font-size:10px;color:var(--gl);cursor:pointer;font-family:system-ui,-apple-system,sans-serif;font-weight:500;}
+.yn-n{background:rgba(255,255,255,0.06);border:0.5px solid var(--brh);border-radius:7px;padding:4px 9px;font-size:10px;color:var(--tm);cursor:pointer;font-family:system-ui,-apple-system,sans-serif;}
+.yn-y.sel{background:rgba(99,153,34,0.35);border-color:var(--gl);}
+.yn-n.sel{background:rgba(255,255,255,0.1);border-color:var(--ts);color:var(--ts);}
+.z4-hdr{display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.z4-badge{background:rgba(255,255,255,0.08);border-radius:9px;padding:2px 8px;font-size:10px;color:var(--ts);}
+
+/* PREP */
+.ppc{background:var(--dkc);border:0.5px solid var(--br);border-radius:12px;overflow:hidden;margin-bottom:8px;cursor:pointer;}
+.pph{display:flex;align-items:center;gap:10px;padding:10px 12px;}
+.ppic{width:36px;height:36px;border-radius:8px;background:var(--dk3);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
+.ppn{font-size:13px;font-weight:500;color:var(--tp);}
+.ppt{font-size:11px;color:var(--am);margin-top:1px;}
+.ppex{margin-left:auto;color:var(--tm);font-size:16px;transition:transform 0.2s;}
+.ppex.op{transform:rotate(180deg);}
+.ppb{display:none;padding:0 12px 10px;}
+.ppb.op{display:block;}
+.ppnote{font-size:10px;color:var(--am);font-style:italic;padding:3px 0 7px;border-bottom:0.5px solid var(--br);margin-bottom:3px;}
+.pdr{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-top:0.5px solid var(--br);font-size:11px;}
+.pdn{color:var(--ts);}
+.pdd{font-size:9px;color:var(--tm);margin-left:4px;}
+.pdq{color:var(--tp);font-weight:500;}
+
+/* SETTINGS / CATALOG */
+.set-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:0.5px solid var(--br);}
+.set-row:last-child{border-bottom:none;}
+.cat-aisle-hdr{font-size:9px;font-weight:500;letter-spacing:0.7px;color:var(--tm);text-transform:uppercase;padding:10px 0 6px;border-bottom:0.5px solid var(--br);margin-bottom:2px;}
+.cat-item{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:0.5px solid var(--br);cursor:pointer;}
+.cat-item:last-child{border-bottom:none;}
+.cat-store{font-size:9px;padding:2px 6px;border-radius:5px;background:rgba(239,159,39,0.12);color:var(--am);flex-shrink:0;}
+
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── LOADING ── */
+.load-ring{width:60px;height:60px;border-radius:50%;border:2px solid var(--dk3);border-top-color:var(--am);animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.load-step{display:flex;align-items:center;gap:10px;padding:9px 13px;background:var(--dkc);border:0.5px solid var(--br);border-radius:11px;}
+.ls-icon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ls-done{background:rgba(93,202,165,0.18);}
+.ls-active{background:rgba(239,159,39,0.15);}
+.ls-pend{background:var(--dk3);}
+/* ── REVIEW ── */
+.rv-flag-review{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:500;padding:2px 7px;border-radius:6px;background:rgba(239,159,39,0.15);color:var(--am);}
+.rv-flag-match{display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:2px 7px;border-radius:6px;background:rgba(93,202,165,0.1);color:var(--gl);}
+.rv-flag-new{display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:2px 7px;border-radius:6px;background:rgba(29,158,117,0.1);color:#5DCAA5;}
+.rv-ing-row{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--br);}
+.rv-ing-row:last-child{border-bottom:none;}
+.rv-ing-row.flagged{background:rgba(239,159,39,0.04);margin:0 -12px;padding:8px 12px;border-radius:7px;}
+.rv-ing-icon{font-size:18px;width:26px;text-align:center;flex-shrink:0;padding-top:1px;}
+.rv-ing-body{flex:1;}
+.rv-ing-name{font-size:12px;color:var(--tp);}
+.rv-ing-from{font-size:9px;color:var(--tm);margin-top:1px;}
+.rv-qty-inp{font-size:11px;color:var(--am);font-weight:500;background:none;border-bottom:1px dashed rgba(239,159,39,0.4);outline:none;width:62px;text-align:right;font-family:system-ui,-apple-system,sans-serif;flex-shrink:0;padding-top:2px;}
+/* ── CATALOG ── */
+.cat-aisle-hdr{font-size:9px;font-weight:500;letter-spacing:0.7px;color:var(--tm);text-transform:uppercase;padding:10px 0 5px;border-bottom:0.5px solid var(--br);margin-bottom:2px;}
+.cat-item{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:0.5px solid var(--br);cursor:pointer;}
+.cat-item:last-child{border-bottom:none;}
+.cat-store{font-size:9px;padding:2px 6px;border-radius:5px;background:rgba(239,159,39,0.12);color:var(--am);flex-shrink:0;}
+/* ── ONBOARDING ── */
+.ob-icon{font-size:52px;margin-bottom:14px;}
+.ob-title{font-size:20px;font-weight:500;color:var(--tp);margin-bottom:8px;text-align:center;}
+.ob-sub{font-size:12px;color:var(--ts);line-height:1.7;text-align:center;max-width:280px;}
+.ob-dots{display:flex;gap:6px;justify-content:center;margin:20px 0;}
+.ob-dot{width:6px;height:6px;border-radius:50%;background:var(--brh);}
+.ob-dot.on{background:var(--am);}
+.ob-day-opt{padding:12px 14px;background:var(--dkc);border:0.5px solid var(--br);border-radius:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px;color:var(--tp);}
+.ob-day-opt.sel{border-color:var(--am);}
+/* ── MODEL SETTINGS ── */
+.mc2{background:var(--dkc);border:0.5px solid var(--br);border-radius:12px;padding:11px 13px;margin-bottom:7px;cursor:pointer;}
+.mc2.msel{border-color:var(--am);background:rgba(239,159,39,0.06);}
+.mc2-top{display:flex;align-items:center;gap:10px;}
+.mc2-logo{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;font-weight:600;}
+.mc2-name{font-size:12px;font-weight:500;color:var(--tp);flex:1;}
+.mc2-radio{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--brh);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mc2-radio.on{background:var(--am);border-color:var(--am);}
+.mc2-radio.on::after{content:'';width:6px;height:6px;border-radius:50%;background:#1a1612;}
+.mc2-desc{font-size:10px;color:var(--ts);margin-top:5px;line-height:1.5;}
+.mc2-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;}
+.mtag{font-size:8px;padding:2px 6px;border-radius:9px;background:rgba(255,255,255,0.06);color:var(--tm);}
+.mtag-g{background:rgba(93,202,165,0.1);color:var(--gl);}
+.mtag-a{background:rgba(239,159,39,0.12);color:var(--am);}
+.mlogo-g{background:rgba(66,133,244,0.18);color:#7AAAF0;}
+.mlogo-o{background:rgba(100,180,120,0.18);color:#70B88A;}
+.mlogo-a{background:rgba(210,90,30,0.18);color:#E07040;}
+.mlogo-f{background:rgba(255,150,50,0.15);color:#E09050;}
+.mlogo-l{background:rgba(255,255,255,0.06);color:var(--ts);}
+.nb-group{background:rgba(66,133,244,0.04);border:0.5px solid rgba(66,133,244,0.15);border-radius:13px;padding:8px;margin-bottom:7px;}
+.nb-group-lbl{font-size:9px;font-weight:500;color:#7AAAF0;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:7px;}
+.nb-group .mc2{margin-bottom:5px;background:var(--dk2);}
+.nb-group .mc2:last-child{margin-bottom:0;}
+.akey-row{display:flex;align-items:center;gap:7px;background:var(--dk3);border:0.5px solid var(--brh);border-radius:10px;padding:8px 11px;margin-top:7px;}
+.akey-row i{color:var(--tm);font-size:14px;flex-shrink:0;}
+.akey-row input{flex:1;background:none;border:none;outline:none;color:var(--tp);font-size:11px;font-family:system-ui,-apple-system,sans-serif;}
+.akey-row input::placeholder{color:var(--tm);}
+.akey-saved{font-size:10px;color:var(--gl);display:none;align-items:center;gap:4px;margin-top:4px;}
+.ms-task-row{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:0.5px solid var(--br);}
+.ms-task-row:last-child{border-bottom:none;}
+.ms-task-sel{background:var(--dk3);border:0.5px solid var(--brh);border-radius:7px;padding:3px 7px;color:var(--tp);font-size:10px;font-family:system-ui,-apple-system,sans-serif;flex-shrink:0;max-width:125px;}
+
+</style>
+</head>
+<body style="margin:0;background:#0d0a07;font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;padding:20px 16px 60px;gap:14px;min-height:100vh;">
+
+<div style="width:100%;max-width:430px;background:#2a2318;border:0.5px solid rgba(255,255,255,0.15);border-radius:14px;padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+  <div style="flex:1;min-width:120px"><div style="font-size:14px;font-weight:600;color:#f5efe8;">🍳 Simmer Prototype</div><div style="font-size:10px;color:#6b5c4e;margin-top:2px;">Click any button to jump to that screen</div></div>
+  <div style="display:flex;gap:5px;flex-wrap:wrap;" id="proto-nav"></div>
+  <div style="font-size:10px;color:#6b5c4e;font-style:italic;width:100%;padding-top:6px;border-top:0.5px solid rgba(255,255,255,0.06);">Reference only — build clean React components that match this design.</div>
+</div>
+
+
+<div class="app" id="APP">
+
+<!-- ===== GROCERY ===== -->
+<div class="scr active" id="s-grocery">
+  <div class="sb"><span style="font-weight:500">9:41</span><div style="display:flex;gap:5px"><i class="ti ti-wifi" style="font-size:12px"></i><i class="ti ti-battery" style="font-size:12px"></i></div></div>
+  <div class="hd"><div style="display:flex;justify-content:space-between;align-items:center">
+    <h1>Grocery</h1>
+    <div style="display:flex;gap:5px;align-items:center">
+      <div style="display:flex"><div style="width:21px;height:21px;border-radius:50%;background:var(--am);border:2px solid var(--dk);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:#1a1612">R</div><div style="width:21px;height:21px;border-radius:50%;background:var(--tl);border:2px solid var(--dk);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;color:white;margin-left:-4px">S</div></div>
+      <span style="font-size:10px;color:var(--tm)">+2</span>
+    </div>
+  </div></div>
+  <div class="sc" style="padding-bottom:145px">
+    <div class="stbs"><button class="stb active">All</button><button class="stb">Trader Joe's</button><button class="stb">Costco</button><button class="stb">Whole Foods</button><button class="stb">+ Store</button></div>
+
+    <!-- action row -->
+    <div class="g-actions">
+      <button class="g-action-btn primary" onclick="go('staging')"><i class="ti ti-sparkles" style="font-size:13px"></i> Review staples</button>
+      <button class="g-action-btn" onclick="openKb()"><i class="ti ti-plus" style="font-size:13px"></i> Add item</button>
+    </div>
+
+    <!-- GROCERY GRID — ordered by aisle silently: produce → meat → dairy → canned → spices → beverages -->
+    <div class="g-grid" id="g-grid">
+      <!-- Produce -->
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🧅</span><span class="g-box-name">Onion</span><span class="g-box-qty">2 lbs</span></div>
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🧄</span><span class="g-box-name">Garlic</span><span class="g-box-qty">2 heads</span></div>
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🍋</span><span class="g-box-name">Lemon</span><span class="g-box-qty">4</span></div>
+      <!-- Meat & Seafood -->
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🥩</span><span class="g-box-name">Ground lamb</span><span class="g-box-qty">3 lbs</span></div>
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🐟</span><span class="g-box-name">White fish fillet</span><span class="g-box-qty">1.5 lbs</span><span class="g-box-brand">TJ's mahi mahi</span></div>
+      <!-- Dairy & Eggs -->
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🥚</span><span class="g-box-name">Eggs, large</span><span class="g-box-qty">1 doz</span><span class="g-box-brand">Costco</span></div>
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🥛</span><span class="g-box-name">Whole milk</span><span class="g-box-qty">½ gal</span></div>
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🥛</span><span class="g-box-name">Greek yogurt</span><span class="g-box-qty">1 tub</span></div>
+      <!-- Canned -->
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🍅</span><span class="g-box-name">Crushed tomatoes</span><span class="g-box-qty">2 cans</span></div>
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🫘</span><span class="g-box-name">Coconut milk</span><span class="g-box-qty">1 can</span></div>
+      <!-- Spices/Pantry confirmed from staging -->
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">🫙</span><span class="g-box-name">Ground sumac</span><span class="g-box-qty">1 jar</span></div>
+      <!-- Beverages -->
+      <div class="g-box" onclick="toggleBox(this)"><div class="g-box-ck"><i class="ti ti-check" style="font-size:8px;color:white"></i></div><span class="g-box-icon">☕</span><span class="g-box-name">Coffee beans</span><span class="g-box-qty">1 bag</span><span class="g-box-brand">TJ's French Roast</span></div>
+    </div>
+
+    <!-- CROSSED OFF — visible at bottom, grayed, tap to restore -->
+    <div id="crossed-section" style="display:none">
+      <div class="crossed-lbl"><i class="ti ti-check" style="font-size:11px;color:var(--gn)"></i> Got it</div>
+      <div class="crossed-grid" id="crossed-grid"></div>
+    </div>
+  </div>
+
+  <!-- ADD BAR pinned -->
+  <div class="abw">
+    <div class="abi" onclick="openKb()">
+      <i class="ti ti-plus"></i>
+      <span>Add an item…</span>
+    </div>
+  </div>
+
+  <!-- KB PANE -->
+  <div class="kbp" id="kbp">
+    <div class="kbs"><i class="ti ti-search"></i><input type="text" placeholder="Add an item…" id="kb-in" oninput="filterKb(this.value)"><button onclick="closeKb()" style="background:none;border:none;cursor:pointer;color:var(--tm);font-size:11px;font-family:system-ui,-apple-system,sans-serif">Done</button></div>
+    <div style="font-size:9px;color:var(--tm);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Suggestions</div>
+    <div class="kbg" id="kbg"></div>
+    <button onclick="closeKb()" style="width:100%;background:var(--am);border:none;border-radius:9px;padding:7px;color:#1a1612;font-size:11px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;margin-top:8px">Done</button>
+  </div>
+
+  <nav class="bn"><button class="ni active" onclick="go('grocery')"><i class="ti ti-shopping-cart"></i><span>Grocery</span></button><button class="ni" onclick="go('recipes')"><i class="ti ti-book-2"></i><span>Recipes</span></button><button class="ni" onclick="go('planner')"><i class="ti ti-calendar-week"></i><span>Planner</span></button><button class="ni" onclick="go('prep')"><i class="ti ti-tools-kitchen-2"></i><span>Prep</span></button></nav>
+</div>
+
+<!-- ===== RECIPES ===== -->
+<div class="scr" id="s-recipes">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><div style="display:flex;justify-content:space-between;align-items:center"><h1>Recipes</h1><div style="display:flex;gap:8px"><button onclick="go('import')" style="background:none;border:none;cursor:pointer;padding:2px"><i class="ti ti-link" style="font-size:20px;color:var(--ts)"></i></button><button onclick="go('entry')" style="background:none;border:none;cursor:pointer;padding:2px"><i class="ti ti-plus" style="font-size:20px;color:var(--am)"></i></button></div></div></div>
+  <div class="sc">
+    <div class="sb2"><i class="ti ti-search"></i><input type="text" placeholder="Search recipes…"></div>
+    <div class="stbs"><button class="stb active">All</button><button class="stb">Dinner</button><button class="stb">Lunch</button><button class="stb">Breakfast</button><button class="stb">Indian</button></div>
+    <div class="rg">
+      <div class="rc" onclick="go('recipe-detail')"><div class="ni2 pt"><div class="ph"><span class="em">🥙</span><span class="lb">NB2 · rendering</span></div><div class="bdg"><i class="ti ti-sparkles" style="font-size:7px"></i>NB2</div></div><div class="ri"><h3>Adana Kebabs</h3><div class="rm"><span class="rt"><i class="ti ti-clock" style="font-size:9px;vertical-align:-1px"></i> 45m</span><span class="rb">Dinner</span></div></div></div>
+      <div class="rc"><div class="ni2 pa"><div class="ph"><span class="em">🍛</span><span class="lb">NB2 · rendering</span></div><div class="bdg"><i class="ti ti-sparkles" style="font-size:7px"></i>NB2</div></div><div class="ri"><h3>Butter Paneer Masala</h3><div class="rm"><span class="rt"><i class="ti ti-clock" style="font-size:9px;vertical-align:-1px"></i> 1h</span><span class="rb">Dinner</span></div></div></div>
+      <div class="rc"><div class="ni2 pc"><div class="ph"><span class="em">🍳</span><span class="lb">NB2 · rendering</span></div><div class="bdg"><i class="ti ti-sparkles" style="font-size:7px"></i>NB2</div></div><div class="ri"><h3>Shakshuka</h3><div class="rm"><span class="rt"><i class="ti ti-clock" style="font-size:9px;vertical-align:-1px"></i> 30m</span><span class="rb">Breakfast</span></div></div></div>
+      <div class="rc"><div class="ni2 ps"><div class="ph"><span class="em">🌮</span><span class="lb">NB2 · rendering</span></div><div class="bdg"><i class="ti ti-sparkles" style="font-size:7px"></i>NB2</div></div><div class="ri"><h3>Fish Tacos</h3><div class="rm"><span class="rt"><i class="ti ti-clock" style="font-size:9px;vertical-align:-1px"></i> 40m</span><span class="rb">Dinner</span></div></div></div>
+      <div class="rc"><div class="ni2 pg"><div class="ph"><span class="em">🥗</span><span class="lb">NB2 · rendering</span></div><div class="bdg"><i class="ti ti-sparkles" style="font-size:7px"></i>NB2</div></div><div class="ri"><h3>Baingan Bharta</h3><div class="rm"><span class="rt"><i class="ti ti-clock" style="font-size:9px;vertical-align:-1px"></i> 2h</span><span class="rb">Dinner</span></div></div></div>
+      <div class="rc"><div class="ni2 pr2"><div class="ph"><span class="em">🍜</span><span class="lb">NB2 · rendering</span></div><div class="bdg"><i class="ti ti-sparkles" style="font-size:7px"></i>NB2</div></div><div class="ri"><h3>Green Curry</h3><div class="rm"><span class="rt"><i class="ti ti-clock" style="font-size:9px;vertical-align:-1px"></i> 35m</span><span class="rb">Dinner</span></div></div></div>
+    </div>
+  </div>
+  <nav class="bn"><button class="ni" onclick="go('grocery')"><i class="ti ti-shopping-cart"></i><span>Grocery</span></button><button class="ni active" onclick="go('recipes')"><i class="ti ti-book-2"></i><span>Recipes</span></button><button class="ni" onclick="go('planner')"><i class="ti ti-calendar-week"></i><span>Planner</span></button><button class="ni" onclick="go('prep')"><i class="ti ti-tools-kitchen-2"></i><span>Prep</span></button></nav>
+</div>
+
+<!-- ===== RECIPE DETAIL ===== -->
+<div class="scr" id="s-recipe-detail">
+  <div class="cook-full" id="cook-full">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0;flex-shrink:0">
+      <button onclick="exitCook()" style="background:none;border:none;cursor:pointer;color:var(--am);font-size:13px;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;gap:5px"><i class="ti ti-x" style="font-size:16px"></i> Exit</button>
+      <span id="cook-counter" style="font-size:11px;color:var(--tm)">Step 1 of 4</span>
+    </div>
+    <div class="cook-progress" style="margin:12px 0 0"><div class="cook-fill" id="cook-fill" style="width:25%"></div></div>
+    <div class="cook-body">
+      <div class="cook-step-num" id="cook-step-num">STEP 1</div>
+      <div class="cook-step-text" id="cook-step-text">In a large bowl, combine the ground lamb with salt, cumin, sumac, and urfa pepper flakes.</div>
+      <div class="cook-chips" id="cook-chips"><span class="cook-chip">🥩 2 lbs</span><span class="cook-chip">🧂 1 tsp</span></div>
+    </div>
+    <div class="cook-nav">
+      <button class="cpb" id="cook-prev" onclick="cookNav(-1)" style="opacity:0.3">← Prev</button>
+      <button class="cnb" id="cook-next" onclick="cookNav(1)">Next →</button>
+    </div>
+  </div>
+  <div style="flex-shrink:0">
+    <div class="rdi pt"><div class="ph" style="opacity:0.4"><span style="font-size:54px">🥙</span><span style="font-size:7px;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;color:#2A5040">NB2 · rendering</span></div><div class="rdo"><div class="rdt">Adana Kebabs</div><div class="rdm"><span><i class="ti ti-clock" style="font-size:10px;vertical-align:-1px"></i> 45 min</span><span><i class="ti ti-users" style="font-size:10px;vertical-align:-1px"></i> 4 servings</span><span><i class="ti ti-flame" style="font-size:10px;vertical-align:-1px"></i> Medium</span></div></div></div>
+    <div style="padding:9px 15px 0;display:flex;align-items:center;justify-content:space-between">
+      <button class="bb" onclick="go('recipes')"><i class="ti ti-arrow-left"></i> Recipes</button>
+      <div style="display:flex;gap:8px"><button style="background:none;border:none;cursor:pointer"><i class="ti ti-edit" style="font-size:18px;color:var(--ts)"></i></button><button style="background:none;border:none;cursor:pointer" onclick="go('add-to-plan')"><i class="ti ti-calendar-plus" style="font-size:18px;color:var(--am)"></i></button></div>
+    </div>
+  </div>
+  <div class="sc" style="padding-top:9px;padding-bottom:80px">
+    <div class="sr"><label>Servings</label><div class="sc2"><button class="svb" onclick="cSrv(-1)">−</button><span id="svc" style="font-size:13px;font-weight:500;color:var(--tp);min-width:16px;text-align:center">4</span><button class="svb" onclick="cSrv(1)">+</button></div></div>
+    <div class="tw"><button class="tb active" id="ti" onclick="swT('ingredients')">Ingredients</button><button class="tb" id="tins" onclick="swT('instructions')">Instructions</button></div>
+    <div id="ic">
+      <div class="ir"><span class="ii">🥩</span><div class="it"><div class="in2">Ground lamb</div></div><span class="iq" id="ql">2 lbs</span></div>
+      <div class="ir"><span class="ii">🧂</span><div class="it"><div class="in2">Salt</div></div><span class="iq" id="qs">1 tsp</span></div>
+      <div class="ir"><span class="ii">🫙</span><div class="it"><div class="in2">Ground cumin</div></div><span class="iq" id="qc">2 tsp</span></div>
+      <div class="ir"><span class="ii">🫙</span><div class="it"><div class="in2">Ground sumac</div></div><span class="iq" id="qsu">4 tsp</span></div>
+      <div class="ir"><span class="ii">🌶️</span><div class="it"><div class="in2">Urfa pepper flakes</div></div><span class="iq" id="qu">1 tbsp</span></div>
+      <div class="ir"><span class="ii">💧</span><div class="it"><div class="in2">Water</div><div class="ino">ice-cold</div></div><span class="iq" id="qw">4 tbsp</span></div>
+      <div class="ir"><span class="ii">🧅</span><div class="it"><div class="in2">White onion</div><div class="ino">grated</div></div><span class="iq" id="qo">1 medium</span></div>
+      <div class="ir"><span class="ii">🧄</span><div class="it"><div class="in2">Garlic</div><div class="ino">minced</div></div><span class="iq" id="qg">3 cloves</span></div>
+      <div class="ir"><span class="ii">🥛</span><div class="it"><div class="in2">Yogurt</div><div class="ino">full-fat, for serving</div></div><span class="iq" id="qy">½ cup</span></div>
+    </div>
+    <div id="ins" style="display:none">
+      <div id="ss">
+        <div class="stpc"><div class="stpn">STEP 1</div><div class="stpt" contenteditable="true">In a large bowl, combine the ground lamb with salt, cumin, sumac, and urfa pepper flakes.</div></div>
+        <div class="stpc"><div class="stpn">STEP 2</div><div class="stpt" contenteditable="true">Add the grated onion and ice-cold water. Mix vigorously by hand for 3–4 minutes until sticky.</div></div>
+        <div class="stpc"><div class="stpn">STEP 3</div><div class="stpt" contenteditable="true">Form around flat metal skewers, pressing firmly. Refrigerate 30 min.</div></div>
+        <div class="stpc"><div class="stpn">STEP 4</div><div class="stpt" contenteditable="true">Grill over high heat 4–5 min per side until charred. Serve with flatbread and yogurt.</div></div>
+      </div>
+      <button onclick="addStp()" style="width:100%;background:none;border:0.5px dashed var(--brh);border-radius:10px;padding:8px;color:var(--tm);font-size:11px;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;margin:4px 0 0"><i class="ti ti-plus" style="font-size:13px"></i> Add a step</button>
+      <button class="start-cook-btn" onclick="startCook()"><i class="ti ti-chef-hat" style="font-size:18px"></i> Start cooking</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="abtn" onclick="go('add-to-plan')"><i class="ti ti-calendar-plus"></i> Add to meal plan</button>
+  </div>
+  <nav class="bn"><button class="ni" onclick="go('grocery')"><i class="ti ti-shopping-cart"></i><span>Grocery</span></button><button class="ni active" onclick="go('recipes')"><i class="ti ti-book-2"></i><span>Recipes</span></button><button class="ni" onclick="go('planner')"><i class="ti ti-calendar-week"></i><span>Planner</span></button><button class="ni" onclick="go('prep')"><i class="ti ti-tools-kitchen-2"></i><span>Prep</span></button></nav>
+</div>
+
+<!-- ===== ADD TO PLAN ===== -->
+<div class="scr" id="s-add-to-plan">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><button class="bb" onclick="go('recipe-detail')"><i class="ti ti-arrow-left"></i> Adana Kebabs</button><h1>Add to plan</h1><p>Tap any slot to place</p></div>
+  <div class="sc">
+    <div class="wn"><button class="wnb"><i class="ti ti-chevron-left" style="font-size:12px"></i></button><span style="font-size:12px;font-weight:500;color:var(--tp)">May 9 – 15</span><button class="wnb"><i class="ti ti-chevron-right" style="font-size:12px"></i></button></div>
+    <div style="margin-bottom:11px;padding:9px 11px;background:var(--dkc);border-radius:10px;border:0.5px solid var(--br);display:flex;align-items:center;gap:9px"><div style="width:32px;height:32px;border-radius:8px;background:var(--dk3);display:flex;align-items:center;justify-content:center;font-size:18px">🥙</div><div><div style="font-size:12px;font-weight:500;color:var(--tp)">Adana Kebabs</div><div style="font-size:10px;color:var(--ts)">Tap any slot to place · tap filled to stack</div></div></div>
+    <table class="pt2">
+      <thead><tr><th class="pth" style="width:28px"></th><th class="pth">B</th><th class="pth">L</th><th class="pth">D</th></tr></thead>
+      <tbody>
+        <tr><td class="pdl">Fri</td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms fi" onclick="placeR(this)"><div class="ms-dish"><span class="ms-emoji">🥙</span><span class="ms-name">Kebabs</span></div><span class="ms-add">+ add</span></div></td></tr>
+        <tr><td class="pdl">Sat</td><td class="pc2"><div class="ms fi"><div class="ms-dish"><span class="ms-emoji">🍳</span><span class="ms-name">Shakshuka</span></div></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td></tr>
+        <tr><td class="pdl tdr">Sun</td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td></tr>
+        <tr><td class="pdl">Mon</td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td></tr>
+        <tr><td class="pdl">Tue</td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td></tr>
+        <tr><td class="pdl">Wed</td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td></tr>
+        <tr><td class="pdl">Thu</td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td><td class="pc2"><div class="ms" onclick="placeR(this)"><span class="ms-plus">+</span></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <nav class="bn"><button class="ni" onclick="go('grocery')"><i class="ti ti-shopping-cart"></i><span>Grocery</span></button><button class="ni active" onclick="go('recipes')"><i class="ti ti-book-2"></i><span>Recipes</span></button><button class="ni" onclick="go('planner')"><i class="ti ti-calendar-week"></i><span>Planner</span></button><button class="ni" onclick="go('prep')"><i class="ti ti-tools-kitchen-2"></i><span>Prep</span></button></nav>
+</div>
+
+<!-- ===== PLANNER ===== -->
+<div class="scr" id="s-planner">
+  <div class="sb"><span style="font-weight:500">9:41</span><button onclick="go('settings')" style="background:none;border:none;cursor:pointer;color:var(--tm)"><i class="ti ti-settings" style="font-size:17px"></i></button></div>
+  <div class="hd"><h1>Meal Planner</h1></div>
+  <div class="sc" style="padding-bottom:130px">
+    <div class="wn">
+      <button class="wnb"><i class="ti ti-chevron-left" style="font-size:12px"></i></button>
+      <span style="font-size:12px;font-weight:500;color:var(--tp)">May 9 – 15, 2026</span>
+      <button class="wnb"><i class="ti ti-chevron-right" style="font-size:12px"></i></button>
+    </div>
+
+    <!-- plan start day + col toggles on one row -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:10px;color:var(--ts);white-space:nowrap">Plan start day</span>
+      <select style="background:var(--dk3);border:0.5px solid var(--brh);border-radius:6px;padding:3px 7px;color:var(--tp);font-size:10px;font-family:system-ui,-apple-system,sans-serif;flex-shrink:0"><option selected>Friday</option><option>Saturday</option><option>Sunday</option><option>Thursday</option></select>
+      <div style="flex:1"></div>
+      <div class="col-toggles" style="margin-bottom:0">
+        <button class="col-tog on" id="tog-B" onclick="toggleCol('B',this)">B</button>
+        <button class="col-tog on" id="tog-L" onclick="toggleCol('L',this)">L</button>
+        <button class="col-tog on" id="tog-D" onclick="toggleCol('D',this)">D</button>
+      </div>
+    </div>
+
+    <!-- AI plan button -->
+    <button onclick="go('plan-ai')" style="width:100%;background:rgba(239,159,39,0.06);border:0.5px dashed rgba(239,159,39,0.3);border-radius:11px;padding:9px 13px;display:flex;align-items:center;gap:9px;margin-bottom:10px;cursor:pointer;font-family:system-ui,-apple-system,sans-serif">
+      <i class="ti ti-sparkles" style="color:var(--am);font-size:16px;flex-shrink:0"></i>
+      <div style="text-align:left"><div style="font-size:12px;font-weight:500;color:var(--am)">Plan my week with Claude →</div><div style="font-size:10px;color:var(--ts);margin-top:1px">Describe meals and Claude fills the grid</div></div>
+    </button>
+
+    <!-- PLANNER TABLE — expanded, stacked dishes -->
+    <table class="pt2" id="plan-table">
+      <thead>
+        <tr>
+          <th class="pth" style="width:28px"></th>
+          <th class="pth col-B">B</th>
+          <th class="pth col-L">L</th>
+          <th class="pth col-D">D</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="pdl">Fri</td>
+          <td class="pc2 col-B"><div class="ms" onclick="openSlot(this,'Fri Breakfast')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-L"><div class="ms" onclick="openSlot(this,'Fri Lunch')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-D"><div class="ms fi" onclick="openSlot(this,'Fri Dinner')"><div class="ms-dish"><span class="ms-emoji">🥙</span><span class="ms-name">Adana Kebabs</span></div><div class="ms-div"></div><div class="ms-dish"><span class="ms-emoji">🥗</span><span class="ms-name">Green Salad</span></div><span class="ms-add">+ add</span></div></td>
+        </tr>
+        <tr>
+          <td class="pdl">Sat</td>
+          <td class="pc2 col-B"><div class="ms fi" onclick="openSlot(this,'Sat Breakfast')"><div class="ms-dish"><span class="ms-emoji">🍳</span><span class="ms-name">Shakshuka</span></div></div></td>
+          <td class="pc2 col-L"><div class="ms" onclick="openSlot(this,'Sat Lunch')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-D"><div class="ms" onclick="openSlot(this,'Sat Dinner')"><span class="ms-plus">+</span></div></td>
+        </tr>
+        <tr>
+          <td class="pdl tdr">Sun</td>
+          <td class="pc2 col-B"><div class="ms" onclick="openSlot(this,'Sun Breakfast')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-L"><div class="ms" onclick="openSlot(this,'Sun Lunch')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-D"><div class="ms fi" onclick="openSlot(this,'Sun Dinner')"><div class="ms-dish"><span class="ms-emoji">🍛</span><span class="ms-name">Butter Paneer</span></div><div class="ms-div"></div><div class="ms-dish"><span class="ms-emoji">🍗</span><span class="ms-name">Nuggets</span></div><span class="ms-add">+ add</span></div></td>
+        </tr>
+        <tr>
+          <td class="pdl">Mon</td>
+          <td class="pc2 col-B"><div class="ms fi" onclick="openSlot(this,'Mon Breakfast')"><div class="ms-dish"><span class="ms-emoji">🥣</span><span class="ms-name">Oats</span></div></div></td>
+          <td class="pc2 col-L"><div class="ms" onclick="openSlot(this,'Mon Lunch')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-D"><div class="ms fi" onclick="openSlot(this,'Mon Dinner')"><div class="ms-dish"><span class="ms-emoji">🌮</span><span class="ms-name">Fish Tacos</span></div><span class="ms-add">+ add</span></div></td>
+        </tr>
+        <tr>
+          <td class="pdl">Tue</td>
+          <td class="pc2 col-B"><div class="ms" onclick="openSlot(this,'Tue Breakfast')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-L"><div class="ms fi" onclick="openSlot(this,'Tue Lunch')"><div class="ms-dish"><span class="ms-emoji">🥗</span><span class="ms-name">Salad</span></div></div></td>
+          <td class="pc2 col-D"><div class="ms fi" onclick="openSlot(this,'Tue Dinner')"><div class="ms-dish"><span class="ms-emoji">🍜</span><span class="ms-name">Green Curry</span></div><span class="ms-add">+ add</span></div></td>
+        </tr>
+        <tr>
+          <td class="pdl">Wed</td>
+          <td class="pc2 col-B"><div class="ms" onclick="openSlot(this,'Wed Breakfast')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-L"><div class="ms" onclick="openSlot(this,'Wed Lunch')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-D"><div class="ms fi" onclick="openSlot(this,'Wed Dinner')"><div class="ms-dish"><span class="ms-emoji">🍕</span><span class="ms-name">Takeout</span></div><span class="ms-add">+ add</span></div></td>
+        </tr>
+        <tr>
+          <td class="pdl">Thu</td>
+          <td class="pc2 col-B"><div class="ms" onclick="openSlot(this,'Thu Breakfast')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-L"><div class="ms" onclick="openSlot(this,'Thu Lunch')"><span class="ms-plus">+</span></div></td>
+          <td class="pc2 col-D"><div class="ms fi" onclick="openSlot(this,'Thu Dinner')"><div class="ms-dish"><span class="ms-emoji">🥙</span><span class="ms-name">Baingan Bharta</span></div><span class="ms-add">+ add</span></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SLOT POPOVER -->
+  <div class="slot-pop" id="slot-pop" style="display:none">
+    <div class="slot-pop-title" id="slot-pop-title">Friday Dinner</div>
+    <div id="slot-dishes">
+      <div class="slot-dish-row"><span style="font-size:16px">🥙</span><span class="slot-dish-name">Adana Kebabs</span><button class="slot-dish-del" onclick="this.closest('.slot-dish-row').remove()">✕</button></div>
+      <div class="slot-dish-row"><span style="font-size:16px">🥗</span><span class="slot-dish-name">Green Salad</span><button class="slot-dish-del" onclick="this.closest('.slot-dish-row').remove()">✕</button></div>
+    </div>
+    <div class="slot-add-row"><input class="slot-add-in" placeholder="Add another dish…" id="slot-add-in"><button class="slot-add-btn" onclick="addSlotDish()">Add</button></div>
+    <button onclick="closeSlot()" style="width:100%;background:none;border:0.5px solid var(--brh);border-radius:9px;padding:7px;color:var(--ts);font-size:11px;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;margin-top:8px">Done</button>
+  </div>
+  <div id="slot-bd" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.5);z-index:39" onclick="closeSlot()"></div>
+
+  <!-- GENERATE GROCERY LIST — at bottom of planner -->
+  <div style="position:absolute;bottom:68px;left:0;right:0;padding:8px 16px;background:var(--dk);border-top:0.5px solid var(--br);z-index:5">
+    <button class="abtn" onclick="go('staging')"><i class="ti ti-sparkles"></i> Generate grocery list</button>
+  </div>
+
+  <nav class="bn"><button class="ni" onclick="go('grocery')"><i class="ti ti-shopping-cart"></i><span>Grocery</span></button><button class="ni" onclick="go('recipes')"><i class="ti ti-book-2"></i><span>Recipes</span></button><button class="ni active" onclick="go('planner')"><i class="ti ti-calendar-week"></i><span>Planner</span></button><button class="ni" onclick="go('prep')"><i class="ti ti-tools-kitchen-2"></i><span>Prep</span></button></nav>
+</div>
+
+<!-- ===== PLAN WITH AI ===== -->
+<div class="scr" id="s-plan-ai">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><button class="bb" onclick="go('planner')"><i class="ti ti-arrow-left"></i> Planner</button><h1>Plan with Claude</h1><p>Describe your week and Claude fills the grid</p></div>
+  <div class="sc" style="padding-top:4px">
+    <textarea style="width:100%;min-height:200px;background:var(--dk3);border:0.5px solid var(--brh);border-radius:12px;padding:12px;color:var(--tp);font-size:12px;font-family:system-ui,-apple-system,sans-serif;line-height:1.6;resize:none;outline:none;margin-bottom:11px" placeholder="e.g. Friday dinner: adana kebabs and a green salad for me, fish fingers for kids. Saturday brunch: shakshuka. Sunday dinner: paneer for adults, nuggets for kids..."></textarea>
+    <button class="abtn" onclick="go('planner')"><i class="ti ti-sparkles"></i> Fill my planner</button>
+  </div>
+</div>
+
+<!-- ===== STAGING ===== -->
+<div class="scr" id="s-staging">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><button class="bb" onclick="goBack()"><i class="ti ti-arrow-left"></i> <span id="staging-back-lbl">Back</span></button><div style="display:flex;justify-content:space-between;align-items:center"><div><h1>Review & stage</h1><p>Confirm what to buy this week</p></div><button style="display:flex;align-items:center;gap:4px;background:rgba(239,159,39,0.12);border:0.5px solid rgba(239,159,39,0.3);border-radius:16px;padding:5px 9px;font-size:10px;color:var(--am);cursor:pointer;font-family:system-ui,-apple-system,sans-serif;font-weight:500"><i class="ti ti-sparkles" style="font-size:10px"></i> Claude</button></div></div>
+  <div class="sc">
+    <div class="zone zone-buy">
+      <div class="zone-title zt-buy">Zone 1 — Buy this week</div>
+      <div class="zone-sub zs-buy">Perishables and recipe-specific quantities — always on the list</div>
+      <div class="zone-item"><span class="zi-icon">🥩</span><div class="zi-body"><div class="zi-name">Ground lamb</div><div class="zi-note">3 lbs · Kebabs + Kofta</div></div></div>
+      <div class="zone-item"><span class="zi-icon">🐟</span><div class="zi-body"><div class="zi-name">White fish fillet</div><div class="zi-note">1.5 lbs · Fish Tacos</div></div></div>
+      <div class="zone-item"><span class="zi-icon">🧅</span><div class="zi-body"><div class="zi-name">Onion</div><div class="zi-note">2 lbs · 3 recipes</div></div></div>
+      <div class="zone-item"><span class="zi-icon">🍅</span><div class="zi-body"><div class="zi-name">Crushed tomatoes</div><div class="zi-note">2 cans · Shakshuka + Paneer</div></div></div>
+    </div>
+    <div class="zone zone-check">
+      <div class="zone-title zt-check">Zone 2 — Check your pantry</div>
+      <div class="zone-sub zs-check">Claude thinks you likely have these — confirm if you need them</div>
+      <div class="zone-item"><span class="zi-icon">🧂</span><div class="zi-body"><div class="zi-name">Salt</div></div><div class="zi-yn"><button class="yn-n sel" onclick="ynSel(this)">Skip</button><button class="yn-y" onclick="ynSel(this)">Need it</button></div></div>
+      <div class="zone-item"><span class="zi-icon">🫙</span><div class="zi-body"><div class="zi-name">Ground cumin</div></div><div class="zi-yn"><button class="yn-n sel" onclick="ynSel(this)">Skip</button><button class="yn-y" onclick="ynSel(this)">Need it</button></div></div>
+      <div class="zone-item"><span class="zi-icon">🫙</span><div class="zi-body"><div class="zi-name">Ground sumac</div></div><div class="zi-yn"><button class="yn-n" onclick="ynSel(this)">Skip</button><button class="yn-y sel" onclick="ynSel(this)">Need it</button></div></div>
+      <div class="zone-item"><span class="zi-icon">🌶️</span><div class="zi-body"><div class="zi-name">Urfa pepper flakes</div></div><div class="zi-yn"><button class="yn-n" onclick="ynSel(this)">Skip</button><button class="yn-y" onclick="ynSel(this)">Need it</button></div></div>
+      <div class="zone-hint">Skipped items stay tracked — Claude resurfaces them when you're likely running low.</div>
+    </div>
+    <div class="zone zone-staples">
+      <div class="zone-title zt-staples">Zone 3 — Staples prediction</div>
+      <div class="zone-sub zs-staples">Regular buys — Claude's guess based on your history</div>
+      <div class="zone-item"><span class="zi-icon">🥛</span><div class="zi-body"><div class="zi-name">Whole milk</div><div class="zi-note">Last bought 5 days ago</div></div><div class="zi-yn"><button class="yn-y sel" onclick="ynSel(this)">Yes</button><button class="yn-n" onclick="ynSel(this)">No</button></div></div>
+      <div class="zone-item"><span class="zi-icon">🥚</span><div class="zi-body"><div class="zi-name">Eggs, large</div><div class="zi-note">Last bought 6 days ago</div></div><div class="zi-yn"><button class="yn-y sel" onclick="ynSel(this)">Yes</button><button class="yn-n" onclick="ynSel(this)">No</button></div></div>
+      <div class="zone-item"><span class="zi-icon">☕</span><div class="zi-body"><div class="zi-name">Coffee beans</div><div class="zi-note">Last bought 11 days ago</div></div><div class="zi-yn"><button class="yn-y" onclick="ynSel(this)">Yes</button><button class="yn-n sel" onclick="ynSel(this)">No</button></div></div>
+    </div>
+    <div class="zone zone-all">
+      <div class="z4-hdr" onclick="tgZ4()">
+        <div class="zone-title zt-all" style="display:flex;align-items:center;gap:6px"><i class="ti ti-chevron-right" style="font-size:12px" id="z4chev"></i> All other staples</div>
+        <span class="z4-badge" id="z4badge">5 items</span>
+      </div>
+      <div class="zone-sub zs-all" style="margin-top:4px">Not predicted this week — add any you need</div>
+      <div id="z4list" style="display:none;margin-top:6px">
+        <div class="zone-item"><span class="zi-icon">🫒</span><div class="zi-body"><div class="zi-name">Olive oil</div><div class="zi-note">Bought 8 days ago</div></div><div class="zi-yn"><button class="yn-y" onclick="ynSel(this)">Add</button></div></div>
+        <div class="zone-item"><span class="zi-icon">🍚</span><div class="zi-body"><div class="zi-name">Basmati rice</div><div class="zi-note">Bought 18 days ago</div></div><div class="zi-yn"><button class="yn-y" onclick="ynSel(this)">Add</button></div></div>
+        <div class="zone-item"><span class="zi-icon">🧈</span><div class="zi-body"><div class="zi-name">Butter, unsalted</div><div class="zi-note">Bought 10 days ago</div></div><div class="zi-yn"><button class="yn-y" onclick="ynSel(this)">Add</button></div></div>
+        <div class="zone-item"><span class="zi-icon">🥛</span><div class="zi-body"><div class="zi-name">Greek yogurt</div><div class="zi-note">Bought 3 days ago</div></div><div class="zi-yn"><button class="yn-y" onclick="ynSel(this)">Add</button></div></div>
+        <div class="zone-item"><span class="zi-icon">🧀</span><div class="zi-body"><div class="zi-name">String cheese</div><div class="zi-note">Bought 5 days ago</div></div><div class="zi-yn"><button class="yn-y" onclick="ynSel(this)">Add</button></div></div>
+      </div>
+    </div>
+    <button class="abtn" onclick="go('grocery')" style="margin-bottom:16px"><i class="ti ti-shopping-cart-plus"></i> Generate grocery list</button>
+  </div>
+</div>
+
+<!-- ===== PREP ===== -->
+<div class="scr" id="s-prep">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><h1>Meal Prep</h1><p>Week of May 9 — ingredient totals</p></div>
+  <div class="sc">
+    <div class="sb2"><i class="ti ti-search"></i><input type="text" placeholder="Find an ingredient…"></div>
+    <div class="slbl">This week's prep</div>
+    <div class="ppc" onclick="tgPrep(this)"><div class="pph"><div class="ppic">🧅</div><div><div class="ppn">Onion</div><div class="ppt">2 lbs total</div></div><i class="ti ti-chevron-down ppex op"></i></div><div class="ppb op"><div class="ppnote">Prep note: ½ lb finely diced · 1 lb sliced thin · ½ lb grated</div><div class="pdr"><span class="pdn">Fish Tacos<span class="pdd">· Mon</span></span><span class="pdq">½ lb — finely diced</span></div><div class="pdr"><span class="pdn">Butter Paneer<span class="pdd">· Sun</span></span><span class="pdq">1 lb — sliced thin</span></div><div class="pdr"><span class="pdn">Adana Kebabs<span class="pdd">· Fri</span></span><span class="pdq">½ lb — grated</span></div></div></div>
+    <div class="ppc" onclick="tgPrep(this)"><div class="pph"><div class="ppic">🧄</div><div><div class="ppn">Garlic</div><div class="ppt">12 cloves total</div></div><i class="ti ti-chevron-down ppex"></i></div><div class="ppb"><div class="ppnote">Prep note: 8 cloves minced · 4 cloves thinly sliced</div><div class="pdr"><span class="pdn">Butter Paneer<span class="pdd">· Sun</span></span><span class="pdq">6 cloves — minced</span></div><div class="pdr"><span class="pdn">Green Curry<span class="pdd">· Tue</span></span><span class="pdq">4 cloves — minced</span></div><div class="pdr"><span class="pdn">Baingan Bharta<span class="pdd">· Thu</span></span><span class="pdq">2 cloves — sliced</span></div></div></div>
+    <div class="ppc" onclick="tgPrep(this)"><div class="pph"><div class="ppic">🥩</div><div><div class="ppn">Ground lamb</div><div class="ppt">3 lbs total</div></div><i class="ti ti-chevron-down ppex"></i></div><div class="ppb"><div class="ppnote">Prep note: mix with spices and refrigerate — best done day-of</div><div class="pdr"><span class="pdn">Adana Kebabs<span class="pdd">· Fri</span></span><span class="pdq">2 lbs</span></div><div class="pdr"><span class="pdn">Kofta<span class="pdd">· Wed</span></span><span class="pdq">1 lb</span></div></div></div>
+    <div class="ppc" onclick="tgPrep(this)"><div class="pph"><div class="ppic">🍋</div><div><div class="ppn">Lemon</div><div class="ppt">4 whole</div></div><i class="ti ti-chevron-down ppex"></i></div><div class="ppb"><div class="ppnote">Prep note: zest all first, then juice — store separately in fridge</div><div class="pdr"><span class="pdn">Shakshuka<span class="pdd">· Sat</span></span><span class="pdq">1 — juiced</span></div><div class="pdr"><span class="pdn">Fish Tacos<span class="pdd">· Mon</span></span><span class="pdq">2 — zested + juiced</span></div><div class="pdr"><span class="pdn">Baingan Bharta<span class="pdd">· Thu</span></span><span class="pdq">1 — juiced</span></div></div></div>
+  </div>
+  <nav class="bn"><button class="ni" onclick="go('grocery')"><i class="ti ti-shopping-cart"></i><span>Grocery</span></button><button class="ni" onclick="go('recipes')"><i class="ti ti-book-2"></i><span>Recipes</span></button><button class="ni" onclick="go('planner')"><i class="ti ti-calendar-week"></i><span>Planner</span></button><button class="ni active" onclick="go('prep')"><i class="ti ti-tools-kitchen-2"></i><span>Prep</span></button></nav>
+</div>
+
+<!-- ===== SETTINGS ===== -->
+<div class="scr" id="s-settings">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><button class="bb" onclick="go('planner')"><i class="ti ti-arrow-left"></i> Planner</button><h1>Settings</h1></div>
+  <div class="sc">
+    <div class="slbl">Family</div>
+    <div class="crd" style="padding:4px 12px">
+      <div style="display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:0.5px solid var(--br)"><div style="width:34px;height:34px;border-radius:50%;background:rgba(239,159,39,0.2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:var(--am)">R</div><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Rajat</div><div style="font-size:10px;color:var(--ts)">You · Planner</div></div></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:0.5px solid var(--br)"><div style="width:34px;height:34px;border-radius:50%;background:rgba(29,158,117,0.2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#5DCAA5">S</div><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Shaina</div><div style="font-size:10px;color:var(--ts)">Member</div></div></div>
+      <div style="display:flex;align-items:center;gap:9px;padding:10px 0"><div style="width:34px;height:34px;border-radius:50%;background:var(--dk3);display:flex;align-items:center;justify-content:center;color:var(--am)"><i class="ti ti-plus" style="font-size:16px"></i></div><div style="font-size:12px;color:var(--am);cursor:pointer">Invite family member</div></div>
+    </div>
+    <div class="slbl">Stores</div>
+    <div class="crd" style="padding:4px 12px">
+      <div class="set-row"><div><div style="font-size:12px;color:var(--tp)">Trader Joe's</div><div style="font-size:10px;color:var(--ts)">Default store</div></div><span style="font-size:10px;color:var(--am)">Default</span></div>
+      <div class="set-row"><div style="font-size:12px;color:var(--tp)">Costco</div></div>
+      <div class="set-row"><div style="font-size:12px;color:var(--tp)">Whole Foods</div></div>
+      <div class="set-row"><div style="font-size:12px;color:var(--am);cursor:pointer">+ Add a store</div></div>
+    </div>
+    <div class="slbl">Items catalog</div>
+    <div class="crd" style="padding:4px 12px">
+      <div class="cat-aisle-hdr">🥬 Produce</div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🧅</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Onion</div><div style="font-size:10px;color:var(--ts)">3 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🧄</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Garlic</div><div style="font-size:10px;color:var(--ts)">Pantry staple · 5 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🥑</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Avocado</div><div style="font-size:10px;color:var(--ts)">2 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">🥩 Meat & Seafood</div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🥩</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Ground lamb</div><div style="font-size:10px;color:var(--ts)">2 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🐟</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">White fish fillet</div><div style="font-size:10px;color:var(--ts)">1 recipe · TJ's mahi mahi</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">🥛 Dairy & Eggs</div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🥚</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Eggs, large</div><div style="font-size:10px;color:var(--ts)">Staple · 2 recipes</div></div><span class="cat-store">Costco</span></div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🥛</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Whole milk</div><div style="font-size:10px;color:var(--ts)">Staple</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🧈</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Butter, unsalted</div><div style="font-size:10px;color:var(--ts)">Pantry staple</div></div><span class="cat-store">Costco</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">🥫 Canned & Packaged</div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🍅</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Crushed tomatoes</div><div style="font-size:10px;color:var(--ts)">2 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🫘</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Coconut milk</div><div style="font-size:10px;color:var(--ts)">1 recipe</div></div><span class="cat-store">Whole Foods</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">🫙 Oils & Spices</div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🫒</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Olive oil, extra virgin</div><div style="font-size:10px;color:var(--ts)">Pantry staple</div></div><span class="cat-store">Costco</span></div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">🌶️</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Urfa pepper flakes</div><div style="font-size:10px;color:var(--ts)">New item · Adana Kebabs</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">☕ Beverages</div>
+      <div class="cat-item"><span style="font-size:16px;width:24px;text-align:center">☕</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Coffee beans</div><div style="font-size:10px;color:var(--ts)">Staple · TJ's French Roast</div></div><span class="cat-store">Trader Joe's</span></div>
+    </div>
+    <div class="slbl">Account</div>
+    <div class="crd" style="padding:4px 12px">
+      <div class="set-row"><div><div style="font-size:12px;color:var(--tp)">Import order history</div><div style="font-size:10px;color:var(--ts)">Seed Claude's staple predictions</div></div><button style="background:none;border:none;cursor:pointer;color:var(--am);font-size:11px;font-family:system-ui,-apple-system,sans-serif">Import →</button></div>
+      <div class="set-row"><div style="font-size:12px;color:var(--rd);cursor:pointer">Sign out</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ENTRY ===== -->
+<div class="scr" id="s-entry">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><button class="bb" onclick="go('recipes')"><i class="ti ti-arrow-left"></i> Recipes</button><h1>Paste or type</h1><p>Claude will extract and structure it</p></div>
+  <div class="sc" style="padding-top:4px">
+    <textarea style="width:100%;min-height:180px;background:var(--dk3);border:0.5px solid var(--brh);border-radius:12px;padding:12px;color:var(--tp);font-size:12px;font-family:system-ui,-apple-system,sans-serif;line-height:1.6;resize:none;outline:none;margin-bottom:11px" placeholder="Paste a recipe, describe a dish, or list ingredients…"></textarea>
+    <button class="abtn"><i class="ti ti-sparkles"></i> Structure with Claude</button>
+  </div>
+</div>
+
+<!-- ===== IMPORT ===== -->
+<div class="scr" id="s-import">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><button class="bb" onclick="go('recipes')"><i class="ti ti-arrow-left"></i> Recipes</button><h1>Import from URL</h1><p>Claude imports and structures any recipe page</p></div>
+  <div class="sc" style="padding-top:4px">
+    <div class="sb2" style="border-color:var(--am)"><i class="ti ti-link" style="color:var(--am)"></i><input type="text" placeholder="Paste recipe URL…"></div>
+    <button class="abtn"><i class="ti ti-download"></i> Import & review</button>
+  </div>
+</div>
+
+</div>
+<!-- ===== LOADING ===== -->
+<div class="scr" id="s-loading">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><h1>Structuring…</h1></div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px 20px">
+    <div class="load-ring"></div>
+    <div style="font-size:15px;font-weight:500;color:var(--tp)">Claude is reading your recipe</div>
+    <div style="display:flex;flex-direction:column;gap:7px;width:100%">
+      <div class="load-step"><div class="ls-icon ls-done"><i class="ti ti-check" style="font-size:11px;color:var(--gl)"></i></div><span style="font-size:12px;color:var(--gl)">Parsed recipe text</span></div>
+      <div class="load-step"><div class="ls-icon ls-done"><i class="ti ti-check" style="font-size:11px;color:var(--gl)"></i></div><span style="font-size:12px;color:var(--gl)">Extracted 9 ingredients</span></div>
+      <div class="load-step"><div class="ls-icon ls-active"><i class="ti ti-refresh" style="font-size:11px;color:var(--am)"></i></div><span id="ll3" style="font-size:12px;color:var(--tp);font-weight:500">Matching to items catalog…</span></div>
+      <div class="load-step"><div class="ls-icon ls-pend"><i class="ti ti-clock" style="font-size:11px;color:var(--tm)"></i></div><span id="ll4" style="font-size:12px;color:var(--tm)">Structuring cooking steps</span></div>
+      <div class="load-step"><div class="ls-icon ls-pend"><i class="ti ti-photo" style="font-size:11px;color:var(--tm)"></i></div><span id="ll5" style="font-size:12px;color:var(--tm)">Generating NB2 illustration</span></div>
+    </div>
+    <button onclick="go('review')" style="width:100%;background:rgba(239,159,39,0.1);border:0.5px solid rgba(239,159,39,0.3);border-radius:11px;padding:10px;color:var(--am);font-size:12px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer">Skip to review →</button>
+  </div>
+</div>
+
+<!-- ===== REVIEW ===== -->
+<div class="scr" id="s-review">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div style="flex-shrink:0">
+    <div style="width:100%;height:150px;background:#d4e8d4;display:flex;align-items:center;justify-content:center;position:relative">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0.4"><span style="font-size:50px">🥙</span><span style="font-size:7px;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;color:#2A5040">NB2 · rendering</span></div>
+      <div style="position:absolute;top:7px;left:7px;background:rgba(0,0,0,0.2);border-radius:5px;padding:3px 7px;font-size:8px;color:#2A5040;display:flex;align-items:center;gap:3px"><i class="ti ti-sparkles" style="font-size:8px"></i> NB2 · queued</div>
+    </div>
+    <div style="padding:10px 16px 0;display:flex;align-items:center;justify-content:space-between">
+      <button class="bb" onclick="go('entry')"><i class="ti ti-arrow-left"></i> Edit text</button>
+      <div style="display:flex;align-items:center;gap:5px"><div style="width:7px;height:7px;border-radius:50%;background:var(--am)"></div><span style="font-size:11px;color:var(--am);font-weight:500">2 items need review</span></div>
+    </div>
+  </div>
+  <div class="sc" style="padding-top:4px;padding-bottom:80px">
+    <div class="slbl">Recipe basics</div>
+    <div class="crd" style="margin-bottom:7px"><div style="font-size:9px;color:var(--tm);margin-bottom:3px">Recipe name</div><input style="font-size:13px;font-weight:500;color:var(--tp);background:none;border:none;outline:none;width:100%;font-family:system-ui,-apple-system,sans-serif" value="Adana Kebabs"></div>
+    <div style="display:flex;gap:7px;margin-bottom:7px">
+      <div class="crd" style="flex:1;margin-bottom:0"><div style="font-size:9px;color:var(--tm);margin-bottom:3px">Servings</div><input style="font-size:13px;font-weight:500;color:var(--tp);background:none;border:none;outline:none;width:100%;font-family:system-ui,-apple-system,sans-serif" value="4"></div>
+      <div class="crd" style="flex:1;margin-bottom:0"><div style="font-size:9px;color:var(--tm);margin-bottom:3px">Cook time</div><input style="font-size:13px;font-weight:500;color:var(--tp);background:none;border:none;outline:none;width:100%;font-family:system-ui,-apple-system,sans-serif" value="45 min"></div>
+    </div>
+    <div class="slbl">Ingredients — tap qty to edit</div>
+    <div class="crd" style="padding:4px 12px">
+      <div class="rv-ing-row"><span class="rv-ing-icon">🥩</span><div class="rv-ing-body"><div class="rv-ing-name">Ground lamb</div><div style="margin-top:3px"><span class="rv-flag-match"><i class="ti ti-check" style="font-size:8px"></i> catalog match</span></div></div><input class="rv-qty-inp" value="2 lbs"></div>
+      <div class="rv-ing-row"><span class="rv-ing-icon">🧂</span><div class="rv-ing-body"><div class="rv-ing-name">Salt</div><div style="margin-top:3px"><span class="rv-flag-match"><i class="ti ti-check" style="font-size:8px"></i> catalog match</span></div></div><input class="rv-qty-inp" value="1 tsp"></div>
+      <div class="rv-ing-row flagged"><span class="rv-ing-icon">🧈</span><div class="rv-ing-body"><div class="rv-ing-name">Butter, unsalted</div><div class="rv-ing-from">from: "a knob of butter"</div><div style="margin-top:3px"><span class="rv-flag-review"><i class="ti ti-alert-triangle" style="font-size:8px"></i> confirm quantity</span></div></div><input class="rv-qty-inp" value="1 tbsp"></div>
+      <div class="rv-ing-row flagged"><span class="rv-ing-icon">🌶️</span><div class="rv-ing-body"><div class="rv-ing-name">Urfa pepper flakes</div><div class="rv-ing-from">from: "Urfa biber"</div><div style="margin-top:3px"><span class="rv-flag-review"><i class="ti ti-alert-triangle" style="font-size:8px"></i> confirm name</span></div></div><input class="rv-qty-inp" value="1 tbsp"></div>
+      <div class="rv-ing-row"><span class="rv-ing-icon">🧅</span><div class="rv-ing-body"><div class="rv-ing-name">White onion, grated</div><div style="margin-top:3px"><span class="rv-flag-match"><i class="ti ti-check" style="font-size:8px"></i> catalog match</span></div></div><input class="rv-qty-inp" value="1 medium"></div>
+      <div class="rv-ing-row"><span class="rv-ing-icon">🥛</span><div class="rv-ing-body"><div class="rv-ing-name">Yogurt, full-fat</div><div style="margin-top:3px"><span class="rv-flag-new"><i class="ti ti-plus" style="font-size:8px"></i> new to catalog</span></div></div><input class="rv-qty-inp" value="½ cup"></div>
+    </div>
+    <div class="slbl" style="margin-top:16px">Steps — tap to edit</div>
+    <div style="background:var(--dkc);border:0.5px solid var(--br);border-radius:12px;padding:11px;margin-bottom:7px"><div style="font-size:9px;font-weight:500;color:var(--am);margin-bottom:5px">STEP 1</div><div contenteditable="true" style="font-size:12px;color:var(--tp);line-height:1.6;outline:none">Combine ground lamb with salt, cumin, sumac, and urfa pepper flakes.</div></div>
+    <div style="background:var(--dkc);border:0.5px solid var(--br);border-radius:12px;padding:11px;margin-bottom:7px"><div style="font-size:9px;font-weight:500;color:var(--am);margin-bottom:5px">STEP 2</div><div contenteditable="true" style="font-size:12px;color:var(--tp);line-height:1.6;outline:none">Add grated onion and ice-cold water. Mix vigorously 3–4 min until sticky.</div></div>
+    <div style="background:var(--dkc);border:0.5px solid var(--br);border-radius:12px;padding:11px;margin-bottom:7px"><div style="font-size:9px;font-weight:500;color:var(--am);margin-bottom:5px">STEP 3</div><div contenteditable="true" style="font-size:12px;color:var(--tp);line-height:1.6;outline:none">Form onto skewers, refrigerate 30 min. Grill high heat 4–5 min per side.</div></div>
+  </div>
+  <div style="position:absolute;bottom:0;left:0;right:0;background:var(--dk2);border-top:0.5px solid var(--br);padding:10px 15px 22px;display:flex;gap:9px">
+    <button style="flex:1;padding:11px;border-radius:11px;border:0.5px solid var(--brh);background:none;color:var(--ts);font-size:12px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer" onclick="go('entry')">Edit text</button>
+    <button style="flex:2;padding:11px;border-radius:11px;background:var(--am);color:#1a1612;border:none;font-size:12px;font-weight:500;font-family:system-ui,-apple-system,sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px" onclick="go('recipes')"><i class="ti ti-check"></i> Save recipe</button>
+  </div>
+</div>
+
+<!-- ===== CATALOG ===== -->
+<div class="scr" id="s-catalog">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><button class="bb" onclick="go('settings')"><i class="ti ti-arrow-left"></i> Settings</button><div style="display:flex;justify-content:space-between;align-items:center"><h1>Items catalog</h1><button style="background:none;border:none;cursor:pointer;padding:2px"><i class="ti ti-upload" style="font-size:19px;color:var(--am)"></i></button></div><p>All items organized by aisle</p></div>
+  <div class="sc">
+    <div class="sb2"><i class="ti ti-search"></i><input type="text" placeholder="Search catalog…"></div>
+    <div class="crd" style="padding:4px 12px">
+      <div class="cat-aisle-hdr">🥬 Produce</div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🧅</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Onion</div><div style="font-size:10px;color:var(--ts)">5 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🧄</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Garlic</div><div style="font-size:10px;color:var(--ts)">Pantry staple · 5 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🍋</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Lemon</div><div style="font-size:10px;color:var(--ts)">3 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">🥩 Meat & Seafood</div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🥩</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Ground lamb</div><div style="font-size:10px;color:var(--ts)">2 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🐟</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">White fish fillet</div><div style="font-size:10px;color:var(--ts)">1 recipe · TJ's mahi mahi</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">🥛 Dairy & Eggs</div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🥚</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Eggs, large</div><div style="font-size:10px;color:var(--ts)">Staple · 2 recipes</div></div><span class="cat-store">Costco</span></div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🥛</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Whole milk</div><div style="font-size:10px;color:var(--ts)">Staple</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🧈</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Butter, unsalted</div><div style="font-size:10px;color:var(--ts)">Pantry staple</div></div><span class="cat-store">Costco</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">🥫 Canned & Packaged</div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🍅</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Crushed tomatoes</div><div style="font-size:10px;color:var(--ts)">2 recipes</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🫘</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Coconut milk</div><div style="font-size:10px;color:var(--ts)">1 recipe</div></div><span class="cat-store">Whole Foods</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">🫙 Oils & Spices</div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🫒</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Olive oil, extra virgin</div><div style="font-size:10px;color:var(--ts)">Pantry staple</div></div><span class="cat-store">Costco</span></div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">🌶️</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Urfa pepper flakes</div><div style="font-size:10px;color:var(--ts)">New · Adana Kebabs</div></div><span class="cat-store">Trader Joe's</span></div>
+      <div class="cat-aisle-hdr" style="margin-top:4px">☕ Beverages</div>
+      <div class="cat-item"><span style="font-size:17px;width:24px;text-align:center">☕</span><div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--tp)">Coffee beans</div><div style="font-size:10px;color:var(--ts)">Staple · TJ's French Roast</div></div><span class="cat-store">Trader Joe's</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ONBOARDING ===== -->
+<div class="scr" id="s-onboarding">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+    <div class="ob-icon">🍳</div>
+    <div class="ob-title">Welcome to Simmer</div>
+    <div class="ob-sub">Plan meals, manage recipes, and generate smart grocery lists — for the whole family.</div>
+    <div class="ob-dots"><div class="ob-dot on"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div></div>
+    <button class="abtn" style="margin-bottom:10px" onclick="go('ob-google')"><i class="ti ti-brand-google"></i> Continue with Google</button>
+    <div style="font-size:10px;color:var(--tm)">Your data is private and never shared</div>
+  </div>
+</div>
+
+<div class="scr" id="s-ob-google">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+    <div class="ob-icon">👨‍👩‍👧‍👦</div>
+    <div class="ob-title">Who's the planner?</div>
+    <div class="ob-sub">You'll manage meals and grocery lists. Invite family after — they can add and remove grocery items.</div>
+    <div class="ob-dots"><div class="ob-dot"></div><div class="ob-dot on"></div><div class="ob-dot"></div><div class="ob-dot"></div></div>
+    <div class="crd" style="width:100%;margin-bottom:12px;display:flex;align-items:center;gap:10px"><div style="width:36px;height:36px;border-radius:50%;background:rgba(239,159,39,0.2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:var(--am)">R</div><div><div style="font-size:13px;font-weight:500;color:var(--tp)">rajat@gmail.com</div><div style="font-size:10px;color:var(--ts)">Signed in with Google ✓</div></div></div>
+    <button class="abtn" onclick="go('ob-week')">This is me →</button>
+  </div>
+</div>
+
+<div class="scr" id="s-ob-week">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;align-items:center">
+    <div class="ob-icon">📅</div>
+    <div class="ob-title">When do you shop?</div>
+    <div class="ob-sub">Sets your planning week so grocery lists and meal plans always line up.</div>
+    <div class="ob-dots"><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot on"></div><div class="ob-dot"></div></div>
+    <div style="width:100%;display:flex;flex-direction:column;gap:7px;margin-bottom:16px">
+      <div class="ob-day-opt sel" onclick="selObDay(this)"><span>Friday — shop Fri, plan Thu</span><span style="font-size:10px;color:var(--am);font-weight:500">✓</span></div>
+      <div class="ob-day-opt" onclick="selObDay(this)"><span>Saturday morning</span><span></span></div>
+      <div class="ob-day-opt" onclick="selObDay(this)"><span>Sunday — start of the week</span><span></span></div>
+      <div class="ob-day-opt" onclick="selObDay(this)"><span>Monday</span><span></span></div>
+      <div class="ob-day-opt" onclick="selObDay(this)"><span>Other day…</span><span></span></div>
+    </div>
+    <button class="abtn" onclick="go('ob-import')">Continue →</button>
+  </div>
+</div>
+
+<div class="scr" id="s-ob-import">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;align-items:center">
+    <div class="ob-icon">📋</div>
+    <div class="ob-title">Import order history</div>
+    <div class="ob-sub">Upload a past grocery order to seed Claude's staple predictions. Optional — do this later in Settings.</div>
+    <div class="ob-dots"><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot on"></div></div>
+    <div style="border:1.5px dashed var(--brh);border-radius:13px;padding:24px;text-align:center;margin-bottom:14px;cursor:pointer;width:100%">
+      <div style="font-size:32px;margin-bottom:8px">📤</div>
+      <div style="font-size:12px;color:var(--ts);margin-bottom:4px">Upload Instacart, Amazon Fresh, or Kroger CSV</div>
+      <div style="font-size:10px;color:var(--tm)">Stays private on your device</div>
+    </div>
+    <button class="abtn" style="margin-bottom:9px" onclick="go('grocery')">Import & finish setup</button>
+    <button style="width:100%;background:none;border:0.5px solid var(--brh);border-radius:11px;padding:10px;color:var(--ts);font-size:12px;font-family:system-ui,-apple-system,sans-serif;cursor:pointer" onclick="go('grocery')">Skip for now</button>
+  </div>
+</div>
+
+<!-- ===== MODEL SETTINGS ===== -->
+<div class="scr" id="s-model-settings">
+  <div class="sb"><span style="font-weight:500">9:41</span></div>
+  <div class="hd"><button class="bb" onclick="go('settings')"><i class="ti ti-arrow-left"></i> Settings</button><h1>AI models</h1><p>Choose models for structuring and images</p></div>
+  <div class="sc">
+    <div class="slbl" style="margin-top:0">Recipe structuring & intelligence</div>
+    <div class="mc2 msel" onclick="pickModel('s','claude',this)"><div class="mc2-top"><div class="mc2-logo mlogo-a">◆</div><span class="mc2-name">Claude (Anthropic)</span><div class="mc2-radio on" id="mr-s-claude"></div></div><div class="mc2-desc">Best for ingredient normalization, pantry inference, and meal planning.</div><div class="mc2-tags"><span class="mtag mtag-g">Recommended</span><span class="mtag">Anthropic key</span></div></div>
+    <div class="mc2" onclick="pickModel('s','gpt4',this)"><div class="mc2-top"><div class="mc2-logo mlogo-o">⬡</div><span class="mc2-name">GPT-4o (OpenAI)</span><div class="mc2-radio" id="mr-s-gpt4"></div></div><div class="mc2-desc">Strong alternative. Shares your OpenAI key if set for images.</div><div class="mc2-tags"><span class="mtag">OpenAI key</span></div></div>
+    <div class="mc2" onclick="pickModel('s','gemini',this)"><div class="mc2-top"><div class="mc2-logo mlogo-g">✦</div><span class="mc2-name">Gemini 2.0 (Google)</span><div class="mc2-radio" id="mr-s-gemini"></div></div><div class="mc2-desc">Use one Google key for both text and Nano Banana images.</div><div class="mc2-tags"><span class="mtag">Google AI key</span></div></div>
+    <div class="mc2" onclick="pickModel('s','local',this)"><div class="mc2-top"><div class="mc2-logo mlogo-l">⚙</div><span class="mc2-name">Local model (Ollama)</span><div class="mc2-radio" id="mr-s-local"></div></div><div class="mc2-desc">Fully private. No API key needed.</div><div class="mc2-tags"><span class="mtag">No API key</span><span class="mtag">Private</span></div></div>
+    <div><div class="akey-row"><i class="ti ti-key"></i><input type="password" placeholder="Anthropic API key (sk-ant-...)" id="s-key-inp"><button onclick="saveKey('s')" style="background:var(--am);border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:500;color:#1a1612;cursor:pointer;font-family:system-ui,-apple-system,sans-serif">Save</button></div><div class="akey-saved" id="s-key-saved"><i class="ti ti-check" style="font-size:10px"></i> Saved</div></div>
+    <div class="slbl">Recipe illustrations</div>
+    <div class="nb-group">
+      <div class="nb-group-lbl">🍌 Nano Banana (Google)</div>
+      <div class="mc2 msel" onclick="pickImgModel('nb2',this)"><div class="mc2-top"><div class="mc2-logo mlogo-g" style="font-size:11px;font-weight:700">NB2</div><span class="mc2-name">Nano Banana 2</span><div class="mc2-radio on" id="mr-i-nb2"></div></div><div class="mc2-desc">gemini-3.1-flash-image-preview · Pro-level quality at Flash speed.</div><div class="mc2-tags"><span class="mtag mtag-a">New · Feb 2026</span><span class="mtag mtag-g">Recommended</span><span class="mtag">~$0.04/img</span></div></div>
+      <div class="mc2" onclick="pickImgModel('nbpro',this)"><div class="mc2-top"><div class="mc2-logo mlogo-g" style="font-size:10px;font-weight:700">Pro</div><span class="mc2-name">Nano Banana Pro</span><div class="mc2-radio" id="mr-i-nbpro"></div></div><div class="mc2-desc">gemini-3-pro-image-preview · Maximum quality, 4K.</div><div class="mc2-tags"><span class="mtag">4K</span><span class="mtag">$0.13/img</span></div></div>
+      <div class="mc2" onclick="pickImgModel('nb',this)"><div class="mc2-top"><div class="mc2-logo mlogo-g" style="font-size:11px;font-weight:700">NB</div><span class="mc2-name">Nano Banana</span><div class="mc2-radio" id="mr-i-nb"></div></div><div class="mc2-desc">gemini-2.5-flash-image · Original. Fastest and cheapest.</div><div class="mc2-tags"><span class="mtag">~$0.04/img</span></div></div>
+      <div style="font-size:9px;color:#7AAAF0;opacity:0.7;margin-top:4px;padding:0 2px">All three use the same Google AI API key</div>
+    </div>
+    <div class="mc2" onclick="pickImgModel('dalle',this)"><div class="mc2-top"><div class="mc2-logo mlogo-o">⬡</div><span class="mc2-name">DALL-E 3 (OpenAI)</span><div class="mc2-radio" id="mr-i-dalle"></div></div><div class="mc2-desc">Strong illustrated style. Shares your OpenAI key.</div><div class="mc2-tags"><span class="mtag">OpenAI key</span></div></div>
+    <div class="mc2" onclick="pickImgModel('flux',this)"><div class="mc2-top"><div class="mc2-logo mlogo-f">◈</div><span class="mc2-name">FLUX (Replicate)</span><div class="mc2-radio" id="mr-i-flux"></div></div><div class="mc2-desc">Fine-tunable. Lock in a consistent retro-pop style.</div><div class="mc2-tags"><span class="mtag">Replicate key</span><span class="mtag">Fine-tunable</span></div></div>
+    <div class="mc2" onclick="pickImgModel('none',this)"><div class="mc2-top"><div class="mc2-logo mlogo-l">✕</div><span class="mc2-name">No illustrations</span><div class="mc2-radio" id="mr-i-none"></div></div><div class="mc2-desc">Emoji placeholders only. No image API costs.</div><div class="mc2-tags"><span class="mtag">No API key</span></div></div>
+    <div id="i-key-wrap"><div class="akey-row"><i class="ti ti-key"></i><input type="password" placeholder="Google AI API key (AIza...)" id="i-key-inp"><button onclick="saveKey('i')" style="background:var(--am);border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:500;color:#1a1612;cursor:pointer;font-family:system-ui,-apple-system,sans-serif">Save</button></div><div class="akey-saved" id="i-key-saved"><i class="ti ti-check" style="font-size:10px"></i> Saved</div><div style="font-size:9px;color:var(--tm);margin-top:4px">Same Google AI key for all Nano Banana models.</div></div>
+  </div>
+</div>
+
+
+<script>
+let srv=4,rTab='ingredients',cStep=0,stagingFrom='planner';
+const stepsD=[
+  {t:'In a large bowl, combine the ground lamb with salt, cumin, sumac, and urfa pepper flakes.',c:['🥩 2 lbs','🧂 1 tsp']},
+  {t:'Add grated onion and ice-cold water. Mix vigorously 3–4 min until sticky.',c:['🧅 1 medium','💧 4 tbsp']},
+  {t:'Form onto flat skewers, pressing firmly. Refrigerate 30 min.',c:[]},
+  {t:'Grill high heat 4–5 min per side until charred. Serve with flatbread and yogurt.',c:[]}
+];
+const kbAll=[
+  {n:'Avocado',e:'🥑'},{n:'Cilantro',e:'🌿'},{n:'Lime',e:'🍋'},{n:'Jalapeño',e:'🌶️'},
+  {n:'Yogurt',e:'🥛'},{n:'Flatbread',e:'🫓'},{n:'Tomatoes',e:'🍅'},{n:'Chicken',e:'🍗'},
+  {n:'Spinach',e:'🥬'},{n:'Carrots',e:'🥕'},{n:'Mushrooms',e:'🍄'},{n:'Peppers',e:'🫑'},
+  {n:'Rice',e:'🍚'},{n:'Cheese',e:'🧀'},{n:'Bread',e:'🍞'},{n:'Butter',e:'🧈'}
+];
+
+function go(n){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById('s-'+n);
+  if(el)el.classList.add('active');
+  closeKb();closeSlot();
+}
+
+// staging can be reached from grocery OR planner
+function goToStaging(from){
+  stagingFrom=from;
+  document.getElementById('staging-back-lbl').textContent=from==='grocery'?'Grocery':'Planner';
+  go('staging');
+}
+function goBack(){
+  go(stagingFrom);
+}
+
+function cSrv(d){
+  srv=Math.max(1,srv+d);
+  document.getElementById('svc').textContent=srv;
+  const m=srv/4;const f=(v,u)=>(Number.isInteger(v*10)?v:+v.toFixed(1))+' '+u;
+  document.getElementById('ql').textContent=f(2*m,'lbs');
+  document.getElementById('qs').textContent=f(m,'tsp');
+  document.getElementById('qc').textContent=f(2*m,'tsp');
+  document.getElementById('qsu').textContent=f(4*m,'tsp');
+  document.getElementById('qu').textContent=f(m,'tbsp');
+  document.getElementById('qw').textContent=f(4*m,'tbsp');
+  document.getElementById('qo').textContent=Math.max(1,Math.round(m))+' medium';
+  document.getElementById('qg').textContent=Math.max(1,Math.round(3*m))+' cloves';
+  document.getElementById('qy').textContent=f(0.5*m,'cup');
+}
+
+function swT(t){
+  rTab=t;
+  document.getElementById('ti').classList.toggle('active',t==='ingredients');
+  document.getElementById('tins').classList.toggle('active',t==='instructions');
+  document.getElementById('ic').style.display=t==='ingredients'?'block':'none';
+  document.getElementById('ins').style.display=t==='instructions'?'block':'none';
+}
+
+function addStp(){
+  const c=document.getElementById('ss');
+  const n=c.querySelectorAll('.stpc').length+1;
+  const d=document.createElement('div');d.className='stpc';
+  d.innerHTML='<div class="stpn">STEP '+n+'</div><div class="stpt" contenteditable="true" style="outline:none;border-bottom:1px dashed rgba(239,159,39,0.4);min-height:18px"></div>';
+  c.appendChild(d);d.querySelector('.stpt').focus();
+}
+
+function startCook(){
+  cStep=0;renderCook();
+  document.getElementById('cook-full').classList.add('open');
+}
+function exitCook(){document.getElementById('cook-full').classList.remove('open');}
+function cookNav(d){
+  if(d===1&&cStep===stepsD.length-1){exitCook();return;}
+  cStep=Math.max(0,Math.min(stepsD.length-1,cStep+d));renderCook();
+}
+function renderCook(){
+  const s=stepsD[cStep];
+  document.getElementById('cook-counter').textContent='Step '+(cStep+1)+' of '+stepsD.length;
+  document.getElementById('cook-step-num').textContent='STEP '+(cStep+1);
+  document.getElementById('cook-step-text').textContent=s.t;
+  document.getElementById('cook-chips').innerHTML=s.c.map(c=>'<span class="cook-chip">'+c+'</span>').join('');
+  document.getElementById('cook-fill').style.width=((cStep+1)/stepsD.length*100)+'%';
+  document.getElementById('cook-prev').style.opacity=cStep===0?'0.3':'1';
+  document.getElementById('cook-next').textContent=cStep===stepsD.length-1?'Done ✓':'Next →';
+}
+
+// GROCERY GRID
+function toggleBox(box){
+  const wasDone=box.classList.contains('done');
+  if(wasDone){
+    // restore from crossed section
+    restoreBox(box);
+  } else {
+    crossBox(box);
+  }
+}
+
+function crossBox(box){
+  box.classList.add('done');
+  setTimeout(()=>{
+    const cGrid=document.getElementById('crossed-grid');
+    const cSec=document.getElementById('crossed-section');
+    const clone=box.cloneNode(true);
+    clone.classList.add('done');
+    clone.onclick=function(){restoreBox(box);cGrid.removeChild(clone);updateCrossedSection();};
+    clone.title='Tap to restore';
+    // add a small restore hint
+    const hint=document.createElement('span');
+    hint.style.cssText='position:absolute;bottom:4px;right:4px;font-size:7px;color:var(--am)';
+    hint.textContent='↩';
+    clone.appendChild(hint);
+    cGrid.appendChild(clone);
+    box.style.display='none';
+    cSec.style.display='block';
+  },200);
+}
+
+function restoreBox(origBox){
+  origBox.classList.remove('done');
+  origBox.style.display='';
+}
+
+function updateCrossedSection(){
+  const cGrid=document.getElementById('crossed-grid');
+  const cSec=document.getElementById('crossed-section');
+  if(cGrid.children.length===0) cSec.style.display='none';
+}
+
+// KB
+function openKb(){
+  document.getElementById('kbp').classList.add('op');
+  filterKb('');
+  setTimeout(()=>document.getElementById('kb-in').focus(),80);
+}
+function closeKb(){
+  document.getElementById('kbp').classList.remove('op');
+  const ki=document.getElementById('kb-in');if(ki)ki.value='';
+}
+function filterKb(q){
+  const f=q?kbAll.filter(i=>i.n.toLowerCase().includes(q.toLowerCase())):kbAll.slice(0,8);
+  document.getElementById('kbg').innerHTML=f.map(i=>`<div class="kbi" onclick="closeKb()"><span class="ke">${i.e}</span><span class="kn">${i.n}</span></div>`).join('');
+}
+
+// PLANNER col toggles
+const colState={B:true,L:true,D:true};
+function toggleCol(col,btn){
+  colState[col]=!colState[col];
+  btn.classList.toggle('on',colState[col]);
+  btn.classList.toggle('off',!colState[col]);
+  document.querySelectorAll('.col-'+col).forEach(el=>{
+    el.style.display=colState[col]?'':'none';
+  });
+}
+
+// SLOT POPOVER
+function openSlot(el,label){
+  document.getElementById('slot-pop-title').textContent=label;
+  // populate dishes from slot
+  const dishes=document.getElementById('slot-dishes');
+  dishes.innerHTML='';
+  const dishEls=el.querySelectorAll('.ms-dish');
+  dishEls.forEach(d=>{
+    const em=d.querySelector('.ms-emoji')?.textContent||'🍽️';
+    const nm=d.querySelector('.ms-name')?.textContent||'';
+    if(nm){
+      const row=document.createElement('div');row.className='slot-dish-row';
+      row.innerHTML=`<span style="font-size:16px">${em}</span><span class="slot-dish-name">${nm}</span><button class="slot-dish-del" onclick="this.closest('.slot-dish-row').remove()">✕</button>`;
+      dishes.appendChild(row);
+    }
+  });
+  document.getElementById('slot-pop').style.display='block';
+  document.getElementById('slot-bd').style.display='block';
+}
+function closeSlot(){
+  document.getElementById('slot-pop').style.display='none';
+  document.getElementById('slot-bd').style.display='none';
+}
+function addSlotDish(){
+  const inp=document.getElementById('slot-add-in');
+  const v=inp.value.trim();if(!v)return;
+  const dishes=document.getElementById('slot-dishes');
+  const d=document.createElement('div');d.className='slot-dish-row';
+  d.innerHTML=`<span style="font-size:16px">🍽️</span><span class="slot-dish-name">${v}</span><button class="slot-dish-del" onclick="this.closest('.slot-dish-row').remove()">✕</button>`;
+  dishes.appendChild(d);inp.value='';
+}
+
+function placeR(slot){
+  slot.classList.add('fi');
+  const ex=slot.querySelector('.ms-dish');
+  if(ex){const dv=document.createElement('div');dv.className='ms-div';slot.appendChild(dv);}
+  else{slot.innerHTML='';}
+  const d=document.createElement('div');d.className='ms-dish';
+  d.innerHTML='<span class="ms-emoji">🥙</span><span class="ms-name">Adana Kebabs</span>';
+  slot.appendChild(d);
+  const a=document.createElement('span');a.className='ms-add';a.textContent='+ add';slot.appendChild(a);
+  setTimeout(()=>go('planner'),200);
+}
+
+function tgPrep(card){
+  card.querySelector('.ppb').classList.toggle('op');
+  card.querySelector('.ppex').classList.toggle('op');
+}
+
+function ynSel(btn){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+}
+
+function tgZ4(){
+  const l=document.getElementById('z4list');
+  const c=document.getElementById('z4chev');
+  const b=document.getElementById('z4badge');
+  const open=l.style.display==='block';
+  l.style.display=open?'none':'block';
+  c.style.transform=open?'':'rotate(90deg)';
+  b.textContent=open?'5 items':'';
+}
+
+// wire up staging from grocery
+document.querySelector('#s-grocery .g-action-btn.primary').onclick=function(){goToStaging('grocery');};
+// wire up staging from planner
+document.querySelector('#s-planner .abtn').onclick=function(){goToStaging('planner');};
+
+filterKb('');
+
+// Wire entry/import buttons to loading screen
+document.querySelectorAll('#s-entry .abtn').forEach(b=>b.onclick=()=>go('loading'));
+document.querySelectorAll('#s-import .abtn').forEach(b=>b.onclick=()=>go('loading'));
+
+// Onboarding day selection
+function selObDay(row){
+  document.querySelectorAll('.ob-day-opt').forEach(r=>{r.classList.remove('sel');r.querySelector('span:last-child').textContent='';});
+  row.classList.add('sel');row.querySelector('span:last-child').textContent='✓';
+}
+
+// Model selection
+const sModels=['claude','gpt4','gemini','local'];
+const iModels=['nb2','nbpro','nb','dalle','flux','none'];
+function pickModel(g,m,card){
+  document.querySelectorAll('#s-model-settings .mc2').forEach(c=>c.classList.remove('msel'));
+  sModels.forEach(x=>{const r=document.getElementById('mr-s-'+x);if(r)r.classList.remove('on');});
+  card.classList.add('msel');
+  const r=document.getElementById('mr-s-'+m);if(r)r.classList.add('on');
+}
+function pickImgModel(m,card){
+  // only deselect image model cards (those with mr-i- radios)
+  iModels.forEach(x=>{const r=document.getElementById('mr-i-'+x);if(r){r.classList.remove('on');r.closest('.mc2')&&r.closest('.mc2').classList.remove('msel');}});
+  card.classList.add('msel');
+  const r=document.getElementById('mr-i-'+m);if(r)r.classList.add('on');
+  const wrap=document.getElementById('i-key-wrap');
+  if(wrap)wrap.style.display=m==='none'?'none':'block';
+}
+function saveKey(g){
+  const inp=document.getElementById(g+'-key-inp');
+  if(!inp||!inp.value.trim())return;
+  const s=document.getElementById(g+'-key-saved');
+  if(s){s.style.display='flex';setTimeout(()=>s.style.display='none',2500);}
+}
+
+// Prototype nav bar
+(function(){
+  const screens=[
+    {id:'grocery',label:'Grocery'},{id:'recipes',label:'Recipes'},{id:'recipe-detail',label:'Recipe Detail'},
+    {id:'add-to-plan',label:'Add to Plan'},{id:'entry',label:'Add Recipe'},{id:'import',label:'Import URL'},
+    {id:'loading',label:'Loading'},{id:'review',label:'Review'},{id:'planner',label:'Planner'},
+    {id:'plan-ai',label:'Plan w/ Claude'},{id:'staging',label:'Staging'},{id:'prep',label:'Prep'},
+    {id:'settings',label:'Settings'},{id:'catalog',label:'Catalog'},{id:'model-settings',label:'AI Models'},
+    {id:'onboarding',label:'Onboarding'},{id:'ob-google',label:'OB: Google'},
+    {id:'ob-week',label:'OB: Week'},{id:'ob-import',label:'OB: Import'},
+  ];
+  const nav=document.getElementById('proto-nav');
+  if(!nav)return;
+  screens.forEach(s=>{
+    const btn=document.createElement('button');
+    btn.textContent=s.label;
+    btn.style.cssText='font-size:9px;padding:4px 9px;border-radius:14px;border:0.5px solid rgba(255,255,255,0.15);background:none;color:#a89880;cursor:pointer;font-family:inherit;white-space:nowrap;';
+    btn.onmouseenter=()=>{btn.style.background='#EF9F27';btn.style.color='#1a1612';};
+    btn.onmouseleave=()=>{btn.style.background='none';btn.style.color='#a89880';};
+    btn.onclick=()=>go(s.id);
+    nav.appendChild(btn);
+  });
+})();
+
+</script>
+</body>
+</html>

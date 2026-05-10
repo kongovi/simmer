@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  /* Backgrounds */
+  --dk:   #1a1612;
+  --dk2:  #241f1a;
+  --dk3:  #2e2720;
+  --dkc:  #2a2318;
+
+  /* Accent */
+  --am:   #EF9F27;
+  --aml:  #FAC775;
+
+  /* Text */
+  --tp:   #f5efe8;
+  --ts:   #a89880;
+  --tm:   #6b5c4e;
+
+  /* Borders */
+  --br:   rgba(255, 255, 255, 0.08);
+  --brh:  rgba(255, 255, 255, 0.15);
+
+  /* Status */
+  --gn:   #639922;
+  --gl:   #5DCAA5;
+  --tl:   #1D9E75;
+  --rd:   #D85A30;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--dk);
+  color: var(--tp);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hide scrollbars everywhere */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
