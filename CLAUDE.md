@@ -471,8 +471,57 @@ Update this section at the end of every Claude Code session.
 - Cooking mode ingredient chips show all ingredients on step 1 only; wire `ingredient_ids[]` per step in Session 4
 
 ### Session 3 — Recipe book: image generation + cooking mode
-**Status:** Not started  
-**Depends on:** Session 2 complete, recipes saving to DB
+**Status:** ✅ Complete  
+**Completed:** 2026-05-10
+
+**What was built:**
+
+*DB changes*
+- Migration `0003_recipe_emoji_image_bucket`: added `emoji text` column to `recipes`; created `recipe-images` public Storage bucket (5MB limit, image MIME types) with RLS policies
+
+*Supabase Edge Function: `generate-image`*
+- Accepts `{ recipeId, prompt, apiKey }` with JWT verification
+- Tries Gemini Flash models first: `gemini-2.0-flash-preview-image-generation` → `gemini-2.0-flash-exp-image-generation`
+- Falls back to `imagen-3.0-generate-002` if both Flash models fail
+- Uses service-role client to upload JPEG to `recipe-images/{recipeId}.jpg` in Storage
+- Updates `recipes.image_url`, `image_status: 'done'`, `nb2_prompt` on success
+- Sets `image_status: 'failed'` on error (best-effort)
+
+*Image adapters (`src/lib/images/`)*
+- `nanoBanana.ts` — calls `generate-image` Edge Function with `VITE_DEV_GOOGLE_AI_KEY`
+- `dalle.ts`, `flux.ts` — stubs for Session 8
+- `index.ts` — wired: `callNanoBanana2()` is live, `getImageModel()` defaults to `'nano-banana-2'`
+
+*`useSaveRecipe` updates (`src/hooks/useRecipes.ts`)*
+- `pickRecipeEmoji()` — picks first non-staple ingredient emoji; saved as `recipes.emoji`
+- `buildKeySides()` — builds "key sides" string from top 3 non-staple ingredient names for image prompt
+- `matchIngredientIds()` — name-matching pass to populate `ingredient_ids[]` per step
+- Saves `nb2_prompt` alongside the recipe row
+- Fires `generateDishImage(name, keySides, recipeId)` **without `await`** after save — non-blocking
+
+*Realtime (`useRecipeImageRealtime`)*
+- `useRecipeImageRealtime()` hook: Supabase Realtime channel on `recipes` table (UPDATE, filtered by `family_id`)
+- On update: patches React Query caches (`['recipes', familyId]` list + `['recipe', id]` individual) in-place — no full refetch needed
+- Mounted in both `RecipesScreen` and `RecipeDetailScreen`
+
+*UI polish*
+- `RecipeCard`: uses `recipe.emoji` field (falls back to meal_type emoji); `nb2-pulse` CSS animation while `image_status === 'generating'`; amber "NB2 · rendering…" label; "NB2 · failed" state
+- `RecipeDetailScreen`: same emoji + pulse on hero placeholder; Realtime subscription
+- `CookingMode`: `ingredientsForStep()` now filters by `step.ingredient_ids[]` set membership — shows exactly the ingredients used in each step
+
+*`src/index.css`*
+- Added `@keyframes spin` and `@keyframes nb2-pulse`
+
+**Schema changes:** Added `emoji text` column to `recipes` (migration 0003)
+
+**Environment variables added:**
+- `VITE_DEV_GOOGLE_AI_KEY` added to Vercel production env
+
+**Notes for Session 4:**
+- Image generation is live end-to-end; test with a new recipe save
+- Realtime channel name is `recipe-images-{familyId}` — only one channel needed per session
+- `getImageModel()` in `images/index.ts` is hardcoded to `'nano-banana-2'`; full user-settings wiring in Session 8
+- Ingredient chip matching is text-based (name substring); good enough for now, can be improved with `ingredient_ids[]` from the AI parser in a future session
 
 ### Session 4 — Meal planner
 **Status:** Not started  
