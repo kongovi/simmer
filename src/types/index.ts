@@ -38,6 +38,7 @@ export interface Recipe {
   cook_time_minutes: number | null
   servings: number
   meal_type: MealType | null
+  emoji: string | null
   image_url: string | null
   image_status: ImageStatus
   nb2_prompt: string | null

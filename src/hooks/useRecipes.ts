@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
+import { generateDishImage, buildImagePrompt } from '../lib/images'
 import type { Recipe } from '../types'
 
 export interface RecipeFilters {
@@ -83,6 +85,56 @@ export function useRecipeSteps(recipeId: string | undefined) {
   })
 }
 
+// ── Realtime: watch recipe image updates ──────────────────────────────────────
+
+/**
+ * Subscribe to Supabase Realtime updates on the recipes table for this family.
+ * When image_url or image_status changes, updates the React Query cache in-place
+ * so RecipeCard and RecipeDetailScreen re-render without a full refetch.
+ *
+ * Call this once near the top of the app (e.g. in RecipesScreen or ProtectedLayout).
+ */
+export function useRecipeImageRealtime() {
+  const familyId = useAppStore(s => s.familyId)
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!familyId) return
+
+    const channel = supabase
+      .channel(`recipe-images-${familyId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'recipes',
+          filter: `family_id=eq.${familyId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Recipe
+
+          // Patch the recipe list cache
+          queryClient.setQueriesData<Recipe[]>(
+            { queryKey: ['recipes', familyId] },
+            (old) => old?.map(r => r.id === updated.id ? { ...r, ...updated } : r)
+          )
+
+          // Patch the individual recipe cache
+          queryClient.setQueryData<Recipe>(
+            ['recipe', updated.id],
+            (old) => old ? { ...old, ...updated } : old
+          )
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [familyId, queryClient])
+}
+
+// ── Save recipe ───────────────────────────────────────────────────────────────
+
 export interface SaveRecipePayload {
   name: string
   servings: number
@@ -100,6 +152,50 @@ export interface SaveRecipePayload {
     serving_note: string | null
   }[]
   steps: { step_number: number; instruction: string }[]
+}
+
+/** Bulk staples that shouldn't be the recipe's representative emoji */
+const STAPLE_NAMES = new Set([
+  'salt', 'pepper', 'oil', 'olive oil', 'water', 'butter', 'flour', 'sugar',
+  'garlic', 'onion', 'black pepper', 'vegetable oil', 'cooking spray',
+])
+
+/** Pick the best representative emoji from the ingredient list */
+function pickRecipeEmoji(ingredients: SaveRecipePayload['ingredients']): string | null {
+  const nonStaple = ingredients.find(
+    ing => ing.emoji && !STAPLE_NAMES.has(ing.name.toLowerCase())
+  )
+  return nonStaple?.emoji ?? ingredients[0]?.emoji ?? null
+}
+
+/** Build keySides string for the image prompt from the top ingredients */
+function buildKeySides(ingredients: SaveRecipePayload['ingredients']): string {
+  const names = ingredients
+    .filter(ing => !STAPLE_NAMES.has(ing.name.toLowerCase()))
+    .slice(0, 3)
+    .map(ing => ing.name)
+  return names.length > 0 ? names.join(', ') : 'seasonal vegetables and herbs'
+}
+
+/**
+ * For each step, find which ingredient catalog IDs are mentioned in the instruction.
+ * Simple case-insensitive word-boundary match on the ingredient name.
+ */
+function matchIngredientIds(
+  stepInstruction: string,
+  ingredients: SaveRecipePayload['ingredients'],
+  ingredientIds: string[]
+): string[] {
+  const lower = stepInstruction.toLowerCase()
+  return ingredients.reduce<string[]>((acc, ing, i) => {
+    // Check if the ingredient name (or first word of it) appears in the instruction
+    const nameLower = ing.name.toLowerCase()
+    const firstWord = nameLower.split(' ')[0]
+    if (lower.includes(nameLower) || (firstWord.length > 3 && lower.includes(firstWord))) {
+      acc.push(ingredientIds[i])
+    }
+    return acc
+  }, [])
 }
 
 export function useSaveRecipe() {
@@ -134,7 +230,12 @@ export function useSaveRecipe() {
         }
       }
 
-      // 2. Insert recipe
+      // 2. Pick recipe emoji + build image prompt parts
+      const emoji    = pickRecipeEmoji(payload.ingredients)
+      const keySides = buildKeySides(payload.ingredients)
+      const nb2Prompt = buildImagePrompt(payload.name, keySides)
+
+      // 3. Insert recipe
       const { data: recipe, error: rErr } = await supabase
         .from('recipes')
         .insert({
@@ -145,17 +246,20 @@ export function useSaveRecipe() {
           meal_type: payload.meal_type,
           tags: payload.tags,
           difficulty: payload.difficulty,
+          emoji,
           image_status: 'pending',
+          nb2_prompt: nb2Prompt,
         })
         .select('id')
         .single()
       if (rErr) throw rErr
+      const recipeId = recipe.id as string
 
-      // 3. Insert recipe_ingredients
+      // 4. Insert recipe_ingredients
       if (payload.ingredients.length > 0) {
         const { error: riErr } = await supabase.from('recipe_ingredients').insert(
           payload.ingredients.map((ing, i) => ({
-            recipe_id: recipe.id,
+            recipe_id: recipeId,
             ingredient_id: ingredientIds[i],
             quantity: ing.quantity,
             unit: ing.unit,
@@ -167,20 +271,26 @@ export function useSaveRecipe() {
         if (riErr) throw riErr
       }
 
-      // 4. Insert recipe_steps
+      // 5. Insert recipe_steps with ingredient_ids[] populated via name-matching
       if (payload.steps.length > 0) {
         const { error: sErr } = await supabase.from('recipe_steps').insert(
           payload.steps.map((s, i) => ({
-            recipe_id: recipe.id,
+            recipe_id: recipeId,
             step_number: s.step_number,
             instruction: s.instruction,
+            ingredient_ids: matchIngredientIds(s.instruction, payload.ingredients, ingredientIds),
             sort_order: i,
           }))
         )
         if (sErr) throw sErr
       }
 
-      return recipe.id as string
+      // 6. Fire image generation non-blocking (don't await — Realtime pushes the update)
+      generateDishImage(payload.name, keySides, recipeId).catch(err =>
+        console.warn('Image generation error (non-fatal):', err)
+      )
+
+      return recipeId
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] })

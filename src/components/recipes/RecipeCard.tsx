@@ -6,7 +6,6 @@ import type { Recipe } from '../../types'
 const CARD_COLORS = ['#d4e8d4', '#f0e8d0', '#f0e0d8', '#d8e0ea', '#dce8e0', '#ecdae2']
 
 function cardColor(recipeId: string): string {
-  // Deterministic: sum char codes mod 6
   let sum = 0
   for (let i = 0; i < recipeId.length; i++) sum += recipeId.charCodeAt(i)
   return CARD_COLORS[sum % CARD_COLORS.length]
@@ -20,14 +19,27 @@ function formatTime(minutes: number | null): string | null {
   return m ? `${h}h ${m}m` : `${h}h`
 }
 
+/** Pick best emoji — use recipe-level emoji field, fall back to meal_type */
+function getRecipeEmoji(recipe: Recipe): string {
+  if (recipe.emoji) return recipe.emoji
+  const fallbacks: Record<string, string> = {
+    breakfast: '🍳',
+    lunch: '🥗',
+    dinner: '🍽️',
+  }
+  return fallbacks[recipe.meal_type ?? ''] ?? '🍴'
+}
+
 interface RecipeCardProps {
   recipe: Recipe
 }
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const navigate = useNavigate()
-  const bg = recipe.image_url ? undefined : cardColor(recipe.id)
+  const hasImage = !!recipe.image_url
+  const bg = hasImage ? undefined : cardColor(recipe.id)
   const cookTime = formatTime(recipe.cook_time_minutes)
+  const isGenerating = recipe.image_status === 'generating'
 
   return (
     <div
@@ -56,9 +68,9 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           overflow: 'hidden',
         }}
       >
-        {recipe.image_url ? (
+        {hasImage ? (
           <img
-            src={recipe.image_url}
+            src={recipe.image_url!}
             alt={recipe.name}
             loading="lazy"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -70,7 +82,8 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               flexDirection: 'column',
               alignItems: 'center',
               gap: '4px',
-              opacity: 0.45,
+              opacity: isGenerating ? 0.6 : 0.45,
+              animation: isGenerating ? 'nb2-pulse 1.8s ease-in-out infinite' : undefined,
             }}
           >
             <span style={{ fontSize: '32px', lineHeight: 1 }}>
@@ -82,16 +95,16 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
                 fontWeight: 500,
                 letterSpacing: '0.5px',
                 textTransform: 'uppercase',
-                color: 'var(--ts)',
+                color: isGenerating ? 'var(--am)' : 'var(--ts)',
               }}
             >
-              {recipe.image_status === 'generating' ? 'NB2 · rendering' : 'NB2 · queued'}
+              {isGenerating ? 'NB2 · rendering…' : recipe.image_status === 'failed' ? 'NB2 · failed' : 'NB2 · queued'}
             </span>
           </div>
         )}
 
-        {/* NB2 badge */}
-        {!recipe.image_url && (
+        {/* NB2 badge — only when no real image */}
+        {!hasImage && (
           <div
             style={{
               position: 'absolute',
@@ -101,7 +114,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               borderRadius: '4px',
               padding: '2px 5px',
               fontSize: '7px',
-              color: 'rgba(255,255,255,0.55)',
+              color: isGenerating ? 'rgba(239,159,39,0.8)' : 'rgba(255,255,255,0.55)',
               display: 'flex',
               alignItems: 'center',
               gap: '2px',
@@ -163,15 +176,4 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
       </div>
     </div>
   )
-}
-
-/** Pick the best emoji from the recipe — use first ingredient emoji if no dedicated field */
-function getRecipeEmoji(recipe: Recipe): string {
-  // In future we'll have a recipe-level emoji; for now use meal_type fallback
-  const fallbacks: Record<string, string> = {
-    breakfast: '🍳',
-    lunch: '🥗',
-    dinner: '🍽️',
-  }
-  return fallbacks[recipe.meal_type ?? ''] ?? '🍴'
 }

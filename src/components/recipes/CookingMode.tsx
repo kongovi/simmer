@@ -5,6 +5,7 @@ interface CookStep {
   id: string
   step_number: number
   instruction: string
+  ingredient_ids: string[]
 }
 
 interface CookIngredient {
@@ -22,11 +23,11 @@ interface CookingModeProps {
   onDone: () => void
 }
 
-/** Returns the ingredients whose IDs appear in the current step's ingredient_ids (simplified: show all on step 1) */
-function ingredientsForStep(_step: CookStep, allIngredients: CookIngredient[], stepIndex: number): CookIngredient[] {
-  // ingredient_ids per step wired in Session 4 — show first 4 on step 1 as preview
-  if (stepIndex === 0) return allIngredients.slice(0, 4)
-  return []
+/** Returns the ingredients whose catalog IDs appear in the step's ingredient_ids array */
+function ingredientsForStep(step: CookStep, allIngredients: CookIngredient[]): CookIngredient[] {
+  if (!step.ingredient_ids?.length) return []
+  const idSet = new Set(step.ingredient_ids)
+  return allIngredients.filter(ing => idSet.has(ing.id))
 }
 
 export function CookingMode({ steps, ingredients, onDone }: CookingModeProps) {
@@ -41,7 +42,7 @@ export function CookingMode({ steps, ingredients, onDone }: CookingModeProps) {
     setCurrent(c => c + 1)
   }
 
-  const chipIngredients = ingredientsForStep(step, ingredients, current)
+  const chipIngredients = ingredientsForStep(step, ingredients)
 
   return (
     <div
@@ -106,7 +107,7 @@ export function CookingMode({ steps, ingredients, onDone }: CookingModeProps) {
           {step.instruction}
         </p>
 
-        {/* Ingredient chips */}
+        {/* Ingredient chips — only for ingredients used in this step */}
         {chipIngredients.length > 0 && (
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '20px' }}>
             {chipIngredients.map(ing => (

@@ -56,3 +56,15 @@ html, body {
 *::-webkit-scrollbar {
   display: none;
 }
+
+/* Spinner for loading states */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* NB2 image generating pulse */
+@keyframes nb2-pulse {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.75; }
+}

@@ -1,4 +1,7 @@
 import type { ImageModel } from '../../types'
+import { callNanoBanana2 } from './nanoBanana'
+import { callDallE3 } from './dalle'
+import { callFlux } from './flux'
 
 const IMAGE_PROMPT_TEMPLATE = `
 A professional, isometric 3/4 view food illustration for a mobile recipe app,
@@ -19,21 +22,9 @@ export function buildImagePrompt(dishName: string, keySides: string): string {
     .replace('{KEY_SIDES}', keySides)
 }
 
-// Reads from user settings — implemented in Session 3
+// Reads from user settings — full wiring in Session 8; defaults to nano-banana-2
 function getImageModel(): ImageModel {
   return 'nano-banana-2'
-}
-
-async function callNanoBanana2(_prompt: string, _recipeId: string): Promise<string> {
-  throw new Error('Nano Banana 2 adapter not yet implemented (Session 3)')
-}
-
-async function callDallE3(_prompt: string, _recipeId: string): Promise<string> {
-  throw new Error('DALL-E 3 adapter not yet implemented')
-}
-
-async function callFlux(_prompt: string, _recipeId: string): Promise<string> {
-  throw new Error('Flux adapter not yet implemented')
 }
 
 export async function generateDishImage(

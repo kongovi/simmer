@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays } from 'lucide-react'
-import { useRecipe, useRecipeIngredients, useRecipeSteps } from '../hooks/useRecipes'
+import { useRecipe, useRecipeIngredients, useRecipeSteps, useRecipeImageRealtime } from '../hooks/useRecipes'
 import { CookingMode } from '../components/recipes/CookingMode'
 
 // Card colors from prototype
@@ -41,6 +41,9 @@ export function RecipeDetailScreen() {
   const [servings,    setServings]    = useState<number | null>(null)
   const [cookingMode, setCookingMode] = useState(false)
   const [addToPlan,   setAddToPlan]   = useState(false)
+
+  // Realtime: swap in generated image when ready
+  useRecipeImageRealtime()
 
   const isLoading = rLoading || iLoading || sLoading
 
@@ -89,12 +92,18 @@ export function RecipeDetailScreen() {
               {recipe.image_url ? (
                 <img src={recipe.image_url} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', opacity: 0.35 }}>
+                <div
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+                    opacity: recipe.image_status === 'generating' ? 0.6 : 0.35,
+                    animation: recipe.image_status === 'generating' ? 'nb2-pulse 1.8s ease-in-out infinite' : undefined,
+                  }}
+                >
                   <span style={{ fontSize: '52px' }}>
-                    {recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️'}
+                    {recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️')}
                   </span>
                   <span style={{ fontSize: '9px', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>
-                    {recipe.image_status === 'generating' ? 'NB2 · rendering' : 'NB2 · queued'}
+                    {recipe.image_status === 'generating' ? 'NB2 · rendering…' : recipe.image_status === 'failed' ? 'NB2 · failed' : 'NB2 · queued'}
                   </span>
                 </div>
               )}
@@ -287,9 +296,14 @@ export function RecipeDetailScreen() {
       {cookingMode && steps && (
         <CookingMode
           recipeName={recipe.name}
-          steps={steps.map((s: { id: string; step_number: number; instruction: string }) => ({ id: s.id, step_number: s.step_number, instruction: s.instruction }))}
-          ingredients={(ingredients ?? []).map((r: { id: string; quantity: number | null; unit: string | null; ingredient: { name: string; emoji: string | null } | null }) => ({
-            id: r.id,
+          steps={steps.map((s: { id: string; step_number: number; instruction: string; ingredient_ids: string[] }) => ({
+            id: s.id,
+            step_number: s.step_number,
+            instruction: s.instruction,
+            ingredient_ids: s.ingredient_ids ?? [],
+          }))}
+          ingredients={(ingredients ?? []).map((r: { id: string; quantity: number | null; unit: string | null; ingredient: { id: string; name: string; emoji: string | null } | null }) => ({
+            id: r.ingredient?.id ?? r.id,
             emoji: r.ingredient?.emoji ?? '🥄',
             name: r.ingredient?.name ?? '—',
             quantity: scale(r.quantity, baseServings, currentServings),
