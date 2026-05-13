@@ -1,30 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  /* Backgrounds */
-  --dk:   #1a1612;
-  --dk2:  #241f1a;
-  --dk3:  #2e2720;
-  --dkc:  #2a2318;
+  /* Backgrounds (Slate) */
+  --dk:   #141820;   /* page background */
+  --dk2:  #1a2028;   /* nav, bottom bars */
+  --dk3:  #1e2330;   /* input backgrounds, empty slots */
+  --dkc:  #1e2330;   /* cards — same surface as dk3 */
 
-  /* Accent */
-  --am:   #EF9F27;
-  --aml:  #FAC775;
+  /* Accent (Sage green) */
+  --am:   #7BAF8A;
+  --aml:  #A8CDB5;   /* sage light — active labels, light badges */
 
   /* Text */
-  --tp:   #f5efe8;
-  --ts:   #a89880;
-  --tm:   #6b5c4e;
+  --tp:   #EEF0F4;   /* text primary */
+  --ts:   #8A95A8;   /* text secondary */
+  --tm:   #4A5568;   /* text muted */
 
   /* Borders */
   --br:   rgba(255, 255, 255, 0.08);
-  --brh:  rgba(255, 255, 255, 0.15);
+  --brh:  rgba(255, 255, 255, 0.13);
 
   /* Status */
-  --gn:   #639922;
-  --gl:   #5DCAA5;
-  --tl:   #1D9E75;
-  --rd:   #D85A30;
+  --gn:   #7BAF8A;   /* success / checked-off — sage */
+  --gl:   #7BAF8A;   /* success light — sage */
+  --tl:   #4A8A6A;   /* teal — family avatars, secondary accent */
+  --rd:   #C0625A;   /* destructive */
 }
 
 * {

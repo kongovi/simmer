@@ -14,6 +14,9 @@ import { RecipeImportScreen } from './screens/RecipeImportScreen'
 import { RecipeLoadingScreen } from './screens/RecipeLoadingScreen'
 import { RecipeReviewScreen } from './screens/RecipeReviewScreen'
 import { PlannerScreen } from './screens/PlannerScreen'
+import { PlanWithClaudeScreen } from './screens/PlanWithClaudeScreen'
+import { AddToPlanScreen } from './screens/AddToPlanScreen'
+import { StagingScreen } from './screens/StagingScreen'
 import { MealPrepScreen } from './screens/MealPrepScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
@@ -35,9 +38,6 @@ function AuthListener() {
   return null
 }
 
-// Bottom nav shows only on the 4 primary tab routes (not sub-routes like /recipes/new)
-const NAV_ROOTS = ['/grocery', '/planner', '/prep']
-
 function ProtectedLayout() {
   const session = useAppStore(s => s.session)
   const location = useLocation()
@@ -49,10 +49,12 @@ function ProtectedLayout() {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Show nav on /grocery, /planner, /prep, and exactly /recipes (not sub-routes)
+  // Show nav on primary tabs only — not on sub-screens like /planner/claude
   const showNav =
-    NAV_ROOTS.some(r => location.pathname.startsWith(r)) ||
-    location.pathname === '/recipes'
+    location.pathname === '/grocery' ||
+    location.pathname === '/recipes' ||
+    location.pathname === '/planner' ||
+    location.pathname === '/prep'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -66,8 +68,12 @@ function ProtectedLayout() {
         <Route path="/recipes/review"    element={<RecipeReviewScreen />} />
         <Route path="/recipes/:id"       element={<RecipeDetailScreen />} />
         <Route path="/recipes"           element={<RecipesScreen />} />
-        {/* Planner / Prep / Settings */}
+        {/* Planner */}
+        <Route path="/planner/claude"    element={<PlanWithClaudeScreen />} />
+        <Route path="/planner/add"       element={<AddToPlanScreen />} />
         <Route path="/planner"           element={<PlannerScreen />} />
+        {/* Staging / Prep / Settings */}
+        <Route path="/staging"           element={<StagingScreen />} />
         <Route path="/prep"              element={<MealPrepScreen />} />
         <Route path="/settings"          element={<SettingsScreen />} />
         <Route path="*"                  element={<Navigate to="/grocery" replace />} />

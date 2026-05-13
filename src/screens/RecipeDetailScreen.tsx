@@ -40,7 +40,6 @@ export function RecipeDetailScreen() {
   const [tab,         setTab]         = useState<Tab>('ingredients')
   const [servings,    setServings]    = useState<number | null>(null)
   const [cookingMode, setCookingMode] = useState(false)
-  const [addToPlan,   setAddToPlan]   = useState(false)
 
   // Realtime: swap in generated image when ready
   useRecipeImageRealtime()
@@ -278,7 +277,13 @@ export function RecipeDetailScreen() {
         {/* Pinned bottom: Add to meal plan */}
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: 'var(--dk2)', borderTop: '0.5px solid var(--br)', padding: '12px 16px' }}>
           <button
-            onClick={() => setAddToPlan(true)}
+            onClick={() => navigate('/planner/add', {
+              state: {
+                recipeId:    recipe.id,
+                recipeName:  recipe.name,
+                recipeEmoji: recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️'),
+              },
+            })}
             style={{
               width: '100%', padding: '13px',
               backgroundColor: 'var(--dk3)', color: 'var(--tp)',
@@ -313,55 +318,7 @@ export function RecipeDetailScreen() {
         />
       )}
 
-      {/* Add to plan mini-sheet (stub for Session 4) */}
-      {addToPlan && (
-        <AddToPlanSheet recipeName={recipe.name} onClose={() => setAddToPlan(false)} />
-      )}
     </>
   )
 }
 
-// ── Add to plan stub sheet ─────────────────────────────────────
-function AddToPlanSheet({ recipeName, onClose }: { recipeName: string; onClose: () => void }) {
-  return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 50,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex', alignItems: 'flex-end',
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: '100%', backgroundColor: 'var(--dk2)',
-          borderRadius: '16px 16px 0 0',
-          padding: '20px 20px 32px',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ width: '36px', height: '4px', backgroundColor: 'var(--br)', borderRadius: '2px', margin: '0 auto 16px' }} />
-        <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 4px' }}>
-          Add to meal plan
-        </h3>
-        <p style={{ fontSize: '12px', color: 'var(--ts)', margin: '0 0 20px' }}>
-          {recipeName}
-        </p>
-        <p style={{ fontSize: '13px', color: 'var(--ts)', margin: 0 }}>
-          Full planner integration coming in Session 4.
-        </p>
-        <button
-          onClick={onClose}
-          style={{
-            marginTop: '20px', width: '100%', padding: '12px',
-            backgroundColor: 'var(--dk3)', color: 'var(--ts)',
-            border: '0.5px solid var(--br)', borderRadius: '10px',
-            fontSize: '14px', cursor: 'pointer',
-          }}
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  )
-}
