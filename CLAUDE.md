@@ -524,8 +524,58 @@ Update this section at the end of every Claude Code session.
 - Ingredient chip matching is text-based (name substring); good enough for now, can be improved with `ingredient_ids[]` from the AI parser in a future session
 
 ### Session 4 — Meal planner
-**Status:** Not started  
-**Depends on:** Session 1 (DB schema), Session 2 (recipes exist to plan with)
+**Status:** ✅ Complete  
+**Completed:** 2026-05-12
+
+**What was built:**
+
+*Global theme change: Slate & Sage*
+- `index.css` updated: `--dk #141820`, `--dk2 #1a2028`, `--dk3/dkc #1e2330`, `--am #7BAF8A` (sage), `--aml #A8CDB5`, `--tp #EEF0F4`, `--ts #8A95A8`, `--tm #4A5568`, `--rd #C0625A`, `--tl #4A8A6A`
+
+*Utilities*
+- `src/lib/weekUtils.ts`: `getWeekStart(dow)`, `shiftWeek`, `getWeekDays`, `formatWeekRange`, `toISODate`, `isToday`, `dayNameToDate`
+- `src/lib/mealPlanParser.ts`: `parseMealPlanText(text)` → calls `aiCall('meal_plan_parsing', text, { systemPrompt })` → returns `ParsedMealEntry[]`
+  - **NOTE FOR FUTURE SESSION**: Currently stores all dishes as `freeform_name`. A future session should add catalog matching: after parsing, match dish names against the family's saved recipes and set `recipe_id` on slots when a match is found. This enables the grocery list generator to pull structured ingredient data for AI-planned meals.
+
+*Hooks*
+- `useUserSettings.ts`: `useUserSettings()` + `useUpdatePlanStartDow()` — reads/writes `user_settings.plan_start_dow`
+- `useMealPlan.ts`: `useSlotsForWeek(weekStart)` (joins `recipes` for name+emoji), `useAddDish()`, `useRemoveDish()`, `groupBySlot()`, `dishDisplayName()`, `dishEmoji()`
+
+*PlannerScreen (`/planner`)*
+- 7-row × up to 3-col grid. Week nav (← date range →). Days as rows with date label.
+- Plan start day `<select>` + B/L/D column toggles on same row, above the table. Breakfast hidden by default.
+- Column toggles use on/off styling (filled dark chip vs. strikethrough text); toggling a column removes it from the grid but not from the DB.
+- Today's day row label highlighted in sage `var(--am)`.
+- SlotCell: empty = `+` centered; filled = stacked emoji+name dishes with hairline dividers and `· add` affordance.
+- SlotPopover: centered fixed modal, dish list with ✕ delete. Clicking ✕ shows inline confirmation ("Remove '...'? [Cancel] [Remove]") before calling `useRemoveDish`. Input + Add button to insert freeform dishes. "Done" closes.
+- "Plan my week with Claude →" dashed sage button above table.
+- "Generate grocery list" sage button pinned above nav → navigates to `/staging`.
+
+*PlanWithClaudeScreen (`/planner/claude`)*
+- Textarea + "Fill my planner" button. Passes `weekStart` + `weekDays` via location.state.
+- Calls `parseMealPlanText()` → maps day names to the current week's dates → calls `useAddDish` for each dish.
+- Loading state with spinner. Error display. `useRef(didRun)` guard.
+- Footer note: "Dishes are added as freeform entries. Recipe linking coming in a future update."
+
+*AddToPlanScreen (`/planner/add`)*
+- Receives `{ recipeId, recipeName, recipeEmoji }` via location.state.
+- Shows mini recipe card ("Tap any slot to place · tap filled to stack") + simplified full grid (all 3 cols always visible).
+- Tap slot → `useAddDish()` → navigate back. Tap filled slot → stacks (adds another dish row).
+
+*StagingScreen (`/staging`)*
+- Placeholder for Session 6. "Three-zone smart list: Buy now · Check pantry · Staple predictions."
+
+*App.tsx*
+- New routes: `/planner/claude`, `/planner/add`, `/staging`
+- Bottom nav logic changed to exact-match only: shows on `/grocery`, `/recipes`, `/planner`, `/prep`
+- `RecipeDetailScreen` "Add to meal plan" button now navigates to `/planner/add` with recipe state
+
+**Schema:** No new migrations — `meal_plan_slots` was already in `0001_init.sql`
+
+**Notes for Session 5 (Grocery List):**
+- `useSlotsForWeek` returns slots joined with recipe name+emoji; the grocery list generator can use `recipe_id` to pull structured ingredient data
+- AI-planned meals have `recipe_id = null` and `freeform_name` only — the grocery list will need to handle these as manual line items until catalog matching is added
+- `week_start` = the user's plan-start-day date for that week (not always Monday)
 
 ### Session 5 — Grocery list: generation + grid UI
 **Status:** Not started  
