@@ -26,24 +26,60 @@ const queryClient = new QueryClient({
   },
 })
 
+// Resolves the initial session (and any pending OAuth code exchange) before
+// the rest of the app renders routing guards.
 function AuthListener() {
-  const setSession = useAppStore(s => s.setSession)
+  const setSession       = useAppStore(s => s.setSession)
+  const setSessionLoaded = useAppStore(s => s.setSessionLoaded)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setSession(session))
+    // getSession() automatically exchanges a PKCE ?code= in the URL if present.
+    // We must NOT navigate away until this resolves — that's why sessionLoading
+    // blocks all routing guards below.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setSessionLoaded()
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSession(session)
+    })
     return () => subscription.unsubscribe()
-  }, [setSession])
+  }, [setSession, setSessionLoaded])
 
   return null
 }
 
+// Full-screen spinner shown while the initial session check is in flight.
+function SplashScreen() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100%', backgroundColor: 'var(--dk)',
+    }}>
+      <div style={{
+        width: '28px', height: '28px',
+        border: '2.5px solid var(--br)',
+        borderTopColor: 'var(--am)',
+        borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite',
+      }} />
+    </div>
+  )
+}
+
 function ProtectedLayout() {
-  const session = useAppStore(s => s.session)
-  const location = useLocation()
+  const session        = useAppStore(s => s.session)
+  const sessionLoading = useAppStore(s => s.sessionLoading)
+  const location       = useLocation()
 
   // Bootstrap family after auth
   useEnsureFamilyId()
+
+  // Wait for the initial getSession() before making any routing decision.
+  // This prevents stripping the ?code= from the URL before Supabase can
+  // exchange it for a session.
+  if (sessionLoading) return <SplashScreen />
 
   if (!session) {
     return <Navigate to="/login" state={{ from: location }} replace />
@@ -84,8 +120,11 @@ function ProtectedLayout() {
 }
 
 function LoginGate() {
-  const session = useAppStore(s => s.session)
-  if (session) return <Navigate to="/grocery" replace />
+  const session        = useAppStore(s => s.session)
+  const sessionLoading = useAppStore(s => s.sessionLoading)
+
+  if (sessionLoading) return <SplashScreen />
+  if (session)        return <Navigate to="/grocery" replace />
   return <LoginScreen />
 }
 
