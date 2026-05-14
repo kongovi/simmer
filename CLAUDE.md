@@ -772,8 +772,61 @@ Update this section at the end of every Claude Code session.
 - `family_stores` and `ingredients_catalog.default_store` are independent — GroceryScreen tabs still read from catalog; Settings Stores section manages the standalone list
 
 ### Session 9 — Onboarding + PWA + polish
-**Status:** Not started  
-**Depends on:** All previous sessions complete
+**Status:** ✅ Complete  
+**Completed:** 2026-05-13  
+**Live URL:** https://simmer-rho-eight.vercel.app
+
+**What was built:**
+
+*DB — migration `0007_session9_onboarding`*
+- Added `onboarding_complete boolean NOT NULL DEFAULT false` to `user_settings`
+- Immediately `UPDATE user_settings SET onboarding_complete = true` — existing accounts skip onboarding
+- Performance indexes: `meal_plan_slots(family_id, week_start)`, `purchase_history(family_id, ingredient_id, purchased_at)`, `ingredients_catalog(family_id, name)`
+
+*Onboarding flow (`/onboarding`)*
+- `OnboardingScreen.tsx` — 3-step wizard with animated dot indicator
+  - Step 1 (Welcome): Simmer flame logo, tagline, "Get started →", privacy note
+  - Step 2 (Plan day): 7 tappable day buttons, selected highlighted sage, saves `plan_start_dow` then advances
+  - Step 3 (Import history): drag-and-drop + file picker CSV import with progress spinner and `imported / newToCatalog` summary; "Import & finish" and "Skip for now" both complete onboarding
+- `OnboardingGuard` component inside `ProtectedLayout` — `useEffect` checks `settings.onboarding_complete`, redirects to `/onboarding` if false; does nothing once complete (no extra latency for existing users)
+- `useCompleteOnboarding()` mutation — sets `onboarding_complete = true` + invalidates settings cache
+
+*CSV order history import*
+- `src/lib/csvImport.ts` — column-detection parser (Instacart "Item Name"/"Date Ordered", Amazon "Item"/"Order Date", generic fallback), quoted-field CSV parser, name normalisation (strips size suffixes, brand prefixes, title-cases), ISO date parsing, per-(name, date) deduplication
+- `fuzzyMatchIngredient()` — three-tier matching: exact → substring contains → word-overlap ≥ 50%
+- `src/hooks/useOrderImport.ts` — loads full catalog, matches each row (creates new entry if no match), batch-inserts `purchase_history` in 200-row chunks, returns `{ imported, newToCatalog, skipped }`
+- Settings screen: "Import order history" row opens `ImportSheet` bottom sheet (same drag-and-drop UX, reuses hook)
+
+*PWA*
+- `public/icons/icon-192.png` + `icon-512.png` generated programmatically — `#141820` background, sage green circular badge with dark flame symbol
+- `vite.config.ts`: fixed `theme_color` + `background_color` from `#1a1612` → `#141820` (matches current Slate palette)
+- `index.html`: added `viewport-fit=cover`, `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style: black-translucent`, `apple-mobile-web-app-title`, `apple-touch-icon`, `theme-color`; updated title to "Simmer"
+- PWA service worker now precaches 7 entries including both icons
+
+*Safe-area fixes*
+- `Screen.tsx`: added `style` prop; bottom padding changed from `68px` → `calc(68px + env(safe-area-inset-bottom))`
+- `GroceryScreen.tsx`: both pinned bars (`bottom: '58px'`) → `calc(68px + env(safe-area-inset-bottom))`
+- `PlannerScreen.tsx`: pinned generate button `bottom: '58px'` → `calc(68px + env(safe-area-inset-bottom))`; `<Screen>` gets extra scroll padding for the pinned bar (`68px + 56px + env(safe-area-inset-bottom)`)
+- `BottomNav.tsx` already had `paddingBottom: env(safe-area-inset-bottom)` ✓
+
+*Loading states*
+- `RecipesScreen`: replaced "Loading…" text with `RecipeSkeletonGrid` — 2-col grid of 4 shimmer cards matching real card proportions
+- `PlannerScreen`: spinner while `slotsLoading`, table fades to 40% opacity during load
+- `@keyframes shimmer` added to `index.css`
+
+**Known issues / future work:**
+- Bundle size is ~649KB gzipped to 176KB — acceptable for now but could benefit from code-splitting (lazy-load per-route)
+- Ollama requires the user to configure CORS on their local Ollama instance (`OLLAMA_ORIGINS=*`)
+- Recipe structuring "retry" on error works but leaves the user on the loading screen — a future session could add a "Back to entry" button
+- `family_members.display_name` is not populated from Google OAuth metadata — members show as initials of their `user_id` sub-string instead of their name. Fix: on `useEnsureFamilyId`, write `user_metadata.full_name` to `display_name`
+- CSV import creates new catalog entries without emoji — entries will show 🥄 placeholder until user edits them in the catalog screen
+
+**For a future developer:**
+- All Supabase Edge Function secrets must be set: `ANTHROPIC_API_KEY` (for `ai-call`), `GOOGLE_AI_API_KEY` (for `generate-image`)
+- Vercel env vars needed: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_DEV_ANTHROPIC_KEY`, `VITE_DEV_GOOGLE_AI_KEY`
+- The `get_my_family_id()` SECURITY DEFINER function is critical — all RLS policies on 11 tables depend on it
+- The `create_initial_family()` RPC bootstraps a new user's family on first sign-in (called by `useEnsureFamilyId`)
+- `accept_family_invite(token)` RPC handles the full join flow atomically, including replacing old family membership
 
 ---
 
