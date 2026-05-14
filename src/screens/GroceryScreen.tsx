@@ -9,7 +9,7 @@ import {
   itemDisplayName, itemEmoji, itemQtyLabel,
 } from '../hooks/useGroceryList'
 import type { GroceryItem } from '../hooks/useGroceryList'
-import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
+import { useIngredientImageRealtime, useBackfillIngredientImages } from '../hooks/useIngredientImages'
 
 // ── GroceryScreen ─────────────────────────────────────────────────────────────
 
@@ -21,6 +21,7 @@ export function GroceryScreen() {
   const { data: items = [] } = useGroceryListItems(list?.id ?? null)
   useGroceryListRealtime(list?.id ?? null)
   useIngredientImageRealtime()
+  useBackfillIngredientImages(items)
 
   const { data: knownStores = [] } = useKnownStores()
 

@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
+import { generateIngredientImage } from '../lib/images'
 
 interface CatalogUpdatePayload {
   id: string
@@ -17,8 +18,6 @@ interface CatalogUpdatePayload {
  *   - ['staging-ingredients', *] — StagingScreen
  *   - ['meal-prep', *] — MealPrepScreen
  *   - ['catalog', *] — CatalogScreen
- *
- * Mount once near the top of the app (e.g. in ProtectedLayout or GroceryScreen).
  */
 export function useIngredientImageRealtime() {
   const familyId = useAppStore(s => s.familyId)
@@ -62,6 +61,9 @@ export function useIngredientImageRealtime() {
             }
           )
 
+          // Invalidate recipe-ingredients so RecipeDetailScreen refreshes
+          queryClient.invalidateQueries({ queryKey: ['recipe-ingredients'] })
+
           // Invalidate staging + meal-prep (they have their own shape; easier to refetch)
           queryClient.invalidateQueries({ queryKey: ['staging-ingredients', familyId] })
           queryClient.invalidateQueries({ queryKey: ['meal-prep', familyId] })
@@ -72,4 +74,46 @@ export function useIngredientImageRealtime() {
 
     return () => { supabase.removeChannel(channel) }
   }, [familyId, queryClient])
+}
+
+/**
+ * Backfill ingredient images for ingredients that are still pending.
+ * Fires once per session when the grocery items load. Staggers requests
+ * 600ms apart so we don't hammer the Edge Function with 20 concurrent calls.
+ *
+ * Pass the ingredient list from useGroceryListItems (or any list that has
+ * { id, name, image_url, image_status } on the ingredient join).
+ */
+export function useBackfillIngredientImages(
+  items: Array<{
+    ingredient: { id: string; name: string; image_url: string | null; image_status: string | null } | null
+  }> | undefined
+) {
+  const firedRef = useRef(false)
+
+  useEffect(() => {
+    if (firedRef.current) return
+    if (!items || items.length === 0) return
+
+    const pending = items
+      .map(i => i.ingredient)
+      .filter((ing): ing is { id: string; name: string; image_url: string | null; image_status: string | null } =>
+        !!ing && !ing.image_url && ing.image_status !== 'generating' && ing.image_status !== 'done'
+      )
+      // Deduplicate by id
+      .filter((ing, idx, arr) => arr.findIndex(x => x.id === ing.id) === idx)
+
+    if (pending.length === 0) return
+
+    firedRef.current = true
+    console.log(`Backfilling images for ${pending.length} ingredients`)
+
+    pending.forEach((ing, i) => {
+      setTimeout(() => {
+        generateIngredientImage(ing.id, ing.name).catch(err =>
+          console.warn(`Backfill image error [${ing.name}]:`, err)
+        )
+      }, i * 600) // stagger: 0ms, 600ms, 1200ms, ...
+    })
+  }, [items])
 }
