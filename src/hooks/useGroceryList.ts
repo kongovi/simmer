@@ -147,15 +147,30 @@ export function useKnownStores() {
   return useQuery({
     queryKey: ['known-stores', familyId],
     enabled:  !!familyId,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 2,
     queryFn:  async () => {
-      const { data, error } = await supabase
-        .from('ingredients_catalog')
-        .select('default_store')
-        .eq('family_id', familyId!)
-        .not('default_store', 'is', null)
-      if (error) throw error
-      return [...new Set(data.map(d => d.default_store as string))].filter(Boolean).sort()
+      // Pull from both sources and merge: family_stores (managed in Settings)
+      // and ingredients_catalog.default_store (inferred from ingredient assignments)
+      const [storesRes, catalogRes] = await Promise.all([
+        supabase
+          .from('family_stores')
+          .select('name')
+          .eq('family_id', familyId!)
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('ingredients_catalog')
+          .select('default_store')
+          .eq('family_id', familyId!)
+          .not('default_store', 'is', null),
+      ])
+
+      const fromSettings = (storesRes.data ?? []).map(s => s.name as string)
+      const fromCatalog  = (catalogRes.data ?? []).map(d => d.default_store as string)
+
+      // Settings stores come first (respecting sort_order), then any catalog-only stores appended
+      const seen = new Set(fromSettings.map(s => s.toLowerCase()))
+      const extra = fromCatalog.filter(s => s && !seen.has(s.toLowerCase()))
+      return [...fromSettings, ...new Set(extra)].filter(Boolean)
     },
   })
 }

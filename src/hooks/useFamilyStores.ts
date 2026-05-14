@@ -38,6 +38,7 @@ export function useAddFamilyStore() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['family-stores', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['known-stores', familyId] })
     },
   })
 }
@@ -56,6 +57,7 @@ export function useDeleteFamilyStore() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['family-stores', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['known-stores', familyId] })
     },
   })
 }
