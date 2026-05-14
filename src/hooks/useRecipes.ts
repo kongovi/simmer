@@ -206,14 +206,16 @@ export function useSaveRecipe() {
     mutationFn: async (payload: SaveRecipePayload): Promise<string> => {
       if (!familyId) throw new Error('No family ID — cannot save recipe')
 
-      // 1. Upsert ingredients_catalog; track which need image generation
+      // 1. Upsert ingredients_catalog; track which need image generation.
+      // Uses ON CONFLICT on the (family_id, lower(trim(name))) unique index so
+      // concurrent saves of the same ingredient never create duplicates.
       const ingredientIds: string[] = []
       const needsImageGen: { id: string; name: string }[] = []
 
       for (const ing of payload.ingredients) {
         if (ing.catalogId) {
+          // Already resolved — just check whether image gen is needed
           ingredientIds.push(ing.catalogId)
-          // Check if existing catalog item already has an image
           const { data: cat } = await supabase
             .from('ingredients_catalog')
             .select('id, image_url')
@@ -222,26 +224,35 @@ export function useSaveRecipe() {
           if (cat && !cat.image_url) needsImageGen.push({ id: ing.catalogId, name: ing.name })
           continue
         }
-        const { data: existing } = await supabase
-          .from('ingredients_catalog')
-          .select('id, image_url')
-          .eq('family_id', familyId)
-          .ilike('name', ing.name)
-          .maybeSingle()
 
-        if (existing?.id) {
-          ingredientIds.push(existing.id as string)
-          if (!existing.image_url) needsImageGen.push({ id: existing.id as string, name: ing.name })
-        } else {
-          const { data: newIng, error } = await supabase
+        // Upsert: insert or return existing row — never duplicates
+        const { data: upserted, error: upsertErr } = await supabase
+          .from('ingredients_catalog')
+          .upsert(
+            { family_id: familyId, name: ing.name, emoji: ing.emoji },
+            { onConflict: 'family_id,lower(trim(name))', ignoreDuplicates: false }
+          )
+          .select('id, image_url')
+          .single()
+
+        if (upsertErr) {
+          // Upsert returned an error (e.g. conflict wasn't resolved) — fall back to a lookup
+          const { data: fallback } = await supabase
             .from('ingredients_catalog')
-            .insert({ family_id: familyId, name: ing.name, emoji: ing.emoji })
-            .select('id')
-            .single()
-          if (error) throw error
-          ingredientIds.push(newIng.id as string)
-          needsImageGen.push({ id: newIng.id as string, name: ing.name })
+            .select('id, image_url')
+            .eq('family_id', familyId)
+            .ilike('name', ing.name)
+            .limit(1)
+            .maybeSingle()
+          if (fallback?.id) {
+            ingredientIds.push(fallback.id as string)
+            if (!fallback.image_url) needsImageGen.push({ id: fallback.id as string, name: ing.name })
+          }
+          continue
         }
+
+        ingredientIds.push(upserted.id as string)
+        if (!upserted.image_url) needsImageGen.push({ id: upserted.id as string, name: ing.name })
       }
 
       // 2. Pick recipe emoji + build image prompt parts
@@ -327,27 +338,32 @@ export function useUpdateRecipe() {
     mutationFn: async (payload: SaveRecipePayload & { id: string }): Promise<string> => {
       if (!familyId) throw new Error('No family ID — cannot update recipe')
 
-      // 1. Upsert ingredients_catalog (same logic as save)
+      // 1. Upsert ingredients_catalog — same dedup logic as useSaveRecipe
       const ingredientIds: string[] = []
       for (const ing of payload.ingredients) {
         if (ing.catalogId) { ingredientIds.push(ing.catalogId); continue }
-        const { data: existing } = await supabase
+
+        const { data: upserted, error: upsertErr } = await supabase
           .from('ingredients_catalog')
+          .upsert(
+            { family_id: familyId, name: ing.name, emoji: ing.emoji },
+            { onConflict: 'family_id,lower(trim(name))', ignoreDuplicates: false }
+          )
           .select('id')
-          .eq('family_id', familyId)
-          .ilike('name', ing.name)
-          .maybeSingle()
-        if (existing?.id) {
-          ingredientIds.push(existing.id as string)
-        } else {
-          const { data: newIng, error } = await supabase
+          .single()
+
+        if (upsertErr) {
+          const { data: fallback } = await supabase
             .from('ingredients_catalog')
-            .insert({ family_id: familyId, name: ing.name, emoji: ing.emoji })
             .select('id')
-            .single()
-          if (error) throw error
-          ingredientIds.push(newIng.id as string)
+            .eq('family_id', familyId)
+            .ilike('name', ing.name)
+            .limit(1)
+            .maybeSingle()
+          if (fallback?.id) ingredientIds.push(fallback.id as string)
+          continue
         }
+        ingredientIds.push(upserted.id as string)
       }
 
       // 2. Update recipe basics (preserve image_url / image_status / nb2_prompt)
