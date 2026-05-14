@@ -171,7 +171,7 @@ export function useIngredientSuggestions(search: string) {
     queryFn:  async () => {
       let q = supabase
         .from('ingredients_catalog')
-        .select('id, name, emoji, default_store')
+        .select('id, name, emoji, default_store, image_url, image_status')
         .eq('family_id', familyId!)
         .order('name')
         .limit(24)
@@ -320,24 +320,44 @@ export function useToggleItem() {
 /** Add a manual item — from catalog (with ingredientId) or free-text (custom_name). */
 export function useAddManualItem() {
   const queryClient = useQueryClient()
+  const familyId = useAppStore(s => s.familyId)
 
   return useMutation({
     mutationFn: async ({
       listId, name, quantity, unit, ingredientId, emoji,
     }: {
-      listId:       string
-      name:         string
-      quantity?:    number | null
-      unit?:        string | null
+      listId:        string
+      name:          string
+      quantity?:     number | null
+      unit?:         string | null
       ingredientId?: string | null
-      emoji?:       string | null
-    }) => {
+      emoji?:        string | null
+    }): Promise<{ ingredientId: string | null; needsImage: boolean }> => {
+      let resolvedIngredientId = ingredientId ?? null
+      let needsImage = false
+
+      // If no catalog entry yet, upsert one so the item gets dedup + image gen
+      if (!resolvedIngredientId && familyId) {
+        const { data: upserted } = await supabase
+          .from('ingredients_catalog')
+          .upsert(
+            { family_id: familyId, name, emoji: emoji ?? null },
+            { onConflict: 'family_id,lower(trim(name))', ignoreDuplicates: false }
+          )
+          .select('id, image_url')
+          .single()
+        if (upserted?.id) {
+          resolvedIngredientId = upserted.id as string
+          needsImage = !upserted.image_url
+        }
+      }
+
       const { error } = await supabase
         .from('grocery_list_items')
         .insert({
           grocery_list_id: listId,
-          ingredient_id:   ingredientId ?? null,
-          custom_name:     ingredientId ? null : name,
+          ingredient_id:   resolvedIngredientId,
+          custom_name:     resolvedIngredientId ? null : name,
           quantity:        quantity ?? null,
           unit:            unit ?? null,
           source:          'manual',
@@ -346,6 +366,8 @@ export function useAddManualItem() {
           is_checked:      false,
         })
       if (error) throw error
+
+      return { ingredientId: resolvedIngredientId, needsImage }
     },
     onSuccess: (_v, { listId }) => {
       queryClient.invalidateQueries({ queryKey: ['grocery-items', listId] })

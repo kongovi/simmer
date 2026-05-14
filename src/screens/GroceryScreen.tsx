@@ -10,6 +10,7 @@ import {
 } from '../hooks/useGroceryList'
 import type { GroceryItem } from '../hooks/useGroceryList'
 import { useIngredientImageRealtime, useBackfillIngredientImages } from '../hooks/useIngredientImages'
+import { generateIngredientImage } from '../lib/images'
 
 // ── GroceryScreen ─────────────────────────────────────────────────────────────
 
@@ -78,15 +79,36 @@ export function GroceryScreen() {
   function openKb() { setShowKb(true); setKbSearch(''); setTimeout(() => kbInputRef.current?.focus(), 50) }
   function closeKb() { setShowKb(false); setKbSearch('') }
 
-  function handleAddSuggestion(sug: { id: string; name: string; emoji: string | null }) {
+  function handleAddSuggestion(sug: { id: string; name: string; emoji: string | null; image_url?: string | null; image_status?: string | null }) {
     if (!list) return
-    addItem.mutate({ listId: list.id, name: sug.name, ingredientId: sug.id, emoji: sug.emoji })
+    addItem.mutate(
+      { listId: list.id, name: sug.name, ingredientId: sug.id, emoji: sug.emoji },
+      {
+        onSuccess: () => {
+          // Fire image gen if this catalog item doesn't have one yet
+          if (!sug.image_url && sug.image_status !== 'generating') {
+            generateIngredientImage(sug.id, sug.name).catch(() => {})
+          }
+        },
+      }
+    )
   }
 
   function handleAddCustom() {
     if (!list || !kbSearch.trim()) return
-    addItem.mutate({ listId: list.id, name: kbSearch.trim() })
+    const name = kbSearch.trim()
     setKbSearch('')
+    addItem.mutate(
+      { listId: list.id, name },
+      {
+        onSuccess: (result) => {
+          // useAddManualItem upserted a catalog entry — fire image gen for it
+          if (result?.ingredientId && result.needsImage) {
+            generateIngredientImage(result.ingredientId, name).catch(() => {})
+          }
+        },
+      }
+    )
   }
 
   // ── Store assignment sheet (long-press) ──
@@ -412,7 +434,7 @@ export function GroceryScreen() {
               {/* Add free-text item if no exact match */}
               {kbSearch.trim() && !suggestions.some(s => s.name.toLowerCase() === kbSearch.trim().toLowerCase()) && (
                 <button
-                  onClick={() => { handleAddCustom(); closeKb() }}
+                  onClick={() => { handleAddCustom(); closeKb(); }}
                   style={{
                     width: '100%',
                     background: 'rgba(123,175,138,0.08)',
