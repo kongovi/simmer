@@ -5,6 +5,7 @@ import { Screen } from '../components/layout/Screen'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
 import { useSlotsForWeek, useAddDish, useRemoveDish, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
 import type { SlotDish } from '../hooks/useMealPlan'
+import { useRecipes } from '../hooks/useRecipes'
 import {
   getWeekStart, shiftWeek, getWeekDays, formatWeekRange,
   toISODate, isToday, DOW_NAMES,
@@ -58,6 +59,7 @@ export function PlannerScreen() {
   const slotMap = useMemo(() => groupBySlot(slots), [slots])
   const addDish    = useAddDish()
   const removeDish = useRemoveDish()
+  const { data: allRecipes = [] } = useRecipes({})
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -71,7 +73,7 @@ export function PlannerScreen() {
   function openSlot(slotDate: string, mealType: MealType) {
     const key    = `${slotDate}_${mealType}`
     const dishes = slotMap.get(key) ?? []
-    setPopover({ slotDate, mealType, dishes, inputVal: '', confirmDeleteId: null })
+    setPopover({ slotDate, mealType, dishes, inputVal: '', selectedRecipeId: null, confirmDeleteId: null })
   }
 
   function closePopover() { setPopover(null) }
@@ -105,9 +107,23 @@ export function PlannerScreen() {
       slotDate:     popover.slotDate,
       mealType:     popover.mealType,
       freeformName: name,
+      recipeId:     popover.selectedRecipeId ?? undefined,
       sortOrder:    existing.length,
     })
-    setPopover(p => p ? { ...p, inputVal: '' } : p)
+    setPopover(p => p ? { ...p, inputVal: '', selectedRecipeId: null } : p)
+  }
+
+  function handleSelectRecipe(recipe: { id: string; name: string }) {
+    const existing = slotMap.get(`${popover?.slotDate}_${popover?.mealType}`) ?? []
+    addDish.mutate({
+      weekStart,
+      slotDate:     popover!.slotDate,
+      mealType:     popover!.mealType,
+      freeformName: recipe.name,
+      recipeId:     recipe.id,
+      sortOrder:    existing.length,
+    })
+    setPopover(p => p ? { ...p, inputVal: '', selectedRecipeId: null } : p)
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -121,9 +137,12 @@ export function PlannerScreen() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 130px' }}>
 
           {/* Header */}
-          <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 14px' }}>
-            Meal Planner
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+            <img src="/logo.png" alt="" style={{ height: '26px', width: '26px', objectFit: 'contain' }} />
+            <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
+              Meal Planner
+            </h1>
+          </div>
 
           {/* Week nav row */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -294,8 +313,10 @@ export function PlannerScreen() {
           />
           <SlotPopover
             popover={popover}
-            onInputChange={v => setPopover(p => p ? { ...p, inputVal: v } : p)}
+            recipes={allRecipes}
+            onInputChange={v => setPopover(p => p ? { ...p, inputVal: v, selectedRecipeId: null } : p)}
             onAdd={handleAddDish}
+            onSelectRecipe={handleSelectRecipe}
             onDeleteClick={handleDeleteClick}
             onDeleteConfirm={handleDeleteConfirm}
             onDeleteCancel={handleDeleteCancel}
@@ -363,20 +384,23 @@ function SlotCell({ dishes, onClick }: { dishes: SlotDish[]; onClick: () => void
 // ── SlotPopover ───────────────────────────────────────────────────────────────
 
 interface PopoverState {
-  slotDate:        string
-  mealType:        MealType
-  dishes:          SlotDish[]
-  inputVal:        string
-  confirmDeleteId: string | null
+  slotDate:         string
+  mealType:         MealType
+  dishes:           SlotDish[]
+  inputVal:         string
+  selectedRecipeId: string | null
+  confirmDeleteId:  string | null
 }
 
 function SlotPopover({
-  popover, onInputChange, onAdd,
+  popover, recipes, onInputChange, onAdd, onSelectRecipe,
   onDeleteClick, onDeleteConfirm, onDeleteCancel, onClose,
 }: {
   popover:         PopoverState
+  recipes:         { id: string; name: string; emoji: string | null }[]
   onInputChange:   (v: string) => void
   onAdd:           () => void
+  onSelectRecipe:  (r: { id: string; name: string }) => void
   onDeleteClick:   (id: string) => void
   onDeleteConfirm: (id: string) => void
   onDeleteCancel:  () => void
@@ -384,6 +408,11 @@ function SlotPopover({
 }) {
   const dayLabel  = new Date(popover.slotDate + 'T12:00:00').toLocaleString('default', { weekday: 'long' })
   const mealLabel = popover.mealType.charAt(0).toUpperCase() + popover.mealType.slice(1)
+
+  const query = popover.inputVal.trim().toLowerCase()
+  const suggestions = query.length > 0
+    ? recipes.filter(r => r.name.toLowerCase().includes(query)).slice(0, 5)
+    : []
 
   return (
     <div style={{
@@ -452,35 +481,72 @@ function SlotPopover({
       </div>
 
       {/* Add row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', paddingTop: '10px' }}>
-        <input
-          value={popover.inputVal}
-          onChange={e => onInputChange(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
-          placeholder="Add another dish…"
-          style={{
-            flex: 1, background: 'var(--dk3)',
-            border: '0.5px solid var(--brh)', borderRadius: '8px',
-            padding: '6px 9px', color: 'var(--tp)',
-            fontSize: '11px', fontFamily: 'inherit', outline: 'none',
-          }}
-        />
-        <button
-          onClick={onAdd}
-          disabled={!popover.inputVal.trim()}
-          style={{
-            background: popover.inputVal.trim() ? 'var(--am)' : 'var(--dk3)',
-            border: 'none', borderRadius: '7px',
-            padding: '6px 10px',
-            color: popover.inputVal.trim() ? '#141820' : 'var(--tm)',
-            fontSize: '11px', fontWeight: 500,
-            fontFamily: 'inherit',
-            cursor: popover.inputVal.trim() ? 'pointer' : 'not-allowed',
-            transition: 'all 0.15s',
-          }}
-        >
-          Add
-        </button>
+      <div style={{ paddingTop: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+          <input
+            value={popover.inputVal}
+            onChange={e => onInputChange(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && suggestions.length === 0) onAdd() }}
+            placeholder="Add a dish…"
+            autoComplete="off"
+            style={{
+              flex: 1, background: 'var(--dk3)',
+              border: '0.5px solid var(--brh)', borderRadius: '8px',
+              padding: '6px 9px', color: 'var(--tp)',
+              fontSize: '11px', fontFamily: 'inherit', outline: 'none',
+            }}
+          />
+          <button
+            onClick={onAdd}
+            disabled={!popover.inputVal.trim()}
+            style={{
+              background: popover.inputVal.trim() ? 'var(--am)' : 'var(--dk3)',
+              border: 'none', borderRadius: '7px',
+              padding: '6px 10px',
+              color: popover.inputVal.trim() ? '#141820' : 'var(--tm)',
+              fontSize: '11px', fontWeight: 500,
+              fontFamily: 'inherit',
+              cursor: popover.inputVal.trim() ? 'pointer' : 'not-allowed',
+              transition: 'all 0.15s',
+            }}
+          >
+            Add
+          </button>
+        </div>
+
+        {/* Recipe autocomplete suggestions */}
+        {suggestions.length > 0 && (
+          <div style={{
+            marginTop: '4px',
+            background: 'var(--dk3)',
+            border: '0.5px solid var(--brh)',
+            borderRadius: '8px',
+            overflow: 'hidden',
+          }}>
+            {suggestions.map((r, idx) => (
+              <button
+                key={r.id}
+                onMouseDown={e => { e.preventDefault(); onSelectRecipe(r) }}
+                style={{
+                  width: '100%', textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '7px 10px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  borderTop: idx > 0 ? '0.5px solid var(--br)' : 'none',
+                  color: 'var(--tp)', fontSize: '11px',
+                  fontFamily: 'inherit',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--dkc)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={{ fontSize: '14px' }}>{r.emoji ?? '🍽️'}</span>
+                <span style={{ flex: 1 }}>{r.name}</span>
+                <span style={{ fontSize: '9px', color: 'var(--am)', fontWeight: 500 }}>link</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Done */}

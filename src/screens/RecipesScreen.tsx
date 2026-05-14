@@ -40,9 +40,12 @@ export function RecipesScreen() {
           padding: '16px 16px 0',
         }}
       >
-        <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
-          Recipes
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img src="/logo.png" alt="" style={{ height: '26px', width: '26px', objectFit: 'contain' }} />
+          <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
+            Recipes
+          </h1>
+        </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={() => navigate('/recipes/import')}
@@ -131,8 +134,9 @@ export function RecipesScreen() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: 'repeat(auto-fill, 162px)',
               gap: '10px',
+              justifyContent: 'start',
             }}
           >
             {recipes.map(r => <RecipeCard key={r.id} recipe={r} />)}

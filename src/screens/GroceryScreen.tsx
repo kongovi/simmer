@@ -169,9 +169,12 @@ export function GroceryScreen() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
             <div>
-              <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 2px' }}>
-                Grocery
-              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                <img src="/logo.png" alt="" style={{ height: '26px', width: '26px', objectFit: 'contain' }} />
+                <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
+                  Grocery
+                </h1>
+              </div>
               {weekLabel && (
                 <p style={{ fontSize: '11px', color: 'var(--ts)', margin: 0 }}>{weekLabel}</p>
               )}
@@ -285,7 +288,7 @@ export function GroceryScreen() {
           {unchecked.length > 0 && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, 104px)',
               gap: '8px',
               marginBottom: '14px',
             }}>
@@ -312,7 +315,7 @@ export function GroceryScreen() {
               </div>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, 104px)',
                 gap: '8px',
               }}>
                 {checked.map(item => (
