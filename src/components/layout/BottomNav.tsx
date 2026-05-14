@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { ShoppingCart, BookOpen, CalendarDays, ChefHat } from 'lucide-react'
+import { ShoppingCart, BookOpen, CalendarDays, ChefHat, Settings } from 'lucide-react'
 
 const tabs = [
   { to: '/grocery',  label: 'Grocery',  Icon: ShoppingCart },
   { to: '/recipes',  label: 'Recipes',   Icon: BookOpen },
   { to: '/planner',  label: 'Planner',   Icon: CalendarDays },
   { to: '/prep',     label: 'Prep',      Icon: ChefHat },
+  { to: '/settings', label: 'Settings',  Icon: Settings },
 ]
 
 export function BottomNav() {
@@ -43,8 +44,8 @@ export function BottomNav() {
         >
           {({ isActive }) => (
             <>
-              <Icon size={22} strokeWidth={isActive ? 2.2 : 1.8} />
-              <span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400, letterSpacing: '0.2px' }}>
+              <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
+              <span style={{ fontSize: '9px', fontWeight: isActive ? 600 : 400, letterSpacing: '0.2px' }}>
                 {label}
               </span>
             </>

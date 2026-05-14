@@ -13,12 +13,16 @@ import { RecipeEntryScreen } from './screens/RecipeEntryScreen'
 import { RecipeImportScreen } from './screens/RecipeImportScreen'
 import { RecipeLoadingScreen } from './screens/RecipeLoadingScreen'
 import { RecipeReviewScreen } from './screens/RecipeReviewScreen'
+import { RecipeEditScreen } from './screens/RecipeEditScreen'
 import { PlannerScreen } from './screens/PlannerScreen'
 import { PlanWithClaudeScreen } from './screens/PlanWithClaudeScreen'
 import { AddToPlanScreen } from './screens/AddToPlanScreen'
 import { StagingScreen } from './screens/StagingScreen'
 import { MealPrepScreen } from './screens/MealPrepScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
+import { SettingsModelsScreen } from './screens/SettingsModelsScreen'
+import { CatalogScreen } from './screens/CatalogScreen'
+import { JoinScreen } from './screens/JoinScreen'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -85,12 +89,13 @@ function ProtectedLayout() {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Show nav on primary tabs only — not on sub-screens like /planner/claude
+  // Show nav on primary tabs only — not on sub-screens
   const showNav =
-    location.pathname === '/grocery' ||
-    location.pathname === '/recipes' ||
-    location.pathname === '/planner' ||
-    location.pathname === '/prep'
+    location.pathname === '/grocery'  ||
+    location.pathname === '/recipes'  ||
+    location.pathname === '/planner'  ||
+    location.pathname === '/prep'     ||
+    location.pathname === '/settings'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -102,16 +107,22 @@ function ProtectedLayout() {
         <Route path="/recipes/import"    element={<RecipeImportScreen />} />
         <Route path="/recipes/loading"   element={<RecipeLoadingScreen />} />
         <Route path="/recipes/review"    element={<RecipeReviewScreen />} />
+        <Route path="/recipes/:id/edit"  element={<RecipeEditScreen />} />
         <Route path="/recipes/:id"       element={<RecipeDetailScreen />} />
         <Route path="/recipes"           element={<RecipesScreen />} />
         {/* Planner */}
         <Route path="/planner/claude"    element={<PlanWithClaudeScreen />} />
         <Route path="/planner/add"       element={<AddToPlanScreen />} />
         <Route path="/planner"           element={<PlannerScreen />} />
-        {/* Staging / Prep / Settings */}
+        {/* Staging / Prep */}
         <Route path="/staging"           element={<StagingScreen />} />
         <Route path="/prep"              element={<MealPrepScreen />} />
+        {/* Settings */}
+        <Route path="/settings/models"   element={<SettingsModelsScreen />} />
+        <Route path="/settings/catalog"  element={<CatalogScreen />} />
         <Route path="/settings"          element={<SettingsScreen />} />
+        {/* Family invite accept */}
+        <Route path="/join"              element={<JoinScreen />} />
         <Route path="*"                  element={<Navigate to="/grocery" replace />} />
       </Routes>
       {showNav && <BottomNav />}

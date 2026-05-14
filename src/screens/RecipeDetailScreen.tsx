@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays } from 'lucide-react'
+import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays, Pencil } from 'lucide-react'
 import { useRecipe, useRecipeIngredients, useRecipeSteps, useRecipeImageRealtime } from '../hooks/useRecipes'
 import { CookingMode } from '../components/recipes/CookingMode'
 
@@ -120,6 +120,20 @@ export function RecipeDetailScreen() {
             >
               <ArrowLeft size={13} />
               Recipes
+            </button>
+
+            {/* Edit button overlay */}
+            <button
+              onClick={() => navigate(`/recipes/${recipe.id}/edit`)}
+              style={{
+                position: 'absolute', top: '12px', right: '12px',
+                background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
+                padding: '6px 10px', cursor: 'pointer', color: '#fff',
+                display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px',
+              }}
+            >
+              <Pencil size={12} />
+              Edit
             </button>
           </div>
 

@@ -1,21 +1,18 @@
 import type { AITask, AIModel } from '../../types'
-import { callAnthropic } from './anthropic'
+import { getAISettingsCache }  from './settingsCache'
+import { callAnthropic }       from './anthropic'
+import { callOpenAI }          from './openai'
+import { callGemini }          from './gemini'
+import { callOllama }          from './ollama'
 
-// Reads model preference from user settings — full implementation in Session 8
-function getModelForTask(_task: AITask): AIModel {
-  return 'claude'
-}
+export { setAISettingsCache, getAISettingsCache } from './settingsCache'
 
-async function callOpenAI(_prompt: string): Promise<string> {
-  throw new Error('OpenAI adapter not yet implemented')
-}
-
-async function callGemini(_prompt: string): Promise<string> {
-  throw new Error('Gemini adapter not yet implemented')
-}
-
-async function callOllama(_prompt: string): Promise<string> {
-  throw new Error('Ollama adapter not yet implemented')
+/** Read model preference: per-task override → global model → fallback 'claude' */
+function getModelForTask(task: AITask): AIModel {
+  const cache = getAISettingsCache()
+  if (!cache) return 'claude'
+  const override = cache.task_model_overrides?.[task] as AIModel | undefined
+  return override ?? cache.ai_structuring_model ?? 'claude'
 }
 
 export async function aiCall(
@@ -26,9 +23,9 @@ export async function aiCall(
   const model = getModelForTask(task)
   switch (model) {
     case 'claude':  return callAnthropic(prompt, opts)
-    case 'gpt4':    return callOpenAI(prompt)
-    case 'gemini':  return callGemini(prompt)
-    case 'local':   return callOllama(prompt)
+    case 'gpt4':    return callOpenAI(prompt, opts)
+    case 'gemini':  return callGemini(prompt, opts)
+    case 'local':   return callOllama(prompt, opts)
     default:        return callAnthropic(prompt, opts)
   }
 }

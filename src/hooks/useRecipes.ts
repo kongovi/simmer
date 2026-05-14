@@ -298,6 +298,96 @@ export function useSaveRecipe() {
   })
 }
 
+export function useUpdateRecipe() {
+  const queryClient = useQueryClient()
+  const familyId = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async (payload: SaveRecipePayload & { id: string }): Promise<string> => {
+      if (!familyId) throw new Error('No family ID — cannot update recipe')
+
+      // 1. Upsert ingredients_catalog (same logic as save)
+      const ingredientIds: string[] = []
+      for (const ing of payload.ingredients) {
+        if (ing.catalogId) { ingredientIds.push(ing.catalogId); continue }
+        const { data: existing } = await supabase
+          .from('ingredients_catalog')
+          .select('id')
+          .eq('family_id', familyId)
+          .ilike('name', ing.name)
+          .maybeSingle()
+        if (existing?.id) {
+          ingredientIds.push(existing.id as string)
+        } else {
+          const { data: newIng, error } = await supabase
+            .from('ingredients_catalog')
+            .insert({ family_id: familyId, name: ing.name, emoji: ing.emoji })
+            .select('id')
+            .single()
+          if (error) throw error
+          ingredientIds.push(newIng.id as string)
+        }
+      }
+
+      // 2. Update recipe basics (preserve image_url / image_status / nb2_prompt)
+      const emoji = pickRecipeEmoji(payload.ingredients)
+      const { error: rErr } = await supabase
+        .from('recipes')
+        .update({
+          name:              payload.name,
+          servings:          payload.servings,
+          cook_time_minutes: payload.cook_time_minutes,
+          meal_type:         payload.meal_type,
+          tags:              payload.tags,
+          difficulty:        payload.difficulty,
+          emoji,
+        })
+        .eq('id', payload.id)
+      if (rErr) throw rErr
+
+      // 3. Replace recipe_ingredients
+      await supabase.from('recipe_ingredients').delete().eq('recipe_id', payload.id)
+      if (payload.ingredients.length > 0) {
+        const { error: riErr } = await supabase.from('recipe_ingredients').insert(
+          payload.ingredients.map((ing, i) => ({
+            recipe_id:    payload.id,
+            ingredient_id: ingredientIds[i],
+            quantity:      ing.quantity,
+            unit:          ing.unit,
+            prep_note:     ing.prep_note,
+            serving_note:  ing.serving_note,
+            sort_order:    i,
+          }))
+        )
+        if (riErr) throw riErr
+      }
+
+      // 4. Replace recipe_steps
+      await supabase.from('recipe_steps').delete().eq('recipe_id', payload.id)
+      if (payload.steps.length > 0) {
+        const { error: sErr } = await supabase.from('recipe_steps').insert(
+          payload.steps.map((s, i) => ({
+            recipe_id:      payload.id,
+            step_number:    s.step_number,
+            instruction:    s.instruction,
+            ingredient_ids: matchIngredientIds(s.instruction, payload.ingredients, ingredientIds),
+            sort_order:     i,
+          }))
+        )
+        if (sErr) throw sErr
+      }
+
+      return payload.id
+    },
+    onSuccess: (_v, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['recipe',             id] })
+      queryClient.invalidateQueries({ queryKey: ['recipe-ingredients', id] })
+      queryClient.invalidateQueries({ queryKey: ['recipe-steps',       id] })
+      queryClient.invalidateQueries({ queryKey: ['recipes'] })
+    },
+  })
+}
+
 export function useDeleteRecipe() {
   const queryClient = useQueryClient()
   return useMutation({

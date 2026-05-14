@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
@@ -10,6 +10,7 @@ import {
   toISODate, isToday, DOW_NAMES,
 } from '../lib/weekUtils'
 import type { MealType } from '../types'
+import { useAppStore } from '../stores/appStore'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,10 @@ export function PlannerScreen() {
     setLastAppliedDow(settings.plan_start_dow)
     setWeekStartDate(getWeekStart(settings.plan_start_dow))
   }
+
+  // ── Sync current week to global store so Prep tab stays in sync ──
+  const setPlannerWeekStart = useAppStore(s => s.setPlannerWeekStart)
+  useEffect(() => { setPlannerWeekStart(weekStart) }, [weekStart, setPlannerWeekStart])
 
   // ── Column visibility — Breakfast hidden by default ──
   const [colVisible, setColVisible] = useState({ breakfast: false, lunch: true, dinner: true })
@@ -256,13 +261,15 @@ export function PlannerScreen() {
           zIndex: 5,
         }}>
           <button
-            onClick={() => navigate('/staging')}
+            onClick={() => navigate('/staging', { state: { weekStart, from: 'planner' } })}
             style={{
               width: '100%', padding: '12px',
-              background: 'var(--am)', color: '#141820',
+              background: 'var(--am)',
+              color: '#141820',
               border: 'none', borderRadius: '11px',
               fontSize: '13px', fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
             }}
           >
@@ -517,3 +524,4 @@ const removeBtnStyle: React.CSSProperties = {
   fontSize: '10px', fontFamily: 'inherit', cursor: 'pointer',
   color: 'var(--rd)',
 }
+

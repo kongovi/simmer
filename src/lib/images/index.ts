@@ -1,4 +1,5 @@
 import type { ImageModel } from '../../types'
+import { getAISettingsCache } from '../ai/settingsCache'
 import { callNanoBanana2 } from './nanoBanana'
 import { callDallE3 } from './dalle'
 import { callFlux } from './flux'
@@ -22,9 +23,9 @@ export function buildImagePrompt(dishName: string, keySides: string): string {
     .replace('{KEY_SIDES}', keySides)
 }
 
-// Reads from user settings — full wiring in Session 8; defaults to nano-banana-2
+/** Reads the image model from the settings cache, defaulting to nano-banana-2. */
 function getImageModel(): ImageModel {
-  return 'nano-banana-2'
+  return getAISettingsCache()?.ai_image_model ?? 'nano-banana-2'
 }
 
 export async function generateDishImage(

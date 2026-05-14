@@ -118,6 +118,28 @@ export interface PurchaseHistory {
   source: PurchaseSource
 }
 
+export interface FamilyStore {
+  id: string
+  family_id: string
+  name: string
+  is_default: boolean
+  sort_order: number
+  created_at: string
+}
+
+export interface FamilyInvite {
+  id: string
+  family_id: string
+  invited_by: string | null
+  token: string
+  email: string | null
+  role: UserRole
+  accepted_by: string | null
+  accepted_at: string | null
+  expires_at: string
+  created_at: string
+}
+
 export interface UserSettings {
   id: string
   user_id: string

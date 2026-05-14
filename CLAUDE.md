@@ -549,7 +549,7 @@ Update this section at the end of every Claude Code session.
 - SlotCell: empty = `+` centered; filled = stacked emoji+name dishes with hairline dividers and `· add` affordance.
 - SlotPopover: centered fixed modal, dish list with ✕ delete. Clicking ✕ shows inline confirmation ("Remove '...'? [Cancel] [Remove]") before calling `useRemoveDish`. Input + Add button to insert freeform dishes. "Done" closes.
 - "Plan my week with Claude →" dashed sage button above table.
-- "Generate grocery list" sage button pinned above nav → navigates to `/staging`.
+- "Generate grocery list" sage button pinned above nav → runs pre-generation checks, then generates + navigates to `/grocery`.
 
 *PlanWithClaudeScreen (`/planner/claude`)*
 - Textarea + "Fill my planner" button. Passes `weekStart` + `weekDays` via location.state.
@@ -578,16 +578,136 @@ Update this section at the end of every Claude Code session.
 - `week_start` = the user's plan-start-day date for that week (not always Monday)
 
 ### Session 5 — Grocery list: generation + grid UI
-**Status:** Not started  
-**Depends on:** Sessions 2 + 4 (need recipes and meal plan slots)
+**Status:** ✅ Complete  
+**Completed:** 2026-05-12
+
+**What was built:**
+
+*DB*
+- Migration `0004_grocery_list_index`: two perf indexes on `grocery_list_items(grocery_list_id)` and `grocery_lists(family_id, week_start, is_active)`
+
+*`src/hooks/useGroceryList.ts`* (full implementation)
+- `detectAisleOrder(name, emoji)` — keyword + emoji regex to assign silent aisle sort 1–7 (Produce→Meat→Dairy→Canned→Oils/Spices→Beverages→Other)
+- `itemDisplayName()`, `itemEmoji()`, `itemQtyLabel()` — display helpers
+- `useActiveGroceryList()` — fetches most recent active list for family (no week param — always shows latest)
+- `useGroceryListItems(listId)` — items with `ingredient:ingredients_catalog` join, sorted by `is_checked ASC, aisle_order ASC`
+- `useHasActiveList(weekStart)` — used by PlannerScreen to gate overwrite warning
+- `useKnownStores()` — distinct `default_store` from `ingredients_catalog` for the family
+- `useIngredientSuggestions(search)` — catalog items for KB pane, filtered by search text
+- `useGenerateGroceryList()` — generates list: fetches recipe slots → batch-fetches `recipe_ingredients` → consolidates by (ingredient_id, unit) → deactivates old list → inserts `grocery_lists` + `grocery_list_items` rows
+- `useToggleItem()` — sets `is_checked`, `checked_at`, `checked_by`
+- `useAddManualItem()` — inserts `source: 'manual'` item with catalog ref or `custom_name`
+- `useUpdateItemStore()` — updates `assigned_store` on item + persists to `ingredients_catalog.default_store`
+- `useGroceryListRealtime(listId)` — Supabase Realtime channel on `grocery_list_items` invalidates React Query cache on any change
+
+*`GroceryScreen`* (full rewrite)
+- **Empty state**: friendly message + "Go to Planner →" button when no active list
+- **Header**: "Grocery" + week range label + "X left" count
+- **Store tabs**: horizontal scroll, "All" + distinct stores from `ingredients_catalog.default_store` + "+ Store" input (adds to local state for the session)
+- **Action row**: "✦ Review staples" (sage → `/staging`) + "＋ Add item" (opens KB pane)
+- **3-col grid**: `GroceryBox` components, filtered by active store tab. Items sorted by aisle silently.
+- **`GroceryBox`**: 80px min-height card, 26px emoji, 10px name, 9px qty in sage, 8px brand italic. Long-press (500ms) opens store assignment sheet. Tap toggles checked.
+- **"Got it" section**: sage "✓ Got it" label + same 3-col grid of checked items at 38% opacity with strikethrough name + sage ✓ badge top-right. Tap to restore.
+- **Add bar** (pinned at `bottom: 58px`): "＋ Add an item…" tap target opens KB pane
+- **KB pane** (slides up, z-index 20): search input, "Suggestions" label, 4-col catalog grid. Tapping suggestion adds catalog item. If search text doesn't match any suggestion exactly, shows "＋ Add '[name]'" free-text button.
+- **Store assignment sheet** (long-press → bottom sheet, z-index 50): item header, store radio list, new store text input. Saves to `grocery_list_items.assigned_store` + `ingredients_catalog.default_store`.
+- **Realtime**: `useGroceryListRealtime` mounted, all family devices see live updates
+
+*`PlannerScreen`* (updated)
+- Replaced simple `navigate('/staging')` with 3-step generate flow:
+  1. **Freeform warning**: if any slots lack `recipe_id`, shows modal listing their names with [Go back &amp; link] / [Generate without them]
+  2. **Overwrite warning**: if an active list already exists for the week, shows [Cancel] / [Replace]
+  3. **Generating state**: spinner in button, calls `useGenerateGroceryList()`, navigates to `/grocery` on success
+- Imports `useGenerateGroceryList`, `useHasActiveList` from `useGroceryList`
+
+**Schema:** No new table columns — indexes only
+
+**Notes for Session 6 (Staging Screen):**
+- `GroceryScreen` "Review staples" button already navigates to `/staging`
+- The active grocery list is the most recently generated one; no week picker on grocery screen
+- Store tabs are ephemeral (from catalog `default_store`); `+ Store` adds to local state only until items are assigned to it
+- Freeform slots that aren't linked to a recipe are skipped at generation time — their ingredients are never added. The warning modal lets the user go back and link them first.
 
 ### Session 6 — Staging screen (pantry intelligence)
-**Status:** Not started  
-**Depends on:** Sessions 5 (grocery list exists), Session 1 (purchase_history table)
+**Status:** ✅ Complete  
+**Completed:** 2026-05-12
+
+**What was built:**
+
+*New shared utility: `src/lib/aisleUtils.ts`*
+- Extracted `detectAisleOrder(name, emoji)` from `useGroceryList.ts` into a standalone file so it can be used by both the grocery and staging hooks
+- `useGroceryList.ts` now imports from `aisleUtils` and re-exports for backward compatibility
+
+*New AI classifier: `src/lib/groceryIntelligence.ts`*
+- `classifyIngredients(items)`: sends ingredient list to Claude via `aiCall('grocery_intelligence', ...)` with a system prompt that distinguishes perishables (Zone 1) from long-shelf-life pantry items (Zone 2)
+- Falls back to heuristic (aisle order 5 = Zone 2, all else = Zone 1) if AI call fails or returns unparseable JSON
+- No AI failure can block the user — staging always renders
+
+*Full rewrite: `src/hooks/useStaples.ts`*
+- `useStagingIngredients(weekStart)`: fetches meal_plan_slots → recipe_ids → recipes (for names) → recipe_ingredients with catalog join → consolidates by ingredient_id (sums qtys per unit, collects recipe names) → calls `classifyIngredients()` → returns `{ zone1, zone2, hasRecipes }` sorted by aisle_order. `retry: 0` to avoid retrying AI calls.
+- `useStaplePredictions()`: fetches active staples with ingredient join → all purchase_history for those ingredient_ids → computes `daysSince` + `avgFreq` per ingredient → Zone 3 if `count >= 2 AND daysSince >= 0.8 × avgFreq`, else Zone 4
+- `useConfirmStagingList()`: Planner mode — deactivates old list, creates fresh `grocery_lists` row, inserts Zone1+Zone2 as `source: 'meal_plan'` and Zone3+Zone4 as `source: 'staple'`. Grocery mode — gets existing list, checks existing ingredient_ids, appends only Zone2/3/4 items not already present. Both modes fire-and-forget `purchase_history` insert for all included ingredient_ids.
+
+*Full rewrite: `src/screens/StagingScreen.tsx`*
+- Context-aware entry: reads `location.state.from` (`'planner'` | `'grocery'`) and `location.state.weekStart`; falls back to active grocery list's `week_start` for grocery mode
+- Back button: "← Planner" or "← Grocery" depending on entry point
+- **Zone 1 — Buy this week**: green border/bg, display-only, recipe note shown per item, empty state when no meal plan
+- **Zone 2 — Check your pantry**: amber border/bg, Skip/Need it toggles, all default to Skip; hint about pantry tracking
+- **Zone 3 — Staple predictions**: teal border/bg, Yes/No toggles, all default to Yes, shows last-bought info per item
+- **Zone 4 — All other staples**: collapsed with count badge (click to expand), individual Add buttons, "safety net" subtitle
+- Overwrite warning modal (planner mode only): confirms before replacing existing list
+- Confirm button: "Generate grocery list" (planner) or "Add to grocery list" (grocery); disabled + spinner while mutating
+- On success: navigates to `/grocery`
+- Sub-components: `Zone`, `ZoneItem`, `YNButtons`, `EmptyZone` — all inline
+
+*Updated: `src/screens/PlannerScreen.tsx`*
+- Removed the entire multi-step generate flow: `GenerateStep` type, `startGenerate`, `afterFreeformConfirm`, `runGenerate` functions, freeform-warning modal, overwrite-warning modal, `generateList`/`hasActiveList`/`freeformSlots` state
+- "Generate grocery list" button now simply: `navigate('/staging', { state: { weekStart, from: 'planner' } })`
+- Removed `useGenerateGroceryList` and `useHasActiveList` imports
+
+*Updated: `src/screens/GroceryScreen.tsx`*
+- "Review staples" button now passes state: `navigate('/staging', { state: { from: 'grocery' } })`
+
+**Key design decisions:**
+- Zone 2 defaults to all **Skip** (safer; user opts in to buying rather than accidentally buying duplicates)
+- Zone 3 defaults to all **Yes** (predicted due; user opts out if already have it)
+- Grocery mode is **append-only** — never replaces the existing list; duplicate ingredient_ids are skipped
+- Planner mode always goes through staging — no direct generation bypass
+- AI classification is fire-and-forget with heuristic fallback; user never waits on AI to see the screen (React Query suspense not used — everything renders with loading spinners per-zone)
 
 ### Session 7 — Meal prep screen
-**Status:** Not started  
-**Depends on:** Sessions 2 + 4 (recipes with ingredients + meal plan)
+**Status:** ✅ Complete  
+**Completed:** 2026-05-13
+
+**What was built:**
+
+*`src/stores/appStore.ts` — shared week state*
+- Added `plannerWeekStart: string | null` + `setPlannerWeekStart(weekStart)` so the planner and prep tab stay on the same week without prop-drilling
+
+*`src/screens/PlannerScreen.tsx` — minimal update*
+- Added `useEffect` that calls `setPlannerWeekStart(weekStart)` whenever the planner's displayed week changes (navigation or DOW setting change)
+
+*`src/hooks/useMealPrep.ts` — new aggregation hook*
+- Two-query approach: (1) `meal_plan_slots` joined to `recipes` for slot_date + recipe name + servings, (2) `recipe_ingredients` joined to `ingredients_catalog` for all ingredients of those recipes
+- Client-side aggregation: for each slot × recipe_ingredient pair, emits a `DishOccurrence`; groups by ingredient_id, sums quantities per unit (scaled by `servings_override / recipe.servings`), collects all dish rows
+- Computes `consolidated_prep`: if all dishes share the same prep note → show it once; if different → "½ lb minced · 1 lb sliced" format (qty + unit + note per distinct note)
+- Sorts by most dish occurrences first
+- Exports `formatTotals()` helper ("2 lbs total" / "12 cloves") and `slotDayLabel()` ("Mon", "Tue")
+
+*`src/screens/MealPrepScreen.tsx` — full rewrite*
+- Header: "Meal Prep" + "Week of [range] — ingredient totals"
+- Search bar: client-side filter by ingredient name, no extra query
+- **"This week's prep" label** above card list
+- **Ingredient cards** (tap to expand/collapse, chevron rotates):
+  - Header: emoji tile + ingredient name + total quantity in sage ("2 lbs total")
+  - Body (expanded): consolidated prep note in sage italic, then per-dish rows (recipe name · day on left, qty — prep note on right)
+- **Empty state**: emoji + message + "Plan this week" → `/planner` button
+- **No-results state**: friendly message when search has no matches
+- Freeform slots (no recipe_id) silently skipped
+
+**Key decisions:**
+- No independent week navigation on prep screen — mirrors whatever week the planner is showing (via Zustand)
+- Quantities scaled by `servings_override / recipe.servings` when a slot overrides servings
 
 ### Session 8 — Settings: model selection + family + catalog
 **Status:** Not started  

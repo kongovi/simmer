@@ -1,12 +1,13 @@
 import { supabase } from '../supabase'
+import { getApiKeyForModel } from './settingsCache'
 
 /** Call the ai-call Edge Function which proxies to Anthropic server-side (avoids CORS). */
 export async function callAnthropic(
   prompt: string,
   opts?: { systemPrompt?: string; maxTokens?: number }
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_DEV_ANTHROPIC_KEY as string | undefined
-  if (!apiKey) throw new Error('No Anthropic API key configured. Set VITE_DEV_ANTHROPIC_KEY in .env.local.')
+  const apiKey = getApiKeyForModel('claude')
+  if (!apiKey) throw new Error('No Anthropic API key configured. Add it in Settings → AI Models.')
 
   const { data, error } = await supabase.functions.invoke('ai-call', {
     body: {
