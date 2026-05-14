@@ -4,6 +4,7 @@ import { ArrowLeft, Search, Store } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { useCatalogItems, useUpdateCatalogItem } from '../hooks/useCatalog'
 import { useFamilyStores } from '../hooks/useFamilyStores'
+import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
 import { detectAisleOrder } from '../lib/aisleUtils'
 import type { IngredientCatalog } from '../types'
 
@@ -165,6 +166,8 @@ export function CatalogScreen() {
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState<IngredientCatalog | null>(null)
 
+  useIngredientImageRealtime()
+
   const { data: items = [],  isLoading } = useCatalogItems(search)
   const { data: storeRows = [] } = useFamilyStores()
   const stores = storeRows.map(s => s.name)
@@ -265,9 +268,17 @@ export function CatalogScreen() {
                     cursor: 'pointer',
                   }}
                 >
-                  <span style={{ fontSize: '18px', width: '24px', textAlign: 'center', flexShrink: 0 }}>
-                    {item.emoji ?? '🥄'}
-                  </span>
+                  {item.image_status === 'done' && item.image_url ? (
+                    <img
+                      src={item.image_url}
+                      alt={item.name}
+                      style={{ width: '24px', height: '24px', objectFit: 'contain', flexShrink: 0, borderRadius: '4px' }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '18px', width: '24px', textAlign: 'center', flexShrink: 0 }}>
+                      {item.emoji ?? '🥄'}
+                    </span>
+                  )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>{item.name}</div>
                     {item.brand_note && (
