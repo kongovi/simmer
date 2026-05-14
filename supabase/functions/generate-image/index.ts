@@ -5,11 +5,19 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Gemini Flash models to try in order (fastest/cheapest first)
-const FLASH_MODELS = [
-  'gemini-2.0-flash-preview-image-generation',
-  'gemini-2.0-flash-exp-image-generation',
-]
+// Gemini models that support native image output (responseModalities: IMAGE).
+// Try in order — first success wins; Imagen 3 is the final fallback.
+//
+// Future-proofing: set the GEMINI_IMAGE_MODELS Supabase secret to a
+// comma-separated list of model names to override without redeploying.
+// e.g.  gemini-2.5-flash-exp,gemini-2.0-flash-exp
+// Models from the secret are tried first; hardcoded defaults follow as fallback.
+const _CODE_DEFAULT_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.0-flash-exp', 'gemini-2.0-flash-preview']
+const _envModels = (Deno.env.get('GEMINI_IMAGE_MODELS') ?? '')
+  .split(',').map(s => s.trim()).filter(Boolean)
+const _seen = new Set<string>()
+const FLASH_MODELS = [..._envModels, ..._CODE_DEFAULT_MODELS]
+  .filter(m => !_seen.has(m) && !!_seen.add(m))
 
 /** Call a Gemini Flash image-gen model. Returns JPEG bytes or throws. */
 async function callGeminiFlash(model: string, prompt: string, apiKey: string): Promise<Uint8Array> {
@@ -24,9 +32,14 @@ async function callGeminiFlash(model: string, prompt: string, apiKey: string): P
       }),
     }
   )
-  if (!res.ok) throw new Error(`${model} HTTP ${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`${model} HTTP ${res.status}: ${body}`)
+  }
 
   const json = await res.json()
+  // Log the raw response shape to help diagnose unexpected formats
+  console.log(`${model} response candidates:`, JSON.stringify(json?.candidates?.[0]?.content?.parts?.map((p: Record<string, unknown>) => Object.keys(p)) ?? []))
   const parts = json?.candidates?.[0]?.content?.parts ?? []
   const imagePart = parts.find((p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.mimeType?.startsWith('image/'))
   if (!imagePart?.inlineData?.data) throw new Error(`${model}: no image in response`)
@@ -51,7 +64,10 @@ async function callImagen3(prompt: string, apiKey: string): Promise<Uint8Array> 
       }),
     }
   )
-  if (!res.ok) throw new Error(`Imagen 3 HTTP ${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Imagen 3 HTTP ${res.status}: ${body}`)
+  }
 
   const json = await res.json()
   const b64 = json?.predictions?.[0]?.bytesBase64Encoded
@@ -76,7 +92,7 @@ Deno.serve(async (req) => {
     })
   }
 
-  const { recipeId, prompt, apiKey } = body
+  const { recipeId, prompt, apiKey: clientApiKey } = body
 
   try {
     // Verify JWT
@@ -87,11 +103,21 @@ Deno.serve(async (req) => {
       })
     }
 
-    if (!recipeId || !prompt || !apiKey) {
-      return new Response(JSON.stringify({ error: 'Missing recipeId, prompt, or apiKey' }), {
+    if (!recipeId || !prompt) {
+      return new Response(JSON.stringify({ error: 'Missing recipeId or prompt' }), {
         status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       })
     }
+
+    // Prefer the server-side Supabase secret (set once in dashboard, never exposed to client).
+    // Fall back to the client-passed key so existing callers keep working.
+    const apiKey = Deno.env.get('GOOGLE_AI_API_KEY') || clientApiKey
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No Google API key — set GOOGLE_AI_API_KEY secret or pass apiKey in body' }), {
+        status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      })
+    }
+    console.log('Using API key source:', Deno.env.get('GOOGLE_AI_API_KEY') ? 'server secret' : 'client-passed')
 
     // Service-role admin client for Storage + DB writes
     const supabaseAdmin = createClient(
@@ -117,7 +143,7 @@ Deno.serve(async (req) => {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         errors.push(`${model}: ${msg}`)
-        console.warn(`Flash model failed — ${msg}`)
+        console.warn(`Flash model failed [${model}]:`, msg)
       }
     }
 

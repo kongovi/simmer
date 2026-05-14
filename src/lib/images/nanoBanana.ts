@@ -8,17 +8,15 @@ import { supabase } from '../supabase'
  * should not care — Realtime will push the update when the image is ready).
  */
 export async function callNanoBanana2(prompt: string, recipeId: string): Promise<string> {
-  const apiKey = import.meta.env.VITE_DEV_GOOGLE_AI_KEY as string | undefined
-  if (!apiKey) {
-    console.warn('nanoBanana: no VITE_DEV_GOOGLE_AI_KEY — skipping image generation')
-    return ''
-  }
-
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) {
     console.warn('nanoBanana: no session — skipping image generation')
     return ''
   }
+
+  // The edge function prefers its GOOGLE_AI_API_KEY server secret.
+  // Pass the client key too as a fallback (for local dev without the secret set).
+  const clientApiKey = import.meta.env.VITE_DEV_GOOGLE_AI_KEY as string | undefined
 
   const res = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`,
@@ -29,7 +27,7 @@ export async function callNanoBanana2(prompt: string, recipeId: string): Promise
         Authorization: `Bearer ${session.access_token}`,
         apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
       },
-      body: JSON.stringify({ recipeId, prompt, apiKey }),
+      body: JSON.stringify({ recipeId, prompt, apiKey: clientApiKey }),
     }
   )
 
