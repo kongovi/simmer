@@ -351,19 +351,32 @@ export function useAddManualItem() {
       let resolvedIngredientId = ingredientId ?? null
       let needsImage = false
 
-      // If no catalog entry yet, upsert one so the item gets dedup + image gen
+      // If no catalog entry yet, create one so the item gets dedup + image gen.
+      // Optimistic insert: try INSERT first; if a unique violation occurs (same
+      // name already exists), fall back to a SELECT of the existing row.
       if (!resolvedIngredientId && familyId) {
-        const { data: upserted } = await supabase
+        const { data: inserted, error: insertErr } = await supabase
           .from('ingredients_catalog')
-          .upsert(
-            { family_id: familyId, name, emoji: emoji ?? null },
-            { onConflict: 'family_id,lower(trim(name))', ignoreDuplicates: false }
-          )
+          .insert({ family_id: familyId, name, emoji: emoji ?? null })
           .select('id, image_url')
           .single()
-        if (upserted?.id) {
-          resolvedIngredientId = upserted.id as string
-          needsImage = !upserted.image_url
+
+        if (insertErr) {
+          // Unique violation — look up the existing row
+          const { data: existing } = await supabase
+            .from('ingredients_catalog')
+            .select('id, image_url')
+            .eq('family_id', familyId)
+            .ilike('name', name)
+            .limit(1)
+            .maybeSingle()
+          if (existing?.id) {
+            resolvedIngredientId = existing.id as string
+            needsImage = !existing.image_url
+          }
+        } else if (inserted?.id) {
+          resolvedIngredientId = inserted.id as string
+          needsImage = true // brand-new entry always needs an image
         }
       }
 

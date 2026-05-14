@@ -225,34 +225,31 @@ export function useSaveRecipe() {
           continue
         }
 
-        // Upsert: insert or return existing row — never duplicates
-        const { data: upserted, error: upsertErr } = await supabase
+        // Optimistic insert: try INSERT first; on unique violation look up existing
+        const { data: inserted, error: insertErr } = await supabase
           .from('ingredients_catalog')
-          .upsert(
-            { family_id: familyId, name: ing.name, emoji: ing.emoji },
-            { onConflict: 'family_id,lower(trim(name))', ignoreDuplicates: false }
-          )
+          .insert({ family_id: familyId, name: ing.name, emoji: ing.emoji })
           .select('id, image_url')
           .single()
 
-        if (upsertErr) {
-          // Upsert returned an error (e.g. conflict wasn't resolved) — fall back to a lookup
-          const { data: fallback } = await supabase
+        if (insertErr) {
+          // Unique violation — look up the existing row
+          const { data: existing } = await supabase
             .from('ingredients_catalog')
             .select('id, image_url')
             .eq('family_id', familyId)
             .ilike('name', ing.name)
             .limit(1)
             .maybeSingle()
-          if (fallback?.id) {
-            ingredientIds.push(fallback.id as string)
-            if (!fallback.image_url) needsImageGen.push({ id: fallback.id as string, name: ing.name })
+          if (existing?.id) {
+            ingredientIds.push(existing.id as string)
+            if (!existing.image_url) needsImageGen.push({ id: existing.id as string, name: ing.name })
           }
           continue
         }
 
-        ingredientIds.push(upserted.id as string)
-        if (!upserted.image_url) needsImageGen.push({ id: upserted.id as string, name: ing.name })
+        ingredientIds.push(inserted.id as string)
+        needsImageGen.push({ id: inserted.id as string, name: ing.name }) // new entry always needs image
       }
 
       // 2. Pick recipe emoji + build image prompt parts
@@ -338,32 +335,29 @@ export function useUpdateRecipe() {
     mutationFn: async (payload: SaveRecipePayload & { id: string }): Promise<string> => {
       if (!familyId) throw new Error('No family ID — cannot update recipe')
 
-      // 1. Upsert ingredients_catalog — same dedup logic as useSaveRecipe
+      // 1. Resolve ingredients_catalog — optimistic insert with fallback lookup
       const ingredientIds: string[] = []
       for (const ing of payload.ingredients) {
         if (ing.catalogId) { ingredientIds.push(ing.catalogId); continue }
 
-        const { data: upserted, error: upsertErr } = await supabase
+        const { data: inserted, error: insertErr } = await supabase
           .from('ingredients_catalog')
-          .upsert(
-            { family_id: familyId, name: ing.name, emoji: ing.emoji },
-            { onConflict: 'family_id,lower(trim(name))', ignoreDuplicates: false }
-          )
+          .insert({ family_id: familyId, name: ing.name, emoji: ing.emoji })
           .select('id')
           .single()
 
-        if (upsertErr) {
-          const { data: fallback } = await supabase
+        if (insertErr) {
+          const { data: existing } = await supabase
             .from('ingredients_catalog')
             .select('id')
             .eq('family_id', familyId)
             .ilike('name', ing.name)
             .limit(1)
             .maybeSingle()
-          if (fallback?.id) ingredientIds.push(fallback.id as string)
+          if (existing?.id) ingredientIds.push(existing.id as string)
           continue
         }
-        ingredientIds.push(upserted.id as string)
+        if (inserted?.id) ingredientIds.push(inserted.id as string)
       }
 
       // 2. Update recipe basics (preserve image_url / image_status / nb2_prompt)
