@@ -16,6 +16,8 @@ export interface PrepIngredient {
   ingredient_id:     string
   name:              string
   emoji:             string | null
+  image_url:         string | null
+  image_status:      string | null
   /** Summed quantities per unit, e.g. [{quantity:2,unit:'lbs'}] */
   totals:            { quantity: number; unit: string | null }[]
   /** Human-readable consolidated prep note, e.g. "½ lb minced · 1 lb sliced" */
@@ -62,7 +64,7 @@ export function useMealPrep(weekStart: string | null) {
         .from('recipe_ingredients')
         .select(`
           recipe_id, ingredient_id, quantity, unit, prep_note,
-          ingredient:ingredients_catalog(id, name, emoji)
+          ingredient:ingredients_catalog(id, name, emoji, image_url, image_status)
         `)
         .in('recipe_id', recipeIds)
       if (riErr) throw riErr
@@ -82,7 +84,7 @@ export function useMealPrep(weekStart: string | null) {
 
         for (const ri of slotRis) {
           if (!ri.ingredient_id) continue
-          const ing = ri.ingredient as unknown as { id: string; name: string; emoji: string | null } | null
+          const ing = ri.ingredient as unknown as { id: string; name: string; emoji: string | null; image_url: string | null; image_status: string | null } | null
           if (!ing) continue
 
           const scaledQty = ri.quantity != null ? (ri.quantity as number) * scaleFactor : null
@@ -111,6 +113,8 @@ export function useMealPrep(weekStart: string | null) {
               ingredient_id:     ri.ingredient_id as string,
               name:              ing.name,
               emoji:             ing.emoji,
+              image_url:         ing.image_url ?? null,
+              image_status:      ing.image_status ?? null,
               totals:            scaledQty != null ? [{ quantity: scaledQty, unit: dish.unit }] : [],
               consolidated_prep: null,
               dishes:            [dish],

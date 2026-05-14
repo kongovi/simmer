@@ -19,6 +19,11 @@ const _seen = new Set<string>()
 const FLASH_MODELS = [..._envModels, ..._CODE_DEFAULT_MODELS]
   .filter(m => !_seen.has(m) && !!_seen.add(m))
 
+/** Ingredient image prompt template */
+function buildIngredientPrompt(name: string): string {
+  return `A single ${name}, isometric 3/4 view, the subject filling 80% of the frame, 512x512 pixels, rendered in Retro-Pop art style. Thick clean black outlines. Vintage muted color palette: cream, teal, burnt orange, mustard yellow. Shadows rendered as halftone dot texture. Solid warm off-white background #F5F0E8. No text, no labels, no other objects, no plate or surface — just the ingredient itself.`
+}
+
 /** Call a Gemini Flash image-gen model. Returns JPEG bytes or throws. */
 async function callGeminiFlash(model: string, prompt: string, apiKey: string): Promise<Uint8Array> {
   const res = await fetch(
@@ -79,11 +84,77 @@ async function callImagen3(prompt: string, apiKey: string): Promise<Uint8Array> 
   return bytes
 }
 
+/** Generate image bytes via NB2 model chain (Flash models → Imagen 3 fallback). */
+async function generateImageBytes(prompt: string, apiKey: string): Promise<Uint8Array> {
+  const errors: string[] = []
+
+  for (const model of FLASH_MODELS) {
+    try {
+      const bytes = await callGeminiFlash(model, prompt, apiKey)
+      console.log(`Image generated with ${model}`)
+      return bytes
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      errors.push(`${model}: ${msg}`)
+      console.warn(`Flash model failed [${model}]:`, msg)
+    }
+  }
+
+  try {
+    const bytes = await callImagen3(prompt, apiKey)
+    console.log('Image generated with Imagen 3')
+    return bytes
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    errors.push(`imagen-3: ${msg}`)
+    throw new Error(`All image models failed: ${errors.join('; ')}`)
+  }
+}
+
+/**
+ * Remove background from JPEG bytes using Remove.bg API.
+ * Returns PNG bytes with transparent background, or throws.
+ */
+async function removeBackground(jpegBytes: Uint8Array, removeBgKey: string): Promise<Uint8Array> {
+  // Convert to base64
+  let binary = ''
+  for (let i = 0; i < jpegBytes.length; i++) binary += String.fromCharCode(jpegBytes[i])
+  const b64 = btoa(binary)
+
+  const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': removeBgKey,
+    },
+    body: JSON.stringify({
+      image_base64: b64,
+      size: 'auto',
+      format: 'png',
+    }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Remove.bg HTTP ${res.status}: ${body}`)
+  }
+
+  const arrayBuf = await res.arrayBuffer()
+  return new Uint8Array(arrayBuf)
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
 
   // Parse body first (only once)
-  let body: { recipeId?: string; prompt?: string; apiKey?: string } = {}
+  let body: {
+    recipeId?: string
+    prompt?: string
+    apiKey?: string
+    ingredient?: boolean
+    ingredientId?: string
+    ingredientName?: string
+  } = {}
   try {
     body = await req.json()
   } catch {
@@ -92,8 +163,116 @@ Deno.serve(async (req) => {
     })
   }
 
-  const { recipeId, prompt, apiKey: clientApiKey } = body
+  const { recipeId, prompt, apiKey: clientApiKey, ingredient, ingredientId, ingredientName } = body
 
+  // ── INGREDIENT MODE ────────────────────────────────────────────────────────
+  if (ingredient === true) {
+    try {
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: 'No authorization header' }), {
+          status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        })
+      }
+
+      if (!ingredientId || !ingredientName) {
+        return new Response(JSON.stringify({ error: 'Missing ingredientId or ingredientName' }), {
+          status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const apiKey = Deno.env.get('GOOGLE_AI_API_KEY') || clientApiKey
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: 'No Google API key' }), {
+          status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      )
+
+      // Mark as generating
+      await supabaseAdmin
+        .from('ingredients_catalog')
+        .update({ image_status: 'generating' })
+        .eq('id', ingredientId)
+
+      // Generate image
+      const imgPrompt = buildIngredientPrompt(ingredientName)
+      const jpegBytes = await generateImageBytes(imgPrompt, apiKey)
+
+      // Try Remove.bg background removal
+      let finalBytes = jpegBytes
+      let fileName = `${ingredientId}.png`
+      let contentType = 'image/png'
+
+      const removeBgKey = Deno.env.get('REMOVE_BG_API_KEY')
+      if (removeBgKey) {
+        try {
+          finalBytes = await removeBackground(jpegBytes, removeBgKey)
+          console.log(`Remove.bg success for ingredient ${ingredientId}`)
+        } catch (bgErr) {
+          console.warn(`Remove.bg failed for ${ingredientId}, using original JPEG:`, bgErr)
+          // Fall back to original JPEG but still use .png path convention
+          finalBytes = jpegBytes
+          contentType = 'image/jpeg'
+          fileName = `${ingredientId}.jpg`
+        }
+      } else {
+        console.warn('REMOVE_BG_API_KEY not set — skipping background removal')
+        contentType = 'image/jpeg'
+        fileName = `${ingredientId}.jpg`
+      }
+
+      // Upload to ingredient-images bucket
+      const { error: uploadErr } = await supabaseAdmin.storage
+        .from('ingredient-images')
+        .upload(fileName, finalBytes, { contentType, upsert: true })
+      if (uploadErr) throw uploadErr
+
+      const { data: { publicUrl } } = supabaseAdmin.storage
+        .from('ingredient-images')
+        .getPublicUrl(fileName)
+
+      // Update catalog row
+      const { error: updateErr } = await supabaseAdmin
+        .from('ingredients_catalog')
+        .update({ image_url: publicUrl, image_status: 'done' })
+        .eq('id', ingredientId)
+      if (updateErr) throw updateErr
+
+      return new Response(JSON.stringify({ url: publicUrl }), {
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      })
+
+    } catch (err) {
+      console.error('generate-image ingredient error:', err)
+
+      if (ingredientId) {
+        try {
+          const supabaseAdmin = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+          )
+          await supabaseAdmin
+            .from('ingredients_catalog')
+            .update({ image_status: 'failed' })
+            .eq('id', ingredientId)
+        } catch (e2) {
+          console.error('Failed to mark ingredient as failed:', e2)
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }),
+        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  // ── RECIPE MODE (original) ─────────────────────────────────────────────────
   try {
     // Verify JWT
     const authHeader = req.headers.get('Authorization')
@@ -131,32 +310,8 @@ Deno.serve(async (req) => {
       .update({ image_status: 'generating', updated_at: new Date().toISOString() })
       .eq('id', recipeId)
 
-    // Generate image — Flash models first, then Imagen fallback
-    let imageBytes: Uint8Array | null = null
-    const errors: string[] = []
-
-    for (const model of FLASH_MODELS) {
-      try {
-        imageBytes = await callGeminiFlash(model, prompt, apiKey)
-        console.log(`Image generated with ${model}`)
-        break
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        errors.push(`${model}: ${msg}`)
-        console.warn(`Flash model failed [${model}]:`, msg)
-      }
-    }
-
-    if (!imageBytes) {
-      try {
-        imageBytes = await callImagen3(prompt, apiKey)
-        console.log('Image generated with Imagen 3')
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        errors.push(`imagen-3: ${msg}`)
-        throw new Error(`All image models failed: ${errors.join('; ')}`)
-      }
-    }
+    // Generate image
+    const imageBytes = await generateImageBytes(prompt, apiKey)
 
     // Upload to recipe-images/{recipeId}.jpg
     const fileName = `${recipeId}.jpg`

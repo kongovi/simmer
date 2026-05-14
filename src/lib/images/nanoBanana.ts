@@ -45,3 +45,45 @@ export async function callNanoBanana2(prompt: string, recipeId: string): Promise
 
   return json.url ?? ''
 }
+
+/**
+ * Calls the `generate-image` Edge Function in ingredient mode.
+ * Generates a retro-pop illustration of the ingredient and removes its background.
+ * Returns the public Storage URL on success, or '' on failure.
+ */
+export async function callNanoBanana2Ingredient(ingredientId: string, ingredientName: string): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    console.warn('nanoBanana ingredient: no session — skipping image generation')
+    return ''
+  }
+
+  const clientApiKey = import.meta.env.VITE_DEV_GOOGLE_AI_KEY as string | undefined
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      },
+      body: JSON.stringify({ ingredient: true, ingredientId, ingredientName, apiKey: clientApiKey }),
+    }
+  )
+
+  if (!res.ok) {
+    const err = await res.text()
+    console.error('nanoBanana ingredient: Edge Function error', res.status, err)
+    return ''
+  }
+
+  const json = await res.json() as { url?: string; error?: string }
+  if (json.error) {
+    console.error('nanoBanana ingredient: generation error', json.error)
+    return ''
+  }
+
+  return json.url ?? ''
+}

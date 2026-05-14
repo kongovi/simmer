@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
-import { generateDishImage, buildImagePrompt } from '../lib/images'
+import { generateDishImage, generateIngredientImage, buildImagePrompt } from '../lib/images'
 import type { Recipe } from '../types'
 
 export interface RecipeFilters {
@@ -60,7 +60,7 @@ export function useRecipeIngredients(recipeId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('recipe_ingredients')
-        .select('*, ingredient:ingredients_catalog(id, name, emoji, default_store)')
+        .select('*, ingredient:ingredients_catalog(id, name, emoji, default_store, image_url, image_status)')
         .eq('recipe_id', recipeId!)
         .order('sort_order')
       if (error) throw error
@@ -206,19 +206,32 @@ export function useSaveRecipe() {
     mutationFn: async (payload: SaveRecipePayload): Promise<string> => {
       if (!familyId) throw new Error('No family ID — cannot save recipe')
 
-      // 1. Upsert ingredients_catalog
+      // 1. Upsert ingredients_catalog; track which need image generation
       const ingredientIds: string[] = []
+      const needsImageGen: { id: string; name: string }[] = []
+
       for (const ing of payload.ingredients) {
-        if (ing.catalogId) { ingredientIds.push(ing.catalogId); continue }
+        if (ing.catalogId) {
+          ingredientIds.push(ing.catalogId)
+          // Check if existing catalog item already has an image
+          const { data: cat } = await supabase
+            .from('ingredients_catalog')
+            .select('id, image_url')
+            .eq('id', ing.catalogId)
+            .maybeSingle()
+          if (cat && !cat.image_url) needsImageGen.push({ id: ing.catalogId, name: ing.name })
+          continue
+        }
         const { data: existing } = await supabase
           .from('ingredients_catalog')
-          .select('id')
+          .select('id, image_url')
           .eq('family_id', familyId)
           .ilike('name', ing.name)
           .maybeSingle()
 
         if (existing?.id) {
           ingredientIds.push(existing.id as string)
+          if (!existing.image_url) needsImageGen.push({ id: existing.id as string, name: ing.name })
         } else {
           const { data: newIng, error } = await supabase
             .from('ingredients_catalog')
@@ -227,6 +240,7 @@ export function useSaveRecipe() {
             .single()
           if (error) throw error
           ingredientIds.push(newIng.id as string)
+          needsImageGen.push({ id: newIng.id as string, name: ing.name })
         }
       }
 
@@ -289,6 +303,13 @@ export function useSaveRecipe() {
       generateDishImage(payload.name, keySides, recipeId).catch(err =>
         console.warn('Image generation error (non-fatal):', err)
       )
+
+      // 7. Fire ingredient image generation for any ingredient without an image
+      for (const { id: ingId, name: ingName } of needsImageGen) {
+        generateIngredientImage(ingId, ingName).catch(err =>
+          console.warn(`Ingredient image gen error (non-fatal) [${ingName}]:`, err)
+        )
+      }
 
       return recipeId
     },

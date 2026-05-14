@@ -169,7 +169,7 @@ export function StagingScreen() {
                 </EmptyZone>
               )}
               {zone1Items.map(item => (
-                <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name} note={item.recipe_note} />
+                <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name} note={item.recipe_note} imageUrl={item.image_url} imageStatus={item.image_status} />
               ))}
             </Zone>
 
@@ -187,7 +187,7 @@ export function StagingScreen() {
               {zone2Items.map(item => {
                 const needIt = zone2NeedIt.has(item.ingredient_id)
                 return (
-                  <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name}>
+                  <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name} imageUrl={item.image_url} imageStatus={item.image_status}>
                     <YNButtons
                       leftLabel="Skip"     leftSelected={!needIt}  onLeft={() => setZone2NeedIt(s => toggle(s, item.ingredient_id))}
                       rightLabel="Need it" rightSelected={needIt}  onRight={() => setZone2NeedIt(s => toggle(s, item.ingredient_id))}
@@ -216,6 +216,8 @@ export function StagingScreen() {
                     emoji={item.emoji}
                     name={item.name}
                     note={formatLastBought(item)}
+                    imageUrl={item.image_url}
+                    imageStatus={item.image_status}
                   >
                     <YNButtons
                       leftLabel="Yes"  leftSelected={!isNo}  onLeft={() => setZone3No(s => toggle(s, item.ingredient_id))}
@@ -266,6 +268,8 @@ export function StagingScreen() {
                     emoji={item.emoji}
                     name={item.name}
                     note={formatLastBought(item)}
+                    imageUrl={item.image_url}
+                    imageStatus={item.image_status}
                   >
                     <button
                       onClick={() => setZone4Added(s => toggle(s, item.ingredient_id))}
@@ -449,22 +453,29 @@ function Zone({
 // ── ZoneItem ──────────────────────────────────────────────────────────────────
 
 function ZoneItem({
-  emoji, name, note, children,
+  emoji, name, note, children, imageUrl, imageStatus,
 }: {
-  emoji?:    string | null
-  name:      string
-  note?:     string | null
-  children?: React.ReactNode
+  emoji?:       string | null
+  name:         string
+  note?:        string | null
+  children?:    React.ReactNode
+  imageUrl?:    string | null
+  imageStatus?: string | null
 }) {
+  const showImg = imageStatus === 'done' && imageUrl
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: '9px',
       padding: '7px 0',
       borderBottom: '0.5px solid rgba(255,255,255,0.05)',
     }}>
-      <span style={{ fontSize: '16px', width: '24px', textAlign: 'center', flexShrink: 0 }}>
-        {emoji ?? '🛒'}
-      </span>
+      {showImg ? (
+        <img src={imageUrl!} alt={name} style={{ width: '24px', height: '24px', objectFit: 'contain', flexShrink: 0 }} />
+      ) : (
+        <span style={{ fontSize: '16px', width: '24px', textAlign: 'center', flexShrink: 0 }}>
+          {emoji ?? '🛒'}
+        </span>
+      )}
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: '12px', color: 'var(--tp)', fontWeight: 500 }}>{name}</div>
         {note && (

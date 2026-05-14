@@ -211,7 +211,7 @@ export function RecipeDetailScreen() {
           <div style={{ padding: '12px 16px 0' }}>
             {tab === 'ingredients' ? (
               <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
-                {(ingredients ?? []).map((row: { id: string; quantity: number | null; unit: string | null; prep_note: string | null; serving_note: string | null; ingredient: { name: string; emoji: string | null } | null }, idx: number) => (
+                {(ingredients ?? []).map((row: { id: string; quantity: number | null; unit: string | null; prep_note: string | null; serving_note: string | null; ingredient: { name: string; emoji: string | null; image_url?: string | null; image_status?: string | null } | null }, idx: number) => (
                   <div
                     key={row.id}
                     style={{
@@ -222,7 +222,11 @@ export function RecipeDetailScreen() {
                       borderBottom: idx < (ingredients?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none',
                     }}
                   >
-                    <span style={{ fontSize: '18px', flexShrink: 0 }}>{row.ingredient?.emoji ?? '🥄'}</span>
+                    {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
+                      <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', flexShrink: 0 }} />
+                    ) : (
+                      <span style={{ fontSize: '18px', flexShrink: 0 }}>{row.ingredient?.emoji ?? '🥄'}</span>
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
                         {row.ingredient?.name ?? '—'}

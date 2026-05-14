@@ -35,6 +35,8 @@ export interface GroceryItem {
     emoji:         string | null
     brand_note:    string | null
     default_store: string | null
+    image_url:     string | null
+    image_status:  string | null
   } | null
 }
 
@@ -106,7 +108,7 @@ export function useGroceryListItems(listId: string | null) {
           id, grocery_list_id, ingredient_id, custom_name,
           quantity, unit, source, recipe_ids, assigned_store,
           aisle_order, is_checked, checked_at, checked_by,
-          ingredient:ingredients_catalog(id, name, emoji, brand_note, default_store)
+          ingredient:ingredients_catalog(id, name, emoji, brand_note, default_store, image_url, image_status)
         `)
         .eq('grocery_list_id', listId!)
         .order('is_checked',  { ascending: true })

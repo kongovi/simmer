@@ -9,6 +9,7 @@ import {
   itemDisplayName, itemEmoji, itemQtyLabel,
 } from '../hooks/useGroceryList'
 import type { GroceryItem } from '../hooks/useGroceryList'
+import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
 
 // ── GroceryScreen ─────────────────────────────────────────────────────────────
 
@@ -19,6 +20,7 @@ export function GroceryScreen() {
   const { data: list }  = useActiveGroceryList()
   const { data: items = [] } = useGroceryListItems(list?.id ?? null)
   useGroceryListRealtime(list?.id ?? null)
+  useIngredientImageRealtime()
 
   const { data: knownStores = [] } = useKnownStores()
 
@@ -585,6 +587,7 @@ function GroceryBox({
   const emoji     = itemEmoji(item)
   const qty       = itemQtyLabel(item)
   const brandNote = item.ingredient?.brand_note ?? null
+  const imgUrl    = item.ingredient?.image_status === 'done' ? item.ingredient.image_url : null
 
   return (
     <div
@@ -619,7 +622,15 @@ function GroceryBox({
         </div>
       )}
 
-      <span style={{ fontSize: '26px', lineHeight: 1 }}>{emoji}</span>
+      {imgUrl ? (
+        <img
+          src={imgUrl}
+          alt={name}
+          style={{ width: '36px', height: '36px', objectFit: 'contain' }}
+        />
+      ) : (
+        <span style={{ fontSize: '26px', lineHeight: 1 }}>{emoji}</span>
+      )}
       <span style={{
         fontSize: '10px', color: done ? 'var(--tm)' : 'var(--tp)',
         fontWeight: 500, textAlign: 'center', lineHeight: 1.3,

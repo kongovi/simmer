@@ -1,6 +1,6 @@
 import type { ImageModel } from '../../types'
 import { getAISettingsCache } from '../ai/settingsCache'
-import { callNanoBanana2 } from './nanoBanana'
+import { callNanoBanana2, callNanoBanana2Ingredient } from './nanoBanana'
 import { callDallE3 } from './dalle'
 import { callFlux } from './flux'
 
@@ -26,6 +26,17 @@ export function buildImagePrompt(dishName: string, keySides: string): string {
 /** Reads the image model from the settings cache, defaulting to nano-banana-2. */
 function getImageModel(): ImageModel {
   return getAISettingsCache()?.ai_image_model ?? 'nano-banana-2'
+}
+
+/**
+ * Fire-and-forget ingredient image generation.
+ * Always uses NB2 (ingredient mode hits the same Edge Function).
+ */
+export async function generateIngredientImage(
+  ingredientId: string,
+  ingredientName: string,
+): Promise<string> {
+  return callNanoBanana2Ingredient(ingredientId, ingredientName)
 }
 
 export async function generateDishImage(

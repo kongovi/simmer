@@ -10,6 +10,8 @@ export interface StagingIngredient {
   ingredient_id: string
   name:          string
   emoji:         string | null
+  image_url:     string | null
+  image_status:  string | null
   quantity:      number | null
   unit:          string | null
   recipe_note:   string | null   // "3 lbs · Kebabs + Kofta"
@@ -22,6 +24,8 @@ export interface StapleWithHistory {
   ingredient_id:       string
   name:                string
   emoji:               string | null
+  image_url:           string | null
+  image_status:        string | null
   last_purchased_at:   string | null
   days_since_purchase: number | null
   avg_frequency_days:  number | null
@@ -73,7 +77,7 @@ export function useStagingIngredients(weekStart: string | null) {
         .from('recipe_ingredients')
         .select(`
           recipe_id, ingredient_id, quantity, unit,
-          ingredient:ingredients_catalog(id, name, emoji, default_store)
+          ingredient:ingredients_catalog(id, name, emoji, default_store, image_url, image_status)
         `)
         .in('recipe_id', recipeIds)
       if (ingsErr) throw ingsErr
@@ -83,6 +87,8 @@ export function useStagingIngredients(weekStart: string | null) {
         ingredient_id: string
         name:          string
         emoji:         string | null
+        image_url:     string | null
+        image_status:  string | null
         default_store: string | null
         qtys:          Map<string, number>   // unit → summed qty
         recipeIds:     string[]
@@ -93,6 +99,7 @@ export function useStagingIngredients(weekStart: string | null) {
         if (!ing.ingredient_id) continue
         const ingData = ing.ingredient as unknown as {
           id: string; name: string; emoji: string | null; default_store: string | null
+          image_url: string | null; image_status: string | null
         } | null
 
         const id = ing.ingredient_id as string
@@ -101,6 +108,8 @@ export function useStagingIngredients(weekStart: string | null) {
             ingredient_id: id,
             name:          ingData?.name ?? '—',
             emoji:         ingData?.emoji ?? null,
+            image_url:     ingData?.image_url ?? null,
+            image_status:  ingData?.image_status ?? null,
             default_store: ingData?.default_store ?? null,
             qtys:          new Map(),
             recipeIds:     [],
@@ -149,6 +158,8 @@ export function useStagingIngredients(weekStart: string | null) {
           ingredient_id: c.ingredient_id,
           name:          c.name,
           emoji:         c.emoji,
+          image_url:     c.image_url,
+          image_status:  c.image_status,
           quantity:      c.qtys.size === 1 ? Array.from(c.qtys.values())[0] : null,
           unit:          c.qtys.size === 1 ? Array.from(c.qtys.keys())[0] : null,
           recipe_note:   note,
@@ -195,7 +206,7 @@ export function useStaplePredictions() {
         .from('staples')
         .select(`
           id, ingredient_id,
-          ingredient:ingredients_catalog(id, name, emoji, default_store)
+          ingredient:ingredients_catalog(id, name, emoji, default_store, image_url, image_status)
         `)
         .eq('family_id', familyId!)
         .eq('is_active', true)
@@ -233,6 +244,7 @@ export function useStaplePredictions() {
         if (!staple.ingredient_id) continue
         const ingData = staple.ingredient as unknown as {
           id: string; name: string; emoji: string | null; default_store: string | null
+          image_url: string | null; image_status: string | null
         } | null
 
         const dates = histByIngredient.get(staple.ingredient_id as string) ?? []
@@ -257,6 +269,8 @@ export function useStaplePredictions() {
           ingredient_id:       staple.ingredient_id as string,
           name:                ingData?.name ?? '—',
           emoji:               ingData?.emoji ?? null,
+          image_url:           ingData?.image_url ?? null,
+          image_status:        ingData?.image_status ?? null,
           last_purchased_at:   lastDate?.toISOString() ?? null,
           days_since_purchase: daysSince,
           avg_frequency_days:  avgFreq,

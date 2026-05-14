@@ -169,14 +169,19 @@ function PrepCard({
           cursor: 'pointer',
         }}
       >
-        {/* Emoji */}
+        {/* Ingredient icon */}
         <div style={{
           width: '36px', height: '36px', flexShrink: 0,
-          background: 'var(--dk3)', borderRadius: '9px',
+          background: item.image_status === 'done' && item.image_url ? 'transparent' : 'var(--dk3)',
+          borderRadius: '9px',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '20px',
+          fontSize: '20px', overflow: 'hidden',
         }}>
-          {item.emoji ?? '🥄'}
+          {item.image_status === 'done' && item.image_url ? (
+            <img src={item.image_url} alt={item.name} style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
+          ) : (
+            item.emoji ?? '🥄'
+          )}
         </div>
 
         {/* Name + total */}

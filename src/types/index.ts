@@ -27,6 +27,8 @@ export interface IngredientCatalog {
   is_bulk_staple: boolean
   purchase_frequency_days: number | null
   last_purchased_at: string | null
+  image_url: string | null
+  image_status: string
   created_at: string
 }
 
