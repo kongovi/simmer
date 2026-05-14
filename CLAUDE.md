@@ -710,8 +710,66 @@ Update this section at the end of every Claude Code session.
 - Quantities scaled by `servings_override / recipe.servings` when a slot overrides servings
 
 ### Session 8 — Settings: model selection + family + catalog
-**Status:** Not started  
-**Depends on:** Session 1 (user_settings table), all AI integrations working
+**Status:** ✅ Complete  
+**Completed:** 2026-05-13
+
+**What was built:**
+
+*DB — migration `0006_session8_settings`*
+- `family_stores` table: id, family_id, name, is_default, sort_order — RLS via `get_my_family_id()`
+- `family_invites` table: id, family_id, invited_by, token (random hex), role, accepted_by/at, expires_at — RLS: family members can select/insert/delete within own family
+- Fixed `family_members` SELECT policy: replaced `user_id = auth.uid()` with `family_id = get_my_family_id()` so all family members can see each other
+- `accept_family_invite(p_token)` SECURITY DEFINER RPC: validates token, removes old family membership, inserts into new family, updates `user_settings.family_id`, marks invite accepted
+
+*AI settings cache — `src/lib/ai/settingsCache.ts`*
+- Module-level `_cache` holding AI settings (models, keys, host, overrides)
+- `setAISettingsCache()` / `getAISettingsCache()` / `getApiKeyForModel(model)` utilities
+- Falls back to `VITE_DEV_ANTHROPIC_KEY` / `VITE_DEV_GOOGLE_AI_KEY` env vars when no user key stored
+
+*AI adapters — fully wired*
+- `anthropic.ts`: updated to use cache for API key (was hardcoded to env var)
+- `openai.ts` (new): direct browser call to `api.openai.com/v1/chat/completions` with user's stored key
+- `gemini.ts` (new): direct browser call to `generativelanguage.googleapis.com` with `gemini-2.0-flash`
+- `ollama.ts` (new): direct call to configurable host (default `localhost:11434`), `llama3.2` model
+- `ai/index.ts`: updated to import and route all four providers; `getModelForTask()` reads per-task overrides → global model → 'claude'
+- `images/index.ts`: `getImageModel()` now reads from settings cache instead of hardcoded value
+
+*`useUserSettings.ts` — updated*
+- Added `useEffect` to call `setAISettingsCache(data)` whenever settings load/change — keeps module cache in sync
+- Added `useUpdateAISettings()` mutation: updates all AI-related columns in `user_settings`
+
+*New hooks*
+- `useFamilyMembers.ts`: `useFamilyMembers()`, `useFamilyInvites()`, `useCreateInvite()`, `useDeleteInvite()`, `useAcceptInvite()` (via RPC), `buildInviteUrl(token)`
+- `useFamilyStores.ts`: `useFamilyStores()`, `useAddFamilyStore()`, `useDeleteFamilyStore()`, `useSetDefaultStore()`
+- `useCatalog.ts`: `useCatalogItems(search)`, `useUpdateCatalogItem()` (store, brand_note, is_pantry_staple, is_bulk_staple)
+
+*New screens*
+- `SettingsModelsScreen.tsx` (`/settings/models`): radio picker for text AI (Claude/GPT-4o/Gemini/Ollama) + image AI (NB2/NB Pro/NB/DALL-E/FLUX/None), API key inputs per model (show/hide toggle), Ollama host input, per-task overrides collapsible, Save with "✓ Saved" feedback
+- `CatalogScreen.tsx` (`/settings/catalog`): search bar, aisle-grouped ingredient list, tap to open edit sheet (store assignment pill buttons, brand note, pantry/bulk toggles)
+- `JoinScreen.tsx` (`/join?token=...`): accepts family invite via token, shows joining/done/error states, redirects to `/grocery` on success
+
+*`SettingsScreen.tsx` — full rewrite*
+- Profile card (avatar + name + email)
+- Meal Planning: week start DOW select
+- AI row → `/settings/models` with current model values shown
+- Ingredients row → `/settings/catalog`
+- Family section: member list with initials avatar + role badge, active invite rows (truncated URL + Copy button + revoke X), "Invite someone" creates a new invite
+- Stores section: list with delete ×, add-store input + Plus button
+- Sign out button (red outline)
+
+*`BottomNav.tsx` — updated*
+- Added Settings tab (Settings icon) as 5th tab
+
+*`App.tsx` — updated*
+- Added routes: `/settings/models`, `/settings/catalog`, `/join`
+- Added `/settings` to `showNav` so nav appears on the settings tab
+
+**Key decisions:**
+- API keys stored as-is in `user_settings` `_enc` columns — RLS ensures only the user can read their own row (sufficient security for personal-use app)
+- OpenAI and Gemini called directly from browser (both allow CORS with valid key); Anthropic continues via Edge Function
+- Invite URL format: `https://simmer-rho-eight.vercel.app/join?token={hex16}` — token is 128-bit random, effectively unguessable
+- Accepting an invite replaces the user's existing solo family membership (typical case: new user has empty family)
+- `family_stores` and `ingredients_catalog.default_store` are independent — GroceryScreen tabs still read from catalog; Settings Stores section manages the standalone list
 
 ### Session 9 — Onboarding + PWA + polish
 **Status:** Not started  
