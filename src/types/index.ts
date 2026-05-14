@@ -153,6 +153,7 @@ export interface UserSettings {
   replicate_api_key_enc: string | null
   ollama_host: string | null
   task_model_overrides: Record<string, string>
+  onboarding_complete: boolean
   created_at: string
   updated_at: string
 }

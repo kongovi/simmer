@@ -124,9 +124,7 @@ export function RecipesScreen() {
       {/* Recipe grid */}
       <div style={{ padding: '12px 16px 0' }}>
         {isLoading ? (
-          <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--ts)', fontSize: '13px' }}>
-            Loading…
-          </div>
+          <RecipeSkeletonGrid />
         ) : recipes.length === 0 ? (
           <EmptyState onAdd={() => navigate('/recipes/new')} onImport={() => navigate('/recipes/import')} />
         ) : (
@@ -142,6 +140,46 @@ export function RecipesScreen() {
         )}
       </div>
     </Screen>
+  )
+}
+
+function RecipeSkeletonCard() {
+  return (
+    <div style={{
+      borderRadius: '14px', overflow: 'hidden',
+      background: 'var(--dkc)', border: '0.5px solid var(--br)',
+    }}>
+      {/* Image placeholder */}
+      <div style={{
+        height: '120px',
+        background: 'linear-gradient(90deg, var(--dk3) 25%, var(--dkc) 50%, var(--dk3) 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'shimmer 1.4s infinite',
+      }} />
+      {/* Text lines */}
+      <div style={{ padding: '10px 10px 12px' }}>
+        <div style={{
+          height: '11px', borderRadius: '4px', marginBottom: '6px', width: '75%',
+          background: 'linear-gradient(90deg, var(--dk3) 25%, var(--dkc) 50%, var(--dk3) 75%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.4s infinite',
+        }} />
+        <div style={{
+          height: '9px', borderRadius: '4px', width: '45%',
+          background: 'linear-gradient(90deg, var(--dk3) 25%, var(--dkc) 50%, var(--dk3) 75%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.4s infinite 0.2s',
+        }} />
+      </div>
+    </div>
+  )
+}
+
+function RecipeSkeletonGrid() {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      {[0,1,2,3].map(i => <RecipeSkeletonCard key={i} />)}
+    </div>
   )
 }
 

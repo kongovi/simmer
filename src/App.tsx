@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { supabase } from './lib/supabase'
 import { useAppStore } from './stores/appStore'
 import { useEnsureFamilyId } from './hooks/useEnsureFamilyId'
+import { useUserSettings } from './hooks/useUserSettings'
 import { BottomNav } from './components/layout/BottomNav'
 import { LoginScreen } from './screens/LoginScreen'
 import { GroceryScreen } from './screens/GroceryScreen'
@@ -20,6 +21,7 @@ import { AddToPlanScreen } from './screens/AddToPlanScreen'
 import { StagingScreen } from './screens/StagingScreen'
 import { MealPrepScreen } from './screens/MealPrepScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
+import { OnboardingScreen } from './screens/OnboardingScreen'
 import { SettingsModelsScreen } from './screens/SettingsModelsScreen'
 import { CatalogScreen } from './screens/CatalogScreen'
 import { JoinScreen } from './screens/JoinScreen'
@@ -72,6 +74,23 @@ function SplashScreen() {
   )
 }
 
+// Redirects new users to onboarding if they haven't completed it.
+function OnboardingGuard() {
+  const navigate  = useNavigate()
+  const location  = useLocation()
+  const { data: settings, isLoading } = useUserSettings()
+
+  useEffect(() => {
+    if (isLoading) return
+    if (!settings) return
+    if (settings.onboarding_complete) return
+    if (location.pathname.startsWith('/onboarding')) return
+    navigate('/onboarding', { replace: true })
+  }, [settings, isLoading, location.pathname, navigate])
+
+  return null
+}
+
 function ProtectedLayout() {
   const session        = useAppStore(s => s.session)
   const sessionLoading = useAppStore(s => s.sessionLoading)
@@ -99,6 +118,7 @@ function ProtectedLayout() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <OnboardingGuard />
       <Routes>
         {/* Grocery */}
         <Route path="/grocery"           element={<GroceryScreen />} />
@@ -121,6 +141,8 @@ function ProtectedLayout() {
         <Route path="/settings/models"   element={<SettingsModelsScreen />} />
         <Route path="/settings/catalog"  element={<CatalogScreen />} />
         <Route path="/settings"          element={<SettingsScreen />} />
+        {/* Onboarding */}
+        <Route path="/onboarding"        element={<OnboardingScreen />} />
         {/* Family invite accept */}
         <Route path="/join"              element={<JoinScreen />} />
         <Route path="*"                  element={<Navigate to="/grocery" replace />} />

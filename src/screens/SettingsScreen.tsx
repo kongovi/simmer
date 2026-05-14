@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   LogOut, User, ChevronRight, Flame,
-  Bot, BookOpen, Users, Store, Plus, Trash2, Copy, Check, X,
+  Bot, BookOpen, Users, Store, Plus, Trash2, Copy, Check, X, Upload,
 } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { supabase } from '../lib/supabase'
@@ -10,6 +10,8 @@ import { useAppStore } from '../stores/appStore'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
 import { useFamilyMembers, useFamilyInvites, useCreateInvite, useDeleteInvite, buildInviteUrl } from '../hooks/useFamilyMembers'
 import { useFamilyStores, useAddFamilyStore, useDeleteFamilyStore } from '../hooks/useFamilyStores'
+import { useOrderImport } from '../hooks/useOrderImport'
+import type { ImportResult } from '../hooks/useOrderImport'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -150,6 +152,93 @@ function InviteRow({ token, onDelete }: { token: string; onDelete: () => void })
   )
 }
 
+// ── Import order history sheet ────────────────────────────────────────────────
+
+function ImportSheet({ onClose }: { onClose: () => void }) {
+  const fileRef      = useRef<HTMLInputElement>(null)
+  const importOrders = useOrderImport()
+  const [result, setResult] = useState<ImportResult | null>(null)
+
+  async function handleFile(file: File) {
+    const text = await file.text()
+    importOrders.mutate(text, { onSuccess: r => setResult(r) })
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    const f = e.dataTransfer.files[0]
+    if (f) handleFile(f)
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{ background: 'var(--dk2)', borderRadius: '20px 20px 0 0', padding: '20px 16px 32px', width: '100%', borderTop: '0.5px solid var(--brh)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--tp)' }}>Import order history</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--tm)' }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {result ? (
+          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <div style={{ fontSize: '32px', marginBottom: '10px' }}>✅</div>
+            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 4px' }}>
+              {result.imported} item{result.imported !== 1 ? 's' : ''} imported
+            </p>
+            {result.newToCatalog > 0 && (
+              <p style={{ fontSize: '12px', color: 'var(--am)', margin: '0 0 20px' }}>
+                {result.newToCatalog} new ingredient{result.newToCatalog !== 1 ? 's' : ''} added to catalog
+              </p>
+            )}
+            <button onClick={onClose} style={{ padding: '11px 24px', background: 'var(--am)', border: 'none', borderRadius: '10px', color: '#141820', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize: '12px', color: 'var(--ts)', margin: '0 0 14px', lineHeight: 1.5 }}>
+              Upload a CSV export from Instacart, Amazon Fresh, or Kroger to seed your staple predictions.
+            </p>
+            <div
+              onDragOver={e => e.preventDefault()}
+              onDrop={onDrop}
+              onClick={() => fileRef.current?.click()}
+              style={{
+                border: '2px dashed var(--br)', borderRadius: '14px',
+                padding: '28px 16px', textAlign: 'center', cursor: 'pointer',
+                background: 'var(--dk3)', marginBottom: '12px',
+              }}
+            >
+              {importOrders.isPending ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '20px', height: '20px', border: '2px solid var(--br)', borderTopColor: 'var(--am)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  <span style={{ fontSize: '12px', color: 'var(--ts)' }}>Importing…</span>
+                </div>
+              ) : (
+                <>
+                  <Upload size={22} color="var(--tm)" style={{ marginBottom: '8px' }} />
+                  <div style={{ fontSize: '13px', color: 'var(--tp)', marginBottom: '3px' }}>Drop CSV or tap to browse</div>
+                  <div style={{ fontSize: '11px', color: 'var(--ts)' }}>Instacart · Amazon Fresh · Kroger</div>
+                </>
+              )}
+              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
+            </div>
+            {importOrders.error && (
+              <p style={{ fontSize: '12px', color: 'var(--rd)', margin: '0 0 10px' }}>
+                {importOrders.error instanceof Error ? importOrders.error.message : 'Import failed'}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export function SettingsScreen() {
@@ -169,7 +258,8 @@ export function SettingsScreen() {
   const addStore                = useAddFamilyStore()
   const deleteStore             = useDeleteFamilyStore()
 
-  const [newStoreName, setNewStoreName] = useState('')
+  const [newStoreName,  setNewStoreName]  = useState('')
+  const [showImport,    setShowImport]    = useState(false)
 
   const displayName = user?.user_metadata?.full_name
     ?? user?.user_metadata?.name
@@ -280,6 +370,11 @@ export function SettingsScreen() {
             icon={<BookOpen size={15} />}
             value={`${familyId ? '…' : '—'}`}
             onClick={() => navigate('/settings/catalog')}
+          />
+          <NavRow
+            label="Import order history"
+            icon={<Upload size={15} />}
+            onClick={() => setShowImport(true)}
           />
         </SettingsSection>
 
@@ -403,6 +498,7 @@ export function SettingsScreen() {
           Sign out
         </button>
       </div>
+      {showImport && <ImportSheet onClose={() => setShowImport(false)} />}
     </Screen>
   )
 }

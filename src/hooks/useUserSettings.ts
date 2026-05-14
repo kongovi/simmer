@@ -66,6 +66,25 @@ export interface AISettingsUpdate {
   ollama_host?:           string | null
 }
 
+export function useCompleteOnboarding() {
+  const queryClient = useQueryClient()
+  const session     = useAppStore(s => s.session)
+  const userId      = session?.user?.id
+
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('user_settings')
+        .update({ onboarding_complete: true, updated_at: new Date().toISOString() })
+        .eq('user_id', userId!)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-settings', userId] })
+    },
+  })
+}
+
 export function useUpdateAISettings() {
   const queryClient = useQueryClient()
   const session     = useAppStore(s => s.session)

@@ -54,7 +54,7 @@ export function PlannerScreen() {
   const [popover, setPopover] = useState<PopoverState | null>(null)
 
   // ── Data ──
-  const { data: slots = [] } = useSlotsForWeek(weekStart)
+  const { data: slots = [], isLoading: slotsLoading } = useSlotsForWeek(weekStart)
   const slotMap = useMemo(() => groupBySlot(slots), [slots])
   const addDish    = useAddDish()
   const removeDish = useRemoveDish()
@@ -115,7 +115,7 @@ export function PlannerScreen() {
   const visibleCols = MEAL_TYPES.filter(m => colVisible[m.key])
 
   return (
-    <Screen>
+    <Screen style={{ paddingBottom: 'calc(68px + 56px + env(safe-area-inset-bottom))' }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 130px' }}>
@@ -205,8 +205,15 @@ export function PlannerScreen() {
             </div>
           </button>
 
+          {/* Slots loading indicator */}
+          {slotsLoading && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+              <div style={{ width: '16px', height: '16px', border: '2px solid var(--br)', borderTopColor: 'var(--am)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+            </div>
+          )}
+
           {/* Planner grid table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '4px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '4px', opacity: slotsLoading ? 0.4 : 1, transition: 'opacity 0.2s' }}>
             <thead>
               <tr>
                 <th style={thDayStyle} />
@@ -254,7 +261,7 @@ export function PlannerScreen() {
 
         {/* Generate grocery list — pinned above bottom nav */}
         <div style={{
-          position: 'fixed', bottom: '58px', left: 0, right: 0,
+          position: 'fixed', bottom: 'calc(68px + env(safe-area-inset-bottom))', left: 0, right: 0,
           padding: '8px 16px',
           background: 'var(--dk)',
           borderTop: '0.5px solid var(--br)',

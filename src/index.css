@@ -63,6 +63,12 @@ html, body {
   to   { transform: rotate(360deg); }
 }
 
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* NB2 image generating pulse */
 @keyframes nb2-pulse {
   0%, 100% { opacity: 0.45; }

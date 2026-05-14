@@ -1,13 +1,14 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 interface ScreenProps {
-  children: ReactNode
+  children:  ReactNode
   className?: string
+  style?:     CSSProperties
   /** If true, add bottom padding to clear the fixed bottom nav */
-  withNav?: boolean
+  withNav?:   boolean
 }
 
-export function Screen({ children, className = '', withNav = true }: ScreenProps) {
+export function Screen({ children, className = '', style, withNav = true }: ScreenProps) {
   return (
     <div
       className={className}
@@ -15,7 +16,8 @@ export function Screen({ children, className = '', withNav = true }: ScreenProps
         flex: 1,
         overflowY: 'auto',
         backgroundColor: 'var(--dk)',
-        paddingBottom: withNav ? '68px' : 0,
+        paddingBottom: withNav ? 'calc(68px + env(safe-area-inset-bottom))' : 0,
+        ...style,
       }}
     >
       {children}
