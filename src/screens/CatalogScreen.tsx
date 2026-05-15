@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Search, Store } from 'lucide-react'
+import { ArrowLeft, Search, Store, RefreshCw } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { useCatalogItems, useUpdateCatalogItem } from '../hooks/useCatalog'
 import { useFamilyStores } from '../hooks/useFamilyStores'
 import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
+import { generateIngredientImage } from '../lib/images'
 import { detectAisleOrder, AISLE_LABELS } from '../lib/aisleUtils'
 import type { IngredientCatalog } from '../types'
 
@@ -27,6 +28,13 @@ function EditSheet({
   const [brandNote,    setBrandNote]    = useState(item.brand_note ?? '')
   const [isPantry,     setIsPantry]     = useState(item.is_pantry_staple)
   const [isBulk,       setIsBulk]       = useState(item.is_bulk_staple)
+  const [regenStatus,  setRegenStatus]  = useState<'idle' | 'busy'>('idle')
+
+  async function handleRegen() {
+    setRegenStatus('busy')
+    await generateIngredientImage(item.id, item.name).catch(() => {})
+    setRegenStatus('idle')
+  }
 
   async function handleSave() {
     await update.mutateAsync({
@@ -58,9 +66,50 @@ function EditSheet({
         borderTop: '0.5px solid var(--brh)',
       }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-          <span style={{ fontSize: '24px' }}>{item.emoji ?? '🥄'}</span>
-          <span style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)' }}>{item.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+          {/* Image or emoji */}
+          <div style={{
+            position: 'relative', flexShrink: 0,
+            width: '56px', height: '56px', borderRadius: '14px',
+            background: 'var(--dk3)', overflow: 'hidden',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {item.image_status === 'done' && item.image_url ? (
+              <img
+                src={item.image_url}
+                alt={item.name}
+                style={{ width: '56px', height: '56px', objectFit: 'contain' }}
+              />
+            ) : (
+              <span style={{ fontSize: '32px', lineHeight: 1 }}>{item.emoji ?? '🥄'}</span>
+            )}
+            {item.image_status === 'generating' && (
+              <div style={{
+                position: 'absolute', bottom: '4px', left: '4px',
+                width: '7px', height: '7px', borderRadius: '50%',
+                background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite',
+              }} />
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', display: 'block' }}>{item.name}</span>
+            {/* Regenerate image button */}
+            <button
+              onClick={handleRegen}
+              disabled={regenStatus === 'busy' || item.image_status === 'generating'}
+              style={{
+                marginTop: '4px',
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                background: 'none', border: 'none', padding: 0,
+                color: regenStatus === 'busy' || item.image_status === 'generating' ? 'var(--tm)' : 'var(--ts)',
+                fontSize: '12px', cursor: regenStatus === 'busy' || item.image_status === 'generating' ? 'default' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              <RefreshCw size={11} style={{ animation: regenStatus === 'busy' ? 'spin 0.8s linear infinite' : 'none' }} />
+              {regenStatus === 'busy' || item.image_status === 'generating' ? 'Generating…' : 'Regenerate image'}
+            </button>
+          </div>
         </div>
 
         {/* Name */}
