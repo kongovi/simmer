@@ -122,77 +122,79 @@ const REPLICATE_BG_MODELS = [
   'https://api.replicate.com/v1/models/lucataco/remove-bg/predictions',
 ]
 
+/** POST to a Replicate model endpoint, retrying once after 15s on 429. */
+async function replicatePost(
+  modelUrl: string,
+  body: string,
+  replicateKey: string,
+): Promise<Response> {
+  const headers = {
+    Authorization: `Bearer ${replicateKey}`,
+    'Content-Type': 'application/json',
+    Prefer: 'wait=60',
+  }
+  let res = await fetch(modelUrl, { method: 'POST', headers, body })
+  if (res.status === 429) {
+    console.warn(`Replicate 429 rate limit — waiting 15s before retry`)
+    await new Promise(r => setTimeout(r, 15000))
+    res = await fetch(modelUrl, { method: 'POST', headers, body })
+  }
+  return res
+}
+
 /**
- * Remove background via Replicate. Tries each model in REPLICATE_BG_MODELS until one succeeds.
- * Pre-resizes the image to 1024px max to avoid payload limits on Replicate's end.
- * Returns PNG bytes with transparent background, or throws if all models fail.
+ * Remove background via Replicate (lucataco/remove-bg).
+ * Pre-resizes to 1024px max to avoid payload size issues.
+ * Returns PNG bytes with transparent background, or throws.
  */
 async function removeBackground(imageBytes: Uint8Array, replicateKey: string): Promise<Uint8Array> {
-  // Resize before sending — large data URIs cause silent failures on Replicate
   const smallBytes = await resizeImage(imageBytes, 1024, true)
   const dataUri = `data:image/jpeg;base64,${bytesToBase64(smallBytes)}`
   console.log(`Replicate bg-remove: ${smallBytes.length} bytes (resized from ${imageBytes.length})`)
 
-  const errors: string[] = []
+  const modelUrl = REPLICATE_BG_MODELS[0]
+  const createRes = await replicatePost(
+    modelUrl,
+    JSON.stringify({ input: { image: dataUri } }),
+    replicateKey,
+  )
 
-  for (const modelUrl of REPLICATE_BG_MODELS) {
-    try {
-      const createRes = await fetch(modelUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${replicateKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'wait=60',
-        },
-        body: JSON.stringify({ input: { image: dataUri } }),
-      })
+  if (!createRes.ok) {
+    const errBody = await createRes.text()
+    throw new Error(`Replicate HTTP ${createRes.status}: ${errBody.slice(0, 300)}`)
+  }
 
-      if (!createRes.ok) {
-        const errBody = await createRes.text()
-        throw new Error(`HTTP ${createRes.status}: ${errBody.slice(0, 200)}`)
+  let prediction = await createRes.json() as {
+    id: string; status: string; output?: string | string[]; error?: string
+  }
+
+  // "Prefer: wait" may have already resolved it; poll if not
+  if (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 2000))
+      const pollRes = await fetch(
+        `https://api.replicate.com/v1/predictions/${prediction.id}`,
+        { headers: { Authorization: `Bearer ${replicateKey}` } }
+      )
+      if (pollRes.ok) {
+        prediction = await pollRes.json()
+        if (prediction.status === 'succeeded' || prediction.status === 'failed') break
       }
-
-      let prediction = await createRes.json() as {
-        id: string; status: string; output?: string | string[]; error?: string
-      }
-
-      // "Prefer: wait" may have already resolved it; poll if not
-      if (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
-        for (let i = 0; i < 30; i++) {
-          await new Promise(r => setTimeout(r, 2000))
-          const pollRes = await fetch(
-            `https://api.replicate.com/v1/predictions/${prediction.id}`,
-            { headers: { Authorization: `Bearer ${replicateKey}` } }
-          )
-          if (pollRes.ok) {
-            prediction = await pollRes.json()
-            if (prediction.status === 'succeeded' || prediction.status === 'failed') break
-          }
-        }
-      }
-
-      if (prediction.status === 'failed' || !prediction.output) {
-        throw new Error(`prediction failed: ${prediction.error ?? 'no output'}`)
-      }
-
-      // output can be a string or string[] depending on the model
-      const outputUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output
-      console.log(`Replicate bg-remove succeeded with ${modelUrl}, downloading output`)
-
-      const imgRes = await fetch(outputUrl)
-      if (!imgRes.ok) throw new Error(`download failed: ${imgRes.status}`)
-      const buf = await imgRes.arrayBuffer()
-      console.log(`Replicate bg-remove: received ${buf.byteLength} bytes PNG`)
-      return new Uint8Array(buf)
-
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      errors.push(`${modelUrl.split('/models/')[1]}: ${msg}`)
-      console.warn(`Replicate model failed [${modelUrl}]:`, msg)
     }
   }
 
-  throw new Error(`All Replicate bg-removal models failed: ${errors.join(' | ')}`)
+  if (prediction.status === 'failed' || !prediction.output) {
+    throw new Error(`Replicate prediction failed: ${prediction.error ?? 'no output'}`)
+  }
+
+  const outputUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output
+  console.log(`Replicate bg-remove succeeded, downloading output`)
+
+  const imgRes = await fetch(outputUrl)
+  if (!imgRes.ok) throw new Error(`Failed to download Replicate output: ${imgRes.status}`)
+  const buf = await imgRes.arrayBuffer()
+  console.log(`Replicate bg-remove: received ${buf.byteLength} bytes PNG`)
+  return new Uint8Array(buf)
 }
 
 /**
