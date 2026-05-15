@@ -45,7 +45,7 @@ export function BottomNav() {
           {({ isActive }) => (
             <>
               <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
-              <span style={{ fontSize: '9px', fontWeight: isActive ? 600 : 400, letterSpacing: '0.2px' }}>
+              <span style={{ fontSize: '11px', fontWeight: isActive ? 600 : 400, letterSpacing: '0.2px' }}>
                 {label}
               </span>
             </>

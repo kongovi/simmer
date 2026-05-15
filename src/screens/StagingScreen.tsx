@@ -103,7 +103,7 @@ export function StagingScreen() {
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--ts)', display: 'flex', alignItems: 'center',
-            gap: '5px', fontSize: '13px', padding: 0, marginBottom: '12px',
+            gap: '5px', fontSize: '15px', padding: 0, marginBottom: '12px',
             fontFamily: 'inherit',
           }}
         >
@@ -112,10 +112,10 @@ export function StagingScreen() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
           <div>
-            <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 2px' }}>
+            <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 2px' }}>
               Review &amp; stage
             </h1>
-            <p style={{ fontSize: '11px', color: 'var(--ts)', margin: 0 }}>
+            <p style={{ fontSize: '13px', color: 'var(--ts)', margin: 0 }}>
               Confirm what to buy this week
             </p>
           </div>
@@ -125,7 +125,7 @@ export function StagingScreen() {
             background: 'rgba(123,175,138,0.12)',
             border: '0.5px solid rgba(123,175,138,0.3)',
             borderRadius: '16px', padding: '5px 9px',
-            fontSize: '10px', fontWeight: 500, color: 'var(--am)',
+            fontSize: '12px', fontWeight: 500, color: 'var(--am)',
           }}>
             ✦ Claude
           </div>
@@ -137,14 +137,14 @@ export function StagingScreen() {
 
         {/* No week selected (came from grocery with no active list) */}
         {noWeekStart && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--ts)', fontSize: '13px' }}>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--ts)', fontSize: '15px' }}>
             <p style={{ margin: '0 0 12px' }}>No active grocery list found.</p>
             <button
               onClick={() => navigate('/planner')}
               style={{
                 background: 'var(--am)', color: '#141820', border: 'none',
                 borderRadius: '10px', padding: '9px 18px',
-                fontSize: '12px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+                fontSize: '14px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
               }}
             >
               Go to Planner →
@@ -237,26 +237,26 @@ export function StagingScreen() {
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
               >
                 <div style={{
-                  fontSize: '11px', fontWeight: 500, color: 'var(--ts)',
+                  fontSize: '13px', fontWeight: 500, color: 'var(--ts)',
                   display: 'flex', alignItems: 'center', gap: '6px',
                 }}>
                   <span style={{
                     display: 'inline-block',
                     transform: zone4Open ? 'rotate(90deg)' : 'rotate(0deg)',
                     transition: 'transform 0.2s',
-                    fontSize: '12px',
+                    fontSize: '14px',
                   }}>▶</span>
                   All other staples
                 </div>
                 <span style={{
                   background: 'rgba(255,255,255,0.08)', borderRadius: '9px',
-                  padding: '2px 8px', fontSize: '10px', color: 'var(--ts)',
+                  padding: '2px 8px', fontSize: '12px', color: 'var(--ts)',
                 }}>
                   {zone4Items.length} item{zone4Items.length !== 1 ? 's' : ''}
                 </span>
               </div>
 
-              <div style={{ fontSize: '10px', color: 'var(--tm)', marginTop: '4px', marginBottom: zone4Open ? '8px' : 0 }}>
+              <div style={{ fontSize: '12px', color: 'var(--tm)', marginTop: '4px', marginBottom: zone4Open ? '8px' : 0 }}>
                 Not predicted this week — add any you need
               </div>
 
@@ -277,7 +277,7 @@ export function StagingScreen() {
                         background: added ? 'rgba(99,153,34,0.35)' : 'rgba(99,153,34,0.2)',
                         border: `0.5px solid ${added ? 'var(--gl)' : 'rgba(99,153,34,0.4)'}`,
                         borderRadius: '7px', padding: '4px 9px',
-                        fontSize: '10px', fontWeight: 500, color: 'var(--gl)',
+                        fontSize: '12px', fontWeight: 500, color: 'var(--gl)',
                         cursor: 'pointer', fontFamily: 'inherit',
                         transition: 'all 0.15s',
                       }}
@@ -308,7 +308,7 @@ export function StagingScreen() {
               width: '100%', padding: '13px',
               background: (isGenerating || isLoading) ? 'rgba(123,175,138,0.5)' : 'var(--am)',
               color: '#141820', border: 'none', borderRadius: '11px',
-              fontSize: '13px', fontWeight: 600,
+              fontSize: '15px', fontWeight: 600,
               fontFamily: 'inherit',
               cursor: (isGenerating || isLoading) ? 'default' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
@@ -345,10 +345,10 @@ export function StagingScreen() {
             background: 'var(--dk2)', border: '0.5px solid var(--brh)',
             borderRadius: '14px', padding: '18px',
           }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tp)', marginBottom: '8px' }}>
+            <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--tp)', marginBottom: '8px' }}>
               Replace existing list?
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--ts)', margin: '0 0 16px', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '14px', color: 'var(--ts)', margin: '0 0 16px', lineHeight: 1.5 }}>
               You already have a grocery list for this week. Generating a new one will replace it, including any items you've already checked off.
             </p>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -417,12 +417,12 @@ function Zone({
       borderRadius: '12px', padding: '11px', marginBottom: '10px',
     }}>
       {title && (
-        <div style={{ fontSize: '11px', fontWeight: 500, color: s.titleColor, marginBottom: '2px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 500, color: s.titleColor, marginBottom: '2px' }}>
           {title}
         </div>
       )}
       {subtitle && (
-        <div style={{ fontSize: '10px', color: s.subColor, marginBottom: '9px', lineHeight: 1.5 }}>
+        <div style={{ fontSize: '12px', color: s.subColor, marginBottom: '9px', lineHeight: 1.5 }}>
           {subtitle}
         </div>
       )}
@@ -439,7 +439,7 @@ function Zone({
       ) : children}
       {hint && (
         <div style={{
-          fontSize: '9px', fontStyle: 'italic', color: 'var(--tm)',
+          fontSize: '11px', fontStyle: 'italic', color: 'var(--tm)',
           marginTop: '7px', paddingTop: '7px',
           borderTop: '0.5px solid rgba(255,255,255,0.05)',
         }}>
@@ -473,7 +473,7 @@ function ZoneItem({
         {showImg ? (
           <img src={imageUrl!} alt={name} style={{ width: '24px', height: '24px', objectFit: 'contain', display: 'block' }} />
         ) : (
-          <span style={{ fontSize: '16px', width: '24px', textAlign: 'center', display: 'block' }}>
+          <span style={{ fontSize: '18px', width: '24px', textAlign: 'center', display: 'block' }}>
             {emoji ?? '🛒'}
           </span>
         )}
@@ -487,9 +487,9 @@ function ZoneItem({
         )}
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '12px', color: 'var(--tp)', fontWeight: 500 }}>{name}</div>
+        <div style={{ fontSize: '14px', color: 'var(--tp)', fontWeight: 500 }}>{name}</div>
         {note && (
-          <div style={{ fontSize: '9px', color: 'var(--ts)', marginTop: '1px' }}>{note}</div>
+          <div style={{ fontSize: '11px', color: 'var(--ts)', marginTop: '1px' }}>{note}</div>
         )}
       </div>
       {children}
@@ -526,7 +526,7 @@ function YNButtons({
             ? (leftIsGreen ? 'var(--gl)' : 'var(--ts)')
             : (leftIsGreen ? 'rgba(99,153,34,0.4)' : 'var(--brh)')}`,
           borderRadius: '7px', padding: '4px 9px',
-          fontSize: '10px', fontWeight: 500, cursor: 'pointer',
+          fontSize: '12px', fontWeight: 500, cursor: 'pointer',
           fontFamily: 'inherit',
           color: leftSelected
             ? (leftIsGreen ? 'var(--gl)' : 'var(--ts)')
@@ -546,7 +546,7 @@ function YNButtons({
             ? (rightIsGreen ? 'var(--gl)' : 'var(--ts)')
             : (rightIsGreen ? 'rgba(99,153,34,0.4)' : 'var(--brh)')}`,
           borderRadius: '7px', padding: '4px 9px',
-          fontSize: '10px', fontWeight: 500, cursor: 'pointer',
+          fontSize: '12px', fontWeight: 500, cursor: 'pointer',
           fontFamily: 'inherit',
           color: rightSelected
             ? (rightIsGreen ? 'var(--gl)' : 'var(--ts)')
@@ -564,7 +564,7 @@ function YNButtons({
 
 function EmptyZone({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: '11px', color: 'var(--tm)', fontStyle: 'italic', padding: '4px 0 2px' }}>
+    <div style={{ fontSize: '13px', color: 'var(--tm)', fontStyle: 'italic', padding: '4px 0 2px' }}>
       {children}
     </div>
   )
@@ -584,13 +584,13 @@ function formatLastBought(item: StapleWithHistory): string {
 const modalCancelStyle: React.CSSProperties = {
   flex: 1, background: 'none', border: '0.5px solid var(--brh)',
   borderRadius: '9px', padding: '9px',
-  fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
+  fontSize: '14px', fontFamily: 'inherit', cursor: 'pointer',
   color: 'var(--ts)',
 }
 
 const modalConfirmStyle: React.CSSProperties = {
   flex: 2, background: 'var(--am)', border: 'none',
   borderRadius: '9px', padding: '9px',
-  fontSize: '12px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+  fontSize: '14px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
   color: '#141820',
 }

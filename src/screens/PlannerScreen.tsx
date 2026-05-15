@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, Flame } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
 import { useSlotsForWeek, useAddDish, useRemoveDish, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
@@ -138,8 +138,8 @@ export function PlannerScreen() {
 
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-            <img src="/logo.png" alt="" style={{ height: '26px', width: '26px', objectFit: 'contain' }} />
-            <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
+            <Flame size={22} color="var(--am)" strokeWidth={2} />
+            <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
               Meal Planner
             </h1>
           </div>
@@ -149,7 +149,7 @@ export function PlannerScreen() {
             <button onClick={() => setWeekStartDate(d => shiftWeek(d, -1))} style={navBtnStyle}>
               <ChevronLeft size={14} />
             </button>
-            <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--tp)' }}>{weekLabel}</span>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--tp)' }}>{weekLabel}</span>
             <button onClick={() => setWeekStartDate(d => shiftWeek(d, 1))} style={navBtnStyle}>
               <ChevronRight size={14} />
             </button>
@@ -157,14 +157,14 @@ export function PlannerScreen() {
 
           {/* Start day dropdown + column toggles on one row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <span style={{ fontSize: '10px', color: 'var(--ts)', whiteSpace: 'nowrap' }}>Start day</span>
+            <span style={{ fontSize: '12px', color: 'var(--ts)', whiteSpace: 'nowrap' }}>Start day</span>
             <select
               value={planDow}
               onChange={handleDowChange}
               style={{
                 background: 'var(--dk3)', border: '0.5px solid var(--brh)',
                 borderRadius: '6px', padding: '3px 7px',
-                color: 'var(--tp)', fontSize: '10px',
+                color: 'var(--tp)', fontSize: '12px',
                 fontFamily: 'inherit', flexShrink: 0, cursor: 'pointer',
               }}
             >
@@ -184,7 +184,7 @@ export function PlannerScreen() {
                     key={m.key}
                     onClick={() => setColVisible(prev => ({ ...prev, [m.key]: !prev[m.key] }))}
                     style={{
-                      fontSize: '10px', fontWeight: 500,
+                      fontSize: '12px', fontWeight: 500,
                       padding: '4px 10px', borderRadius: '18px',
                       border: `0.5px solid ${on ? 'var(--brh)' : 'var(--br)'}`,
                       background: on ? 'var(--dkc)' : 'none',
@@ -215,10 +215,10 @@ export function PlannerScreen() {
           >
             <Sparkles size={16} color="var(--am)" style={{ flexShrink: 0 }} />
             <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--am)' }}>
+              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--am)' }}>
                 Plan my week with Claude →
               </div>
-              <div style={{ fontSize: '10px', color: 'var(--ts)', marginTop: '1px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--ts)', marginTop: '1px' }}>
                 Describe meals and Claude fills the grid
               </div>
             </div>
@@ -249,14 +249,14 @@ export function PlannerScreen() {
                 return (
                   <tr key={dateStr}>
                     <td style={{
-                      fontSize: '9px', fontWeight: 500,
+                      fontSize: '11px', fontWeight: 500,
                       padding: '4px 4px 4px 0',
                       textAlign: 'left', verticalAlign: 'top',
                       whiteSpace: 'nowrap',
                       color: today ? 'var(--am)' : 'var(--tm)',
                     }}>
                       <div>{label}</div>
-                      <div style={{ fontSize: '8px', marginTop: '1px', opacity: 0.7 }}>
+                      <div style={{ fontSize: '10px', marginTop: '1px', opacity: 0.7 }}>
                         {day.getDate()}
                       </div>
                     </td>
@@ -293,7 +293,7 @@ export function PlannerScreen() {
               background: 'var(--am)',
               color: '#141820',
               border: 'none', borderRadius: '11px',
-              fontSize: '13px', fontWeight: 600,
+              fontSize: '15px', fontWeight: 600,
               cursor: 'pointer',
               fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
@@ -360,9 +360,9 @@ function SlotCell({ dishes, onClick }: { dishes: SlotDish[]; onClick: () => void
               {idx > 0 && (
                 <div style={{ width: '75%', height: '0.5px', background: 'rgba(255,255,255,0.1)', margin: '2px 0' }} />
               )}
-              <span style={{ fontSize: '15px', lineHeight: 1 }}>{dishEmoji(d)}</span>
+              <span style={{ fontSize: '17px', lineHeight: 1 }}>{dishEmoji(d)}</span>
               <span style={{
-                fontSize: '6px', color: 'var(--ts)', textAlign: 'center', lineHeight: 1.2,
+                fontSize: '8px', color: 'var(--ts)', textAlign: 'center', lineHeight: 1.2,
                 overflow: 'hidden', display: '-webkit-box',
                 WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', maxWidth: '100%',
               }}>
@@ -370,12 +370,12 @@ function SlotCell({ dishes, onClick }: { dishes: SlotDish[]; onClick: () => void
               </span>
             </div>
           ))}
-          <span style={{ fontSize: '8px', color: 'var(--am)', opacity: 0.7, marginTop: '1px' }}>
+          <span style={{ fontSize: '10px', color: 'var(--am)', opacity: 0.7, marginTop: '1px' }}>
             · add
           </span>
         </>
       ) : (
-        <span style={{ fontSize: '17px', color: 'var(--tm)' }}>+</span>
+        <span style={{ fontSize: '19px', color: 'var(--tm)' }}>+</span>
       )}
     </div>
   )
@@ -427,7 +427,7 @@ function SlotPopover({
     }}>
       {/* Title */}
       <div style={{
-        fontSize: '10px', fontWeight: 500, color: 'var(--tm)',
+        fontSize: '12px', fontWeight: 500, color: 'var(--tm)',
         textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px',
       }}>
         {dayLabel} · {mealLabel}
@@ -436,7 +436,7 @@ function SlotPopover({
       {/* Dish list */}
       <div>
         {popover.dishes.length === 0 && (
-          <p style={{ fontSize: '12px', color: 'var(--tm)', margin: '0 0 10px', textAlign: 'center' }}>
+          <p style={{ fontSize: '14px', color: 'var(--tm)', margin: '0 0 10px', textAlign: 'center' }}>
             No dishes yet
           </p>
         )}
@@ -451,10 +451,10 @@ function SlotPopover({
                 borderBottom: '0.5px solid var(--br)',
               }}
             >
-              <span style={{ fontSize: '16px' }}>{dishEmoji(d)}</span>
+              <span style={{ fontSize: '18px' }}>{dishEmoji(d)}</span>
               {isConfirming ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--ts)' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--ts)' }}>
                     Remove "{dishDisplayName(d)}"?
                   </span>
                   <div style={{ display: 'flex', gap: '6px' }}>
@@ -464,12 +464,12 @@ function SlotPopover({
                 </div>
               ) : (
                 <>
-                  <span style={{ flex: 1, fontSize: '12px', color: 'var(--tp)', fontWeight: 500 }}>
+                  <span style={{ flex: 1, fontSize: '14px', color: 'var(--tp)', fontWeight: 500 }}>
                     {dishDisplayName(d)}
                   </span>
                   <button
                     onClick={() => onDeleteClick(d.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', fontSize: '14px', padding: '2px 4px' }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', fontSize: '16px', padding: '2px 4px' }}
                   >
                     ✕
                   </button>
@@ -493,7 +493,7 @@ function SlotPopover({
               flex: 1, background: 'var(--dk3)',
               border: '0.5px solid var(--brh)', borderRadius: '8px',
               padding: '6px 9px', color: 'var(--tp)',
-              fontSize: '11px', fontFamily: 'inherit', outline: 'none',
+              fontSize: '13px', fontFamily: 'inherit', outline: 'none',
             }}
           />
           <button
@@ -504,7 +504,7 @@ function SlotPopover({
               border: 'none', borderRadius: '7px',
               padding: '6px 10px',
               color: popover.inputVal.trim() ? '#141820' : 'var(--tm)',
-              fontSize: '11px', fontWeight: 500,
+              fontSize: '13px', fontWeight: 500,
               fontFamily: 'inherit',
               cursor: popover.inputVal.trim() ? 'pointer' : 'not-allowed',
               transition: 'all 0.15s',
@@ -533,16 +533,16 @@ function SlotPopover({
                   padding: '7px 10px',
                   background: 'none', border: 'none', cursor: 'pointer',
                   borderTop: idx > 0 ? '0.5px solid var(--br)' : 'none',
-                  color: 'var(--tp)', fontSize: '11px',
+                  color: 'var(--tp)', fontSize: '13px',
                   fontFamily: 'inherit',
                   transition: 'background 0.1s',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--dkc)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
-                <span style={{ fontSize: '14px' }}>{r.emoji ?? '🍽️'}</span>
+                <span style={{ fontSize: '16px' }}>{r.emoji ?? '🍽️'}</span>
                 <span style={{ flex: 1 }}>{r.name}</span>
-                <span style={{ fontSize: '9px', color: 'var(--am)', fontWeight: 500 }}>link</span>
+                <span style={{ fontSize: '11px', color: 'var(--am)', fontWeight: 500 }}>link</span>
               </button>
             ))}
           </div>
@@ -556,7 +556,7 @@ function SlotPopover({
           width: '100%', marginTop: '10px',
           background: 'none', border: '0.5px solid var(--brh)',
           borderRadius: '9px', padding: '7px',
-          color: 'var(--ts)', fontSize: '11px',
+          color: 'var(--ts)', fontSize: '13px',
           fontFamily: 'inherit', cursor: 'pointer',
         }}
       >
@@ -576,7 +576,7 @@ const navBtnStyle: React.CSSProperties = {
 }
 
 const thColStyle: React.CSSProperties = {
-  fontSize: '9px', fontWeight: 500, color: 'var(--tm)',
+  fontSize: '11px', fontWeight: 500, color: 'var(--tm)',
   textAlign: 'center', padding: '4px 2px', letterSpacing: '0.3px',
 }
 
@@ -587,14 +587,14 @@ const thDayStyle: React.CSSProperties = {
 const cancelBtnStyle: React.CSSProperties = {
   background: 'none', border: '0.5px solid var(--br)',
   borderRadius: '6px', padding: '3px 8px',
-  fontSize: '10px', fontFamily: 'inherit', cursor: 'pointer',
+  fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
   color: 'var(--ts)',
 }
 
 const removeBtnStyle: React.CSSProperties = {
   background: 'rgba(192,98,90,0.1)', border: '0.5px solid var(--rd)',
   borderRadius: '6px', padding: '3px 8px',
-  fontSize: '10px', fontFamily: 'inherit', cursor: 'pointer',
+  fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
   color: 'var(--rd)',
 }
 

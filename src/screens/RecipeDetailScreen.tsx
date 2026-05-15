@@ -49,7 +49,7 @@ export function RecipeDetailScreen() {
   if (isLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--dk)' }}>
-        <span style={{ fontSize: '13px', color: 'var(--ts)' }}>Loading…</span>
+        <span style={{ fontSize: '15px', color: 'var(--ts)' }}>Loading…</span>
       </div>
     )
   }
@@ -57,8 +57,8 @@ export function RecipeDetailScreen() {
   if (!recipe) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--dk)', flexDirection: 'column', gap: '12px' }}>
-        <span style={{ fontSize: '13px', color: 'var(--ts)' }}>Recipe not found</span>
-        <button onClick={() => navigate('/recipes')} style={{ fontSize: '12px', color: 'var(--am)', background: 'none', border: 'none', cursor: 'pointer' }}>
+        <span style={{ fontSize: '15px', color: 'var(--ts)' }}>Recipe not found</span>
+        <button onClick={() => navigate('/recipes')} style={{ fontSize: '14px', color: 'var(--am)', background: 'none', border: 'none', cursor: 'pointer' }}>
           ← Back to recipes
         </button>
       </div>
@@ -98,10 +98,10 @@ export function RecipeDetailScreen() {
                     animation: recipe.image_status === 'generating' ? 'nb2-pulse 1.8s ease-in-out infinite' : undefined,
                   }}
                 >
-                  <span style={{ fontSize: '52px' }}>
+                  <span style={{ fontSize: '54px' }}>
                     {recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️')}
                   </span>
-                  <span style={{ fontSize: '9px', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>
+                  <span style={{ fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>
                     {recipe.image_status === 'generating' ? 'NB2 · rendering…' : recipe.image_status === 'failed' ? 'NB2 · failed' : 'NB2 · queued'}
                   </span>
                 </div>
@@ -115,7 +115,7 @@ export function RecipeDetailScreen() {
                 position: 'absolute', top: '12px', left: '12px',
                 background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
                 padding: '6px 10px', cursor: 'pointer', color: '#fff',
-                display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px',
+                display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px',
               }}
             >
               <ArrowLeft size={13} />
@@ -129,7 +129,7 @@ export function RecipeDetailScreen() {
                 position: 'absolute', top: '12px', right: '12px',
                 background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
                 padding: '6px 10px', cursor: 'pointer', color: '#fff',
-                display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px',
+                display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px',
               }}
             >
               <Pencil size={12} />
@@ -139,25 +139,25 @@ export function RecipeDetailScreen() {
 
           {/* Recipe header */}
           <div style={{ padding: '16px 16px 0' }}>
-            <h1 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px', lineHeight: 1.2 }}>
+            <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px', lineHeight: 1.2 }}>
               {recipe.name}
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               {recipe.cook_time_minutes && (
-                <span style={{ fontSize: '12px', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <span style={{ fontSize: '14px', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '3px' }}>
                   <Clock size={12} /> {formatTime(recipe.cook_time_minutes)}
                 </span>
               )}
-              <span style={{ fontSize: '12px', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <span style={{ fontSize: '14px', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '3px' }}>
                 <Users size={12} /> {baseServings} servings
               </span>
               {(recipe as { difficulty?: string }).difficulty && (
-                <span style={{ fontSize: '10px', color: 'var(--ts)', backgroundColor: 'var(--dk3)', borderRadius: '5px', padding: '2px 7px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--ts)', backgroundColor: 'var(--dk3)', borderRadius: '5px', padding: '2px 7px' }}>
                   {(recipe as { difficulty?: string }).difficulty}
                 </span>
               )}
               {recipe.meal_type && (
-                <span style={{ fontSize: '10px', color: 'var(--am)', backgroundColor: 'rgba(239,159,39,0.12)', borderRadius: '5px', padding: '2px 7px', textTransform: 'capitalize' }}>
+                <span style={{ fontSize: '12px', color: 'var(--am)', backgroundColor: 'rgba(239,159,39,0.12)', borderRadius: '5px', padding: '2px 7px', textTransform: 'capitalize' }}>
                   {recipe.meal_type}
                 </span>
               )}
@@ -166,7 +166,7 @@ export function RecipeDetailScreen() {
 
           {/* Servings scaler */}
           <div style={{ margin: '16px 16px 0', backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>Servings</span>
+            <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>Servings</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <button
                 onClick={() => setServings(Math.max(1, currentServings - 1))}
@@ -174,7 +174,7 @@ export function RecipeDetailScreen() {
               >
                 <Minus size={13} />
               </button>
-              <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--tp)', minWidth: '20px', textAlign: 'center' }}>
+              <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--tp)', minWidth: '20px', textAlign: 'center' }}>
                 {currentServings}
               </span>
               <button
@@ -197,7 +197,7 @@ export function RecipeDetailScreen() {
                   backgroundColor: tab === t ? 'var(--dkc)' : 'transparent',
                   border: tab === t ? '0.5px solid var(--br)' : 'none',
                   color: tab === t ? 'var(--tp)' : 'var(--ts)',
-                  fontSize: '13px', fontWeight: tab === t ? 600 : 400,
+                  fontSize: '15px', fontWeight: tab === t ? 600 : 400,
                   cursor: 'pointer', textTransform: 'capitalize',
                   transition: 'all 0.15s',
                 }}
@@ -226,7 +226,7 @@ export function RecipeDetailScreen() {
                       {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
                         <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', display: 'block' }} />
                       ) : (
-                        <span style={{ fontSize: '18px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
+                        <span style={{ fontSize: '20px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
                       )}
                       {row.ingredient?.image_status === 'generating' && (
                         <div style={{
@@ -238,24 +238,24 @@ export function RecipeDetailScreen() {
                       )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
+                      <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>
                         {row.ingredient?.name ?? '—'}
                       </div>
                       {row.prep_note && (
-                        <div style={{ fontSize: '11px', color: 'var(--ts)' }}>{row.prep_note}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--ts)' }}>{row.prep_note}</div>
                       )}
                       {row.serving_note && (
-                        <div style={{ fontSize: '10px', color: 'var(--tm)', fontStyle: 'italic' }}>{row.serving_note}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--tm)', fontStyle: 'italic' }}>{row.serving_note}</div>
                       )}
                     </div>
-                    <span style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500, flexShrink: 0 }}>
+                    <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500, flexShrink: 0 }}>
                       {scale(row.quantity, baseServings, currentServings)}
                       {row.unit ? ` ${row.unit}` : ''}
                     </span>
                   </div>
                 ))}
                 {(ingredients ?? []).length === 0 && (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '13px' }}>No ingredients</div>
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No ingredients</div>
                 )}
               </div>
             ) : (
@@ -268,16 +268,16 @@ export function RecipeDetailScreen() {
                       borderBottom: idx < (steps?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none',
                     }}
                   >
-                    <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--am)', letterSpacing: '1px', marginBottom: '5px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--am)', letterSpacing: '1px', marginBottom: '5px' }}>
                       STEP {step.step_number}
                     </div>
-                    <p style={{ fontSize: '13px', color: 'var(--tp)', margin: 0, lineHeight: 1.6 }}>
+                    <p style={{ fontSize: '15px', color: 'var(--tp)', margin: 0, lineHeight: 1.6 }}>
                       {step.instruction}
                     </p>
                   </div>
                 ))}
                 {(steps ?? []).length === 0 && (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '13px' }}>No steps</div>
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No steps</div>
                 )}
 
                 {/* Start cooking button */}
@@ -289,7 +289,7 @@ export function RecipeDetailScreen() {
                         width: '100%', padding: '12px',
                         backgroundColor: 'var(--am)', color: '#1a1612',
                         border: 'none', borderRadius: '10px',
-                        fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                        fontSize: '16px', fontWeight: 600, cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                       }}
                     >
@@ -316,7 +316,7 @@ export function RecipeDetailScreen() {
               width: '100%', padding: '13px',
               backgroundColor: 'var(--dk3)', color: 'var(--tp)',
               border: '0.5px solid var(--brh)', borderRadius: '12px',
-              fontSize: '14px', fontWeight: 500, cursor: 'pointer',
+              fontSize: '16px', fontWeight: 500, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
             }}
           >

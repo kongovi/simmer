@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Flame } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import {
   useActiveGroceryList, useGroceryListItems, useGroceryListRealtime,
@@ -177,18 +177,18 @@ export function GroceryScreen() {
       <Screen>
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px 120px' }}>
-            <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 4px' }}>
+            <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 4px' }}>
               Grocery
             </h1>
             <div style={{
               marginTop: '40px', textAlign: 'center',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px',
             }}>
-              <span style={{ fontSize: '40px' }}>🛒</span>
-              <p style={{ fontSize: '14px', color: 'var(--ts)', margin: 0 }}>
+              <span style={{ fontSize: '42px' }}>🛒</span>
+              <p style={{ fontSize: '16px', color: 'var(--ts)', margin: 0 }}>
                 No grocery list yet
               </p>
-              <p style={{ fontSize: '12px', color: 'var(--tm)', margin: 0 }}>
+              <p style={{ fontSize: '14px', color: 'var(--tm)', margin: 0 }}>
                 Plan meals in the Planner, then tap<br />"Generate grocery list" to build your list.
               </p>
               <button
@@ -198,7 +198,7 @@ export function GroceryScreen() {
                   background: 'var(--am)', color: '#141820',
                   border: 'none', borderRadius: '10px',
                   padding: '10px 20px',
-                  fontSize: '13px', fontWeight: 600,
+                  fontSize: '15px', fontWeight: 600,
                   fontFamily: 'inherit', cursor: 'pointer',
                 }}
               >
@@ -222,16 +222,16 @@ export function GroceryScreen() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                <img src="/logo.png" alt="" style={{ height: '26px', width: '26px', objectFit: 'contain' }} />
-                <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
+                <Flame size={22} color="var(--am)" strokeWidth={2} />
+                <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
                   Grocery
                 </h1>
               </div>
               {weekLabel && (
-                <p style={{ fontSize: '11px', color: 'var(--ts)', margin: 0 }}>{weekLabel}</p>
+                <p style={{ fontSize: '13px', color: 'var(--ts)', margin: 0 }}>{weekLabel}</p>
               )}
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--tm)', paddingTop: '4px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--tm)', paddingTop: '4px' }}>
               {unchecked.length} left
             </span>
           </div>
@@ -249,7 +249,7 @@ export function GroceryScreen() {
                 onClick={() => setActiveStore(store)}
                 style={{
                   flexShrink: 0,
-                  fontSize: '11px', fontWeight: 500,
+                  fontSize: '13px', fontWeight: 500,
                   padding: '6px 12px', borderRadius: '18px',
                   border: `0.5px solid ${activeStore === store ? 'var(--am)' : 'var(--brh)'}`,
                   background: activeStore === store ? 'var(--am)' : 'none',
@@ -275,7 +275,7 @@ export function GroceryScreen() {
                   flexShrink: 0, width: '100px',
                   background: 'var(--dk3)', border: '0.5px solid var(--am)',
                   borderRadius: '18px', padding: '6px 10px',
-                  color: 'var(--tp)', fontSize: '11px',
+                  color: 'var(--tp)', fontSize: '13px',
                   fontFamily: 'inherit', outline: 'none',
                 }}
               />
@@ -284,7 +284,7 @@ export function GroceryScreen() {
                 onClick={() => setShowStoreInput(true)}
                 style={{
                   flexShrink: 0,
-                  fontSize: '11px', fontWeight: 500,
+                  fontSize: '13px', fontWeight: 500,
                   padding: '6px 12px', borderRadius: '18px',
                   border: '0.5px solid var(--brh)',
                   background: 'none', color: 'var(--ts)',
@@ -306,7 +306,7 @@ export function GroceryScreen() {
                 padding: '8px', borderRadius: '10px',
                 border: '0.5px solid rgba(123,175,138,0.3)',
                 background: 'rgba(123,175,138,0.08)',
-                fontSize: '11px', fontWeight: 500, color: 'var(--am)',
+                fontSize: '13px', fontWeight: 500, color: 'var(--am)',
                 cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
@@ -320,7 +320,7 @@ export function GroceryScreen() {
                 padding: '8px', borderRadius: '10px',
                 border: '0.5px solid var(--brh)',
                 background: 'none',
-                fontSize: '11px', fontWeight: 500, color: 'var(--ts)',
+                fontSize: '13px', fontWeight: 500, color: 'var(--ts)',
                 cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
@@ -330,7 +330,7 @@ export function GroceryScreen() {
 
           {/* Grocery grid — unchecked */}
           {unchecked.length === 0 && checked.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tm)', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tm)', fontSize: '15px' }}>
               {activeStore === 'All'
                 ? 'No items — use "Add item" or regenerate from the Planner.'
                 : `No items assigned to ${activeStore}.`}
@@ -340,7 +340,7 @@ export function GroceryScreen() {
           {unchecked.length > 0 && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, 104px)',
+              gridTemplateColumns: 'repeat(auto-fill, 116px)',
               gap: '8px',
               marginBottom: '14px',
             }}>
@@ -360,14 +360,14 @@ export function GroceryScreen() {
             <div style={{ marginBottom: '14px' }}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '5px',
-                fontSize: '11px', fontWeight: 500, color: 'var(--gn)',
+                fontSize: '13px', fontWeight: 500, color: 'var(--gn)',
                 marginBottom: '10px',
               }}>
-                <span style={{ fontSize: '12px' }}>✓</span> Got it
+                <span style={{ fontSize: '14px' }}>✓</span> Got it
               </div>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, 104px)',
+                gridTemplateColumns: 'repeat(auto-fill, 116px)',
                 gap: '8px',
               }}>
                 {checked.map(item => (
@@ -406,7 +406,7 @@ export function GroceryScreen() {
                 borderRadius: '9px', padding: '6px 10px',
                 marginBottom: '10px',
               }}>
-                <span style={{ color: 'var(--tm)', fontSize: '13px' }}>🔍</span>
+                <span style={{ color: 'var(--tm)', fontSize: '15px' }}>🔍</span>
                 <input
                   ref={kbInputRef}
                   value={kbSearch}
@@ -415,20 +415,20 @@ export function GroceryScreen() {
                   placeholder="Add an item…"
                   style={{
                     flex: 1, background: 'none', border: 'none',
-                    color: 'var(--tp)', fontSize: '12px',
+                    color: 'var(--tp)', fontSize: '14px',
                     fontFamily: 'inherit', outline: 'none',
                   }}
                 />
                 <button
                   onClick={closeKb}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', fontSize: '11px', fontFamily: 'inherit' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', fontSize: '13px', fontFamily: 'inherit' }}
                 >
                   Done
                 </button>
               </div>
 
               {/* Suggestions label */}
-              <div style={{ fontSize: '9px', color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
                 Suggestions
               </div>
 
@@ -450,8 +450,8 @@ export function GroceryScreen() {
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    <span style={{ fontSize: '20px', lineHeight: 1 }}>{sug.emoji ?? '🛒'}</span>
-                    <span style={{ fontSize: '8px', color: 'var(--ts)', textAlign: 'center', lineHeight: 1.2 }}>
+                    <span style={{ fontSize: '22px', lineHeight: 1 }}>{sug.emoji ?? '🛒'}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--ts)', textAlign: 'center', lineHeight: 1.2 }}>
                       {sug.name}
                     </span>
                   </button>
@@ -467,7 +467,7 @@ export function GroceryScreen() {
                     background: 'rgba(123,175,138,0.08)',
                     border: '0.5px solid rgba(123,175,138,0.3)',
                     borderRadius: '8px', padding: '7px',
-                    color: 'var(--am)', fontSize: '11px', fontWeight: 500,
+                    color: 'var(--am)', fontSize: '13px', fontWeight: 500,
                     fontFamily: 'inherit', cursor: 'pointer',
                   }}
                 >
@@ -493,7 +493,7 @@ export function GroceryScreen() {
                 width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
                 background: 'var(--dk3)', border: '0.5px solid var(--br)',
                 borderRadius: '9px', padding: '9px 12px',
-                color: 'var(--tm)', fontSize: '12px',
+                color: 'var(--tm)', fontSize: '14px',
                 fontFamily: 'inherit', cursor: 'pointer',
                 textAlign: 'left',
               }}
@@ -535,7 +535,7 @@ export function GroceryScreen() {
                     {editSheetItem.ingredient?.image_status === 'done' && editSheetItem.ingredient.image_url ? (
                       <img src={editSheetItem.ingredient.image_url} alt={editName} style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
                     ) : (
-                      <span style={{ fontSize: '28px' }}>{itemEmoji(editSheetItem)}</span>
+                      <span style={{ fontSize: '30px' }}>{itemEmoji(editSheetItem)}</span>
                     )}
                   </div>
                   {/* Editable name */}
@@ -546,14 +546,14 @@ export function GroceryScreen() {
                       flex: 1, background: 'var(--dk3)',
                       border: '0.5px solid var(--brh)', borderRadius: '10px',
                       padding: '10px 12px', color: 'var(--tp)',
-                      fontSize: '15px', fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+                      fontSize: '17px', fontWeight: 600, fontFamily: 'inherit', outline: 'none',
                     }}
                   />
                 </div>
 
                 {/* Quantity + unit */}
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quantity</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quantity</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       type="number"
@@ -565,7 +565,7 @@ export function GroceryScreen() {
                         width: '80px', background: 'var(--dk3)',
                         border: '0.5px solid var(--brh)', borderRadius: '8px',
                         padding: '8px 10px', color: 'var(--tp)',
-                        fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                        fontSize: '15px', fontFamily: 'inherit', outline: 'none',
                       }}
                     />
                     <input
@@ -576,7 +576,7 @@ export function GroceryScreen() {
                         flex: 1, background: 'var(--dk3)',
                         border: '0.5px solid var(--brh)', borderRadius: '8px',
                         padding: '8px 10px', color: 'var(--tp)',
-                        fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                        fontSize: '15px', fontFamily: 'inherit', outline: 'none',
                       }}
                     />
                   </div>
@@ -584,7 +584,7 @@ export function GroceryScreen() {
 
                 {/* Notes */}
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</div>
                   <input
                     value={editNotes}
                     onChange={e => setEditNotes(e.target.value)}
@@ -594,14 +594,14 @@ export function GroceryScreen() {
                       background: 'var(--dk3)',
                       border: '0.5px solid var(--brh)', borderRadius: '8px',
                       padding: '8px 10px', color: 'var(--tp)',
-                      fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                      fontSize: '15px', fontFamily: 'inherit', outline: 'none',
                     }}
                   />
                 </div>
 
                 {/* Aisle */}
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {Object.entries(AISLE_LABELS).map(([key, label]) => {
                       const a = Number(key)
@@ -615,7 +615,7 @@ export function GroceryScreen() {
                             border: `0.5px solid ${selected ? 'var(--am)' : 'var(--brh)'}`,
                             background: selected ? 'rgba(123,175,138,0.15)' : 'none',
                             color: selected ? 'var(--am)' : 'var(--ts)',
-                            fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
+                            fontSize: '14px', fontFamily: 'inherit', cursor: 'pointer',
                             fontWeight: selected ? 500 : 400,
                           }}
                         >
@@ -628,7 +628,7 @@ export function GroceryScreen() {
 
                 {/* Store */}
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Store</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Store</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '8px' }}>
                     {allStores.map(store => {
                       const selected = editStore === store
@@ -650,7 +650,7 @@ export function GroceryScreen() {
                             background: selected ? 'var(--am)' : 'none',
                             flexShrink: 0,
                           }} />
-                          <span style={{ fontSize: '13px', color: selected ? 'var(--tp)' : 'var(--ts)', fontWeight: selected ? 500 : 400 }}>
+                          <span style={{ fontSize: '15px', color: selected ? 'var(--tp)' : 'var(--ts)', fontWeight: selected ? 500 : 400 }}>
                             {store}
                           </span>
                         </button>
@@ -667,7 +667,7 @@ export function GroceryScreen() {
                         flex: 1, background: 'var(--dk3)',
                         border: '0.5px solid var(--brh)', borderRadius: '8px',
                         padding: '8px 10px', color: 'var(--tp)',
-                        fontSize: '12px', fontFamily: 'inherit', outline: 'none',
+                        fontSize: '14px', fontFamily: 'inherit', outline: 'none',
                       }}
                     />
                     <button
@@ -677,7 +677,7 @@ export function GroceryScreen() {
                         background: editNewStore.trim() ? 'var(--am)' : 'var(--dk3)',
                         border: 'none', borderRadius: '8px', padding: '8px 14px',
                         color: editNewStore.trim() ? '#141820' : 'var(--tm)',
-                        fontSize: '11px', fontWeight: 500, fontFamily: 'inherit',
+                        fontSize: '13px', fontWeight: 500, fontFamily: 'inherit',
                         cursor: editNewStore.trim() ? 'pointer' : 'default',
                       }}
                     >
@@ -693,7 +693,7 @@ export function GroceryScreen() {
                   style={{
                     width: '100%', padding: '13px',
                     background: 'var(--am)', border: 'none', borderRadius: '12px',
-                    color: '#141820', fontSize: '14px', fontWeight: 600,
+                    color: '#141820', fontSize: '16px', fontWeight: 600,
                     fontFamily: 'inherit', cursor: 'pointer',
                     opacity: updateItem.isPending ? 0.6 : 1,
                   }}
@@ -774,7 +774,7 @@ function GroceryBox({
           background: 'var(--gn)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <span style={{ fontSize: '7px', color: 'white', fontWeight: 600 }}>✓</span>
+          <span style={{ fontSize: '9px', color: 'white', fontWeight: 600 }}>✓</span>
         </div>
       )}
 
@@ -783,10 +783,10 @@ function GroceryBox({
           <img
             src={imgUrl}
             alt={name}
-            style={{ width: '36px', height: '36px', objectFit: 'contain', display: 'block' }}
+            style={{ width: '80px', height: '80px', objectFit: 'contain', display: 'block' }}
           />
         ) : (
-          <span style={{ fontSize: '26px', lineHeight: 1, display: 'block' }}>{emoji}</span>
+          <span style={{ fontSize: '54px', lineHeight: 1, display: 'block' }}>{emoji}</span>
         )}
         {item.ingredient?.image_status === 'generating' && (
           <div style={{
@@ -798,7 +798,7 @@ function GroceryBox({
         )}
       </div>
       <span style={{
-        fontSize: '10px', color: done ? 'var(--tm)' : 'var(--tp)',
+        fontSize: '12px', color: done ? 'var(--tm)' : 'var(--tp)',
         fontWeight: 500, textAlign: 'center', lineHeight: 1.3,
         textDecoration: done ? 'line-through' : 'none',
       }}>
@@ -806,7 +806,7 @@ function GroceryBox({
       </span>
       {qty && (
         <span style={{
-          fontSize: '9px', color: done ? 'var(--tm)' : 'var(--am)',
+          fontSize: '11px', color: done ? 'var(--tm)' : 'var(--am)',
           fontWeight: 500,
         }}>
           {qty}
@@ -814,7 +814,7 @@ function GroceryBox({
       )}
       {brandNote && (
         <span style={{
-          fontSize: '8px', color: 'var(--tm)',
+          fontSize: '10px', color: 'var(--tm)',
           fontStyle: 'italic', textAlign: 'center', lineHeight: 1.2,
         }}>
           {brandNote}

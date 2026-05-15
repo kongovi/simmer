@@ -54,14 +54,14 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
       </div>
 
       <h1 style={{
-        fontSize: '28px', fontWeight: 700, color: 'var(--tp)',
+        fontSize: '30px', fontWeight: 700, color: 'var(--tp)',
         margin: '0 0 12px', lineHeight: 1.2,
       }}>
         Welcome to Simmer
       </h1>
 
       <p style={{
-        fontSize: '14px', color: 'var(--ts)', lineHeight: 1.65,
+        fontSize: '16px', color: 'var(--ts)', lineHeight: 1.65,
         margin: '0 0 40px', maxWidth: '280px',
       }}>
         Plan meals, manage recipes, and generate smart grocery lists — for the whole family.
@@ -73,14 +73,14 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
           width: '100%', maxWidth: '280px', padding: '15px',
           background: 'var(--am)', border: 'none', borderRadius: '14px',
-          color: '#141820', fontSize: '15px', fontWeight: 600,
+          color: '#141820', fontSize: '17px', fontWeight: 600,
           cursor: 'pointer', fontFamily: 'inherit',
         }}
       >
         Get started <ChevronRight size={16} />
       </button>
 
-      <p style={{ fontSize: '11px', color: 'var(--tm)', margin: '16px 0 0' }}>
+      <p style={{ fontSize: '13px', color: 'var(--tm)', margin: '16px 0 0' }}>
         Your data is private and never shared.
       </p>
     </div>
@@ -95,10 +95,10 @@ function StepPlanDay({ onNext }: { onNext: (dow: number) => void }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 24px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px' }}>
           When does your week start?
         </h2>
-        <p style={{ fontSize: '13px', color: 'var(--ts)', margin: 0, lineHeight: 1.5 }}>
+        <p style={{ fontSize: '15px', color: 'var(--ts)', margin: 0, lineHeight: 1.5 }}>
           We'll use this as the start of your weekly meal plan. Most families plan from the day before they shop.
         </p>
       </div>
@@ -114,7 +114,7 @@ function StepPlanDay({ onNext }: { onNext: (dow: number) => void }) {
               border: `${selected === day.value ? '1.5px' : '0.5px'} solid ${selected === day.value ? 'var(--am)' : 'var(--br)'}`,
               borderRadius: '12px',
               color: selected === day.value ? 'var(--am)' : 'var(--tp)',
-              fontSize: '14px', fontWeight: selected === day.value ? 600 : 400,
+              fontSize: '16px', fontWeight: selected === day.value ? 600 : 400,
               cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               transition: 'all 0.15s',
@@ -122,7 +122,7 @@ function StepPlanDay({ onNext }: { onNext: (dow: number) => void }) {
           >
             {day.label}
             {selected === day.value && (
-              <span style={{ fontSize: '16px', lineHeight: 1 }}>✓</span>
+              <span style={{ fontSize: '18px', lineHeight: 1 }}>✓</span>
             )}
           </button>
         ))}
@@ -134,7 +134,7 @@ function StepPlanDay({ onNext }: { onNext: (dow: number) => void }) {
           marginTop: '20px',
           width: '100%', padding: '15px',
           background: 'var(--am)', border: 'none', borderRadius: '14px',
-          color: '#141820', fontSize: '15px', fontWeight: 600,
+          color: '#141820', fontSize: '17px', fontWeight: 600,
           cursor: 'pointer', fontFamily: 'inherit',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
         }}
@@ -181,15 +181,15 @@ function StepImport({ onFinish }: { onFinish: () => void }) {
         alignItems: 'center', justifyContent: 'center',
         padding: '32px 24px', textAlign: 'center',
       }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎉</div>
-        <h3 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px' }}>
+        <div style={{ fontSize: '50px', marginBottom: '16px' }}>🎉</div>
+        <h3 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px' }}>
           Import complete!
         </h3>
-        <p style={{ fontSize: '13px', color: 'var(--ts)', margin: '0 0 6px' }}>
+        <p style={{ fontSize: '15px', color: 'var(--ts)', margin: '0 0 6px' }}>
           {result.imported} item{result.imported !== 1 ? 's' : ''} imported
         </p>
         {result.newToCatalog > 0 && (
-          <p style={{ fontSize: '12px', color: 'var(--am)', margin: '0 0 32px' }}>
+          <p style={{ fontSize: '14px', color: 'var(--am)', margin: '0 0 32px' }}>
             {result.newToCatalog} new ingredient{result.newToCatalog !== 1 ? 's' : ''} added to your catalog
           </p>
         )}
@@ -198,7 +198,7 @@ function StepImport({ onFinish }: { onFinish: () => void }) {
           style={{
             width: '100%', maxWidth: '280px', padding: '15px',
             background: 'var(--am)', border: 'none', borderRadius: '14px',
-            color: '#141820', fontSize: '15px', fontWeight: 600,
+            color: '#141820', fontSize: '17px', fontWeight: 600,
             cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
@@ -211,10 +211,10 @@ function StepImport({ onFinish }: { onFinish: () => void }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 24px' }}>
       <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px' }}>
           Seed your staples
         </h2>
-        <p style={{ fontSize: '13px', color: 'var(--ts)', margin: 0, lineHeight: 1.5 }}>
+        <p style={{ fontSize: '15px', color: 'var(--ts)', margin: 0, lineHeight: 1.5 }}>
           Import your order history from Instacart, Amazon Fresh, or Kroger. Simmer uses it to predict when you're running low on staples.
         </p>
       </div>
@@ -243,16 +243,16 @@ function StepImport({ onFinish }: { onFinish: () => void }) {
               border: '2.5px solid var(--br)', borderTopColor: 'var(--am)',
               borderRadius: '50%', animation: 'spin 0.8s linear infinite',
             }} />
-            <span style={{ fontSize: '13px', color: 'var(--ts)' }}>Importing…</span>
+            <span style={{ fontSize: '15px', color: 'var(--ts)' }}>Importing…</span>
           </>
         ) : (
           <>
             <Upload size={28} color="var(--tm)" />
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--tp)' }}>
+              <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--tp)' }}>
                 Drop CSV here or tap to browse
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--ts)', marginTop: '4px' }}>
+              <div style={{ fontSize: '14px', color: 'var(--ts)', marginTop: '4px' }}>
                 Instacart · Amazon Fresh · Kroger
               </div>
             </div>
@@ -271,7 +271,7 @@ function StepImport({ onFinish }: { onFinish: () => void }) {
         <div style={{
           padding: '10px 14px', borderRadius: '10px', marginBottom: '12px',
           background: 'rgba(192,98,90,0.12)', border: '0.5px solid rgba(192,98,90,0.3)',
-          fontSize: '12px', color: 'var(--rd)',
+          fontSize: '14px', color: 'var(--rd)',
         }}>
           {importOrders.error instanceof Error ? importOrders.error.message : 'Import failed'}
         </div>
@@ -283,7 +283,7 @@ function StepImport({ onFinish }: { onFinish: () => void }) {
         style={{
           width: '100%', padding: '15px',
           background: 'var(--am)', border: 'none', borderRadius: '14px',
-          color: '#141820', fontSize: '15px', fontWeight: 600,
+          color: '#141820', fontSize: '17px', fontWeight: 600,
           cursor: 'pointer', fontFamily: 'inherit',
           marginBottom: '10px',
         }}
@@ -297,7 +297,7 @@ function StepImport({ onFinish }: { onFinish: () => void }) {
         style={{
           width: '100%', padding: '13px',
           background: 'transparent', border: '0.5px solid var(--br)', borderRadius: '14px',
-          color: 'var(--ts)', fontSize: '14px', fontWeight: 500,
+          color: 'var(--ts)', fontSize: '16px', fontWeight: 500,
           cursor: 'pointer', fontFamily: 'inherit',
         }}
       >

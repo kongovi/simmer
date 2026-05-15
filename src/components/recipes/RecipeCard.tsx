@@ -86,7 +86,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               animation: isGenerating ? 'nb2-pulse 1.8s ease-in-out infinite' : undefined,
             }}
           >
-            <span style={{ fontSize: '32px', lineHeight: 1 }}>
+            <span style={{ fontSize: '34px', lineHeight: 1 }}>
               {getRecipeEmoji(recipe)}
             </span>
             <span
@@ -129,7 +129,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
       <div style={{ padding: '9px 10px 10px' }}>
         <h3
           style={{
-            fontSize: '12px',
+            fontSize: '14px',
             fontWeight: 500,
             color: 'var(--tp)',
             margin: '0 0 5px',
@@ -146,7 +146,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           {cookTime && (
             <span
               style={{
-                fontSize: '9px',
+                fontSize: '11px',
                 color: 'var(--ts)',
                 display: 'flex',
                 alignItems: 'center',
@@ -160,7 +160,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           {recipe.meal_type && (
             <span
               style={{
-                fontSize: '9px',
+                fontSize: '11px',
                 color: 'var(--am)',
                 backgroundColor: 'rgba(239,159,39,0.12)',
                 borderRadius: '4px',

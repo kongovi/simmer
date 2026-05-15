@@ -59,13 +59,13 @@ function EditSheet({
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-          <span style={{ fontSize: '22px' }}>{item.emoji ?? '🥄'}</span>
-          <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--tp)' }}>{item.name}</span>
+          <span style={{ fontSize: '24px' }}>{item.emoji ?? '🥄'}</span>
+          <span style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)' }}>{item.name}</span>
         </div>
 
         {/* Name */}
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Name</div>
+          <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Name</div>
           <input
             value={name}
             onChange={e => setName(e.target.value)}
@@ -73,7 +73,7 @@ function EditSheet({
               width: '100%', boxSizing: 'border-box',
               background: 'var(--dk3)', border: '0.5px solid var(--brh)',
               borderRadius: '8px', padding: '9px 11px',
-              color: 'var(--tp)', fontSize: '14px', fontWeight: 500,
+              color: 'var(--tp)', fontSize: '16px', fontWeight: 500,
               fontFamily: 'inherit', outline: 'none',
             }}
           />
@@ -81,7 +81,7 @@ function EditSheet({
 
         {/* Store */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={{ fontSize: '11px', color: 'var(--ts)', display: 'block', marginBottom: '6px' }}>
+          <label style={{ fontSize: '13px', color: 'var(--ts)', display: 'block', marginBottom: '6px' }}>
             Default store
           </label>
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -95,7 +95,7 @@ function EditSheet({
                   border: `0.5px solid ${store === s ? 'var(--am)' : 'var(--br)'}`,
                   borderRadius: '8px',
                   color: store === s ? '#141820' : 'var(--tp)',
-                  fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                  fontSize: '14px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >
                 {s}
@@ -109,7 +109,7 @@ function EditSheet({
               style={{
                 background: 'var(--dk3)', border: '0.5px solid var(--brh)',
                 borderRadius: '8px', padding: '6px 10px',
-                color: 'var(--tp)', fontSize: '12px',
+                color: 'var(--tp)', fontSize: '14px',
                 fontFamily: 'inherit', outline: 'none', width: '80px',
               }}
             />
@@ -118,7 +118,7 @@ function EditSheet({
 
         {/* Brand note */}
         <div style={{ marginBottom: '14px' }}>
-          <label style={{ fontSize: '11px', color: 'var(--ts)', display: 'block', marginBottom: '6px' }}>
+          <label style={{ fontSize: '13px', color: 'var(--ts)', display: 'block', marginBottom: '6px' }}>
             Notes
           </label>
           <input
@@ -128,7 +128,7 @@ function EditSheet({
             style={{
               width: '100%', background: 'var(--dk3)',
               border: '0.5px solid var(--brh)', borderRadius: '8px',
-              padding: '9px 12px', color: 'var(--tp)', fontSize: '13px',
+              padding: '9px 12px', color: 'var(--tp)', fontSize: '15px',
               fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
             }}
           />
@@ -136,7 +136,7 @@ function EditSheet({
 
         {/* Aisle */}
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
+          <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
             {Object.entries(AISLE_LABELS).map(([key, label]) => {
               const a = Number(key)
@@ -150,7 +150,7 @@ function EditSheet({
                     border: `0.5px solid ${selected ? 'var(--am)' : 'var(--br)'}`,
                     background: selected ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
                     color: selected ? 'var(--am)' : 'var(--ts)',
-                    fontSize: '11px', fontFamily: 'inherit', cursor: 'pointer',
+                    fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
                     fontWeight: selected ? 500 : 400,
                   }}
                 >
@@ -175,7 +175,7 @@ function EditSheet({
             width: '100%', padding: '13px',
             background: 'var(--am)', border: 'none',
             borderRadius: '12px', color: '#141820',
-            fontSize: '14px', fontWeight: 600,
+            fontSize: '16px', fontWeight: 600,
             cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
@@ -197,7 +197,7 @@ function Toggle({ label, checked, onToggle }: { label: string; checked: boolean;
         border: `0.5px solid ${checked ? 'var(--am)' : 'var(--br)'}`,
         borderRadius: '8px',
         color: checked ? 'var(--am)' : 'var(--ts)',
-        fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit',
+        fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
       }}
     >
       <span>{checked ? '✓' : '○'}</span>
@@ -244,7 +244,7 @@ export function CatalogScreen() {
           >
             <ArrowLeft size={20} />
           </button>
-          <span style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)' }}>Ingredient Catalog</span>
+          <span style={{ fontSize: '19px', fontWeight: 600, color: 'var(--tp)' }}>Ingredient Catalog</span>
         </div>
 
         {/* Search */}
@@ -260,7 +260,7 @@ export function CatalogScreen() {
             placeholder="Search ingredients…"
             style={{
               flex: 1, background: 'none', border: 'none', outline: 'none',
-              fontSize: '13px', color: 'var(--tp)', fontFamily: 'inherit',
+              fontSize: '15px', color: 'var(--tp)', fontFamily: 'inherit',
             }}
           />
         </div>
@@ -275,11 +275,11 @@ export function CatalogScreen() {
         {/* Empty */}
         {!isLoading && items.length === 0 && (
           <div style={{ padding: '48px 0', textAlign: 'center' }}>
-            <div style={{ fontSize: '36px', marginBottom: '12px' }}>📦</div>
-            <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--tp)', marginBottom: '6px' }}>
+            <div style={{ fontSize: '38px', marginBottom: '12px' }}>📦</div>
+            <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--tp)', marginBottom: '6px' }}>
               {search ? `No ingredients matching "${search}"` : 'No ingredients yet'}
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--ts)', margin: 0 }}>
+            <p style={{ fontSize: '14px', color: 'var(--ts)', margin: 0 }}>
               Ingredients are added when you save recipes.
             </p>
           </div>
@@ -289,7 +289,7 @@ export function CatalogScreen() {
         {!isLoading && grouped.map(group => (
           <div key={group.aisle} style={{ marginBottom: '20px' }}>
             <div style={{
-              fontSize: '11px', fontWeight: 600, color: 'var(--tm)',
+              fontSize: '13px', fontWeight: 600, color: 'var(--tm)',
               textTransform: 'uppercase', letterSpacing: '0.8px',
               marginBottom: '6px', paddingLeft: '4px',
             }}>
@@ -318,7 +318,7 @@ export function CatalogScreen() {
                         style={{ width: '24px', height: '24px', objectFit: 'contain', display: 'block', borderRadius: '4px' }}
                       />
                     ) : (
-                      <span style={{ fontSize: '18px', width: '24px', textAlign: 'center', display: 'block' }}>
+                      <span style={{ fontSize: '20px', width: '24px', textAlign: 'center', display: 'block' }}>
                         {item.emoji ?? '🥄'}
                       </span>
                     )}
@@ -332,9 +332,9 @@ export function CatalogScreen() {
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>{item.name}</div>
+                    <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>{item.name}</div>
                     {item.brand_note && (
-                      <div style={{ fontSize: '11px', color: 'var(--ts)', fontStyle: 'italic' }}>{item.brand_note}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--ts)', fontStyle: 'italic' }}>{item.brand_note}</div>
                     )}
                   </div>
                   {item.default_store && (
@@ -344,7 +344,7 @@ export function CatalogScreen() {
                       padding: '3px 7px', flexShrink: 0,
                     }}>
                       <Store size={10} color="var(--ts)" />
-                      <span style={{ fontSize: '10px', color: 'var(--ts)' }}>{item.default_store}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--ts)' }}>{item.default_store}</span>
                     </div>
                   )}
                   {item.is_pantry_staple && (
@@ -352,7 +352,7 @@ export function CatalogScreen() {
                       background: 'rgba(123,175,138,0.12)', borderRadius: '6px',
                       padding: '3px 7px', flexShrink: 0,
                     }}>
-                      <span style={{ fontSize: '10px', color: 'var(--am)' }}>staple</span>
+                      <span style={{ fontSize: '12px', color: 'var(--am)' }}>staple</span>
                     </div>
                   )}
                 </div>

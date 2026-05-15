@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, CalendarDays, ArrowDown, ArrowUp } from 'lucide-react'
+import { Search, ChevronDown, CalendarDays, ArrowDown, ArrowUp, Flame } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { useAppStore } from '../stores/appStore'
 import { useUserSettings } from '../hooks/useUserSettings'
@@ -91,10 +91,13 @@ export function MealPrepScreen() {
   return (
     <Screen>
       <div style={{ padding: '16px 16px 0' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 3px' }}>
-          Meal Prep
-        </h1>
-        <p style={{ fontSize: '12px', color: 'var(--ts)', margin: '0 0 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+          <Flame size={22} color="var(--am)" strokeWidth={2} />
+          <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
+            Meal Prep
+          </h1>
+        </div>
+        <p style={{ fontSize: '14px', color: 'var(--ts)', margin: '0 0 14px' }}>
           Week of {weekLabel} — ingredient totals
         </p>
 
@@ -111,7 +114,7 @@ export function MealPrepScreen() {
             placeholder="Find an ingredient…"
             style={{
               flex: 1, background: 'none', border: 'none', outline: 'none',
-              fontSize: '13px', color: 'var(--tp)', fontFamily: 'inherit',
+              fontSize: '15px', color: 'var(--tp)', fontFamily: 'inherit',
             }}
           />
         </div>
@@ -131,11 +134,11 @@ export function MealPrepScreen() {
       {/* Empty state */}
       {!isLoading && prepItems.length === 0 && (
         <div style={{ padding: '0 16px', textAlign: 'center', paddingTop: '32px' }}>
-          <div style={{ fontSize: '36px', marginBottom: '12px' }}>🍽️</div>
-          <div style={{ fontSize: '15px', fontWeight: 500, color: 'var(--tp)', marginBottom: '6px' }}>
+          <div style={{ fontSize: '38px', marginBottom: '12px' }}>🍽️</div>
+          <div style={{ fontSize: '17px', fontWeight: 500, color: 'var(--tp)', marginBottom: '6px' }}>
             No meals planned this week
           </div>
-          <p style={{ fontSize: '13px', color: 'var(--ts)', margin: '0 0 20px', lineHeight: 1.5 }}>
+          <p style={{ fontSize: '15px', color: 'var(--ts)', margin: '0 0 20px', lineHeight: 1.5 }}>
             Add recipes to your meal plan and come back here to see your ingredient prep list.
           </p>
           <button
@@ -145,7 +148,7 @@ export function MealPrepScreen() {
               padding: '10px 20px',
               background: 'var(--am)', color: '#141820',
               border: 'none', borderRadius: '10px',
-              fontSize: '13px', fontWeight: 600,
+              fontSize: '15px', fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
@@ -157,7 +160,7 @@ export function MealPrepScreen() {
       {/* No search results */}
       {!isLoading && prepItems.length > 0 && filtered.length === 0 && (
         <div style={{ padding: '32px 16px', textAlign: 'center' }}>
-          <p style={{ fontSize: '13px', color: 'var(--ts)' }}>
+          <p style={{ fontSize: '15px', color: 'var(--ts)' }}>
             No ingredients matching "{search}"
           </p>
         </div>
@@ -170,7 +173,7 @@ export function MealPrepScreen() {
           {/* ── Needs Prep ── */}
           {prepSection.length > 0 && (
             <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
                 Needs prep · {prepSection.length}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -200,7 +203,7 @@ export function MealPrepScreen() {
                   fontFamily: 'inherit',
                 }}
               >
-                <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                   No prep needed · {noPrepSection.length}
                 </span>
                 <ChevronDown
@@ -271,7 +274,7 @@ function PrepCard({
             background: item.image_status === 'done' && item.image_url ? 'transparent' : 'var(--dk3)',
             borderRadius: '9px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '22px', overflow: 'hidden',
+            fontSize: '24px', overflow: 'hidden',
           }}>
             {item.image_status === 'done' && item.image_url ? (
               <img
@@ -295,11 +298,11 @@ function PrepCard({
 
         {/* Name + total */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tp)' }}>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--tp)' }}>
             {item.name}
           </div>
           {totalLabel && (
-            <div style={{ fontSize: '11px', color: 'var(--am)', marginTop: '1px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--am)', marginTop: '1px' }}>
               {totalLabel}
             </div>
           )}
@@ -322,7 +325,7 @@ function PrepCard({
           {item.consolidated_prep && (
             <div style={{
               padding: '8px 14px',
-              fontSize: '11px', fontStyle: 'italic', color: 'var(--am)',
+              fontSize: '13px', fontStyle: 'italic', color: 'var(--am)',
               borderBottom: '0.5px solid var(--br)',
               lineHeight: 1.5,
             }}>
@@ -341,13 +344,13 @@ function PrepCard({
                 borderBottom: '0.5px solid var(--br)',
               }}
             >
-              <span style={{ fontSize: '12px', color: 'var(--tp)', fontWeight: 500, minWidth: 0 }}>
+              <span style={{ fontSize: '14px', color: 'var(--tp)', fontWeight: 500, minWidth: 0 }}>
                 {dish.recipe_name}
-                <span style={{ fontSize: '10px', color: 'var(--ts)', fontWeight: 400, marginLeft: '4px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--ts)', fontWeight: 400, marginLeft: '4px' }}>
                   · {slotDayLabel(dish.slot_date)}
                 </span>
               </span>
-              <span style={{ fontSize: '11px', color: 'var(--ts)', flexShrink: 0, textAlign: 'right' }}>
+              <span style={{ fontSize: '13px', color: 'var(--ts)', flexShrink: 0, textAlign: 'right' }}>
                 {dish.quantity != null ? (
                   <>
                     {formatTotals([{ quantity: dish.quantity, unit: dish.unit }], 1)}
@@ -369,7 +372,7 @@ function PrepCard({
               width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
               padding: '9px 14px',
               background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-              color: 'var(--ts)', fontSize: '11px',
+              color: 'var(--ts)', fontSize: '13px',
             }}
           >
             {section === 'prep' ? (

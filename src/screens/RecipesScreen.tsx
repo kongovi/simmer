@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Link, Plus, Search } from 'lucide-react'
+import { Link, Plus, Search, Flame } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { RecipeCard } from '../components/recipes/RecipeCard'
 import { useRecipes, useRecipeImageRealtime } from '../hooks/useRecipes'
@@ -41,8 +41,8 @@ export function RecipesScreen() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img src="/logo.png" alt="" style={{ height: '26px', width: '26px', objectFit: 'contain' }} />
-          <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
+          <Flame size={22} color="var(--am)" strokeWidth={2} />
+          <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
             Recipes
           </h1>
         </div>
@@ -86,7 +86,7 @@ export function RecipesScreen() {
               background: 'none',
               border: 'none',
               outline: 'none',
-              fontSize: '13px',
+              fontSize: '15px',
               color: 'var(--tp)',
             }}
           />
@@ -110,7 +110,7 @@ export function RecipesScreen() {
               flexShrink: 0,
               padding: '5px 12px',
               borderRadius: '20px',
-              fontSize: '12px',
+              fontSize: '14px',
               fontWeight: filter === f.key ? 600 : 400,
               border: filter === f.key ? 'none' : '0.5px solid var(--br)',
               backgroundColor: filter === f.key ? 'var(--am)' : 'transparent',
@@ -199,12 +199,12 @@ function EmptyState({ onAdd, onImport }: { onAdd: () => void; onImport: () => vo
         gap: '16px',
       }}
     >
-      <span style={{ fontSize: '40px' }}>🍴</span>
+      <span style={{ fontSize: '42px' }}>🍴</span>
       <div>
-        <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--tp)', margin: '0 0 4px' }}>
+        <p style={{ fontSize: '16px', fontWeight: 500, color: 'var(--tp)', margin: '0 0 4px' }}>
           No recipes yet
         </p>
-        <p style={{ fontSize: '12px', color: 'var(--ts)', margin: 0 }}>
+        <p style={{ fontSize: '14px', color: 'var(--ts)', margin: 0 }}>
           Paste a recipe or import from a URL
         </p>
       </div>
@@ -217,7 +217,7 @@ function EmptyState({ onAdd, onImport }: { onAdd: () => void; onImport: () => vo
             color: '#1a1612',
             border: 'none',
             borderRadius: '10px',
-            fontSize: '13px',
+            fontSize: '15px',
             fontWeight: 600,
             cursor: 'pointer',
           }}
@@ -232,7 +232,7 @@ function EmptyState({ onAdd, onImport }: { onAdd: () => void; onImport: () => vo
             color: 'var(--tp)',
             border: '0.5px solid var(--br)',
             borderRadius: '10px',
-            fontSize: '13px',
+            fontSize: '15px',
             fontWeight: 500,
             cursor: 'pointer',
           }}

@@ -31,7 +31,7 @@ function SettingsSection({ title, children }: { title: string; children: React.R
   return (
     <div style={{ marginBottom: '20px' }}>
       <div style={{
-        fontSize: '11px', fontWeight: 600, color: 'var(--tm)',
+        fontSize: '13px', fontWeight: 600, color: 'var(--tm)',
         textTransform: 'uppercase', letterSpacing: '0.8px',
         marginBottom: '8px', paddingLeft: '4px',
       }}>
@@ -62,8 +62,8 @@ function NavRow({
       }}
     >
       {icon && <div style={{ color: 'var(--tm)', lineHeight: 0 }}>{icon}</div>}
-      <span style={{ flex: 1, fontSize: '13px', color: 'var(--tp)' }}>{label}</span>
-      {value && <span style={{ fontSize: '12px', color: 'var(--ts)' }}>{value}</span>}
+      <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>{label}</span>
+      {value && <span style={{ fontSize: '14px', color: 'var(--ts)' }}>{value}</span>}
       {onClick && <ChevronRight size={14} color="var(--tm)" />}
     </div>
   )
@@ -79,14 +79,14 @@ function MemberAvatar({ name, role }: { name: string | null; role: string }) {
         width: '32px', height: '32px', borderRadius: '50%',
         background: role === 'planner' ? 'rgba(123,175,138,0.25)' : 'rgba(255,255,255,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '12px', fontWeight: 600, color: role === 'planner' ? 'var(--am)' : 'var(--tp)',
+        fontSize: '14px', fontWeight: 600, color: role === 'planner' ? 'var(--am)' : 'var(--tp)',
         flexShrink: 0,
       }}>
         {initials}
       </div>
-      <span style={{ flex: 1, fontSize: '13px', color: 'var(--tp)' }}>{name ?? 'Unknown'}</span>
+      <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>{name ?? 'Unknown'}</span>
       <span style={{
-        fontSize: '10px', fontWeight: 500, letterSpacing: '0.3px',
+        fontSize: '12px', fontWeight: 500, letterSpacing: '0.3px',
         color: role === 'planner' ? 'var(--am)' : 'var(--ts)',
         background: role === 'planner' ? 'rgba(123,175,138,0.12)' : 'rgba(255,255,255,0.06)',
         padding: '3px 8px', borderRadius: '6px',
@@ -117,7 +117,7 @@ function InviteRow({ token, onDelete }: { token: string; onDelete: () => void })
       padding: '10px 14px', borderBottom: '0.5px solid var(--br)',
     }}>
       <div style={{
-        flex: 1, fontSize: '11px', color: 'var(--ts)',
+        flex: 1, fontSize: '13px', color: 'var(--ts)',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         fontFamily: 'monospace',
       }}>
@@ -132,7 +132,7 @@ function InviteRow({ token, onDelete }: { token: string; onDelete: () => void })
           border: `0.5px solid ${copied ? 'var(--am)' : 'var(--brh)'}`,
           borderRadius: '7px', cursor: 'pointer',
           color: copied ? 'var(--am)' : 'var(--tp)',
-          fontSize: '11px', fontWeight: 500, fontFamily: 'inherit',
+          fontSize: '13px', fontWeight: 500, fontFamily: 'inherit',
           transition: 'all 0.15s',
         }}
       >
@@ -177,7 +177,7 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
     >
       <div style={{ background: 'var(--dk2)', borderRadius: '20px 20px 0 0', padding: '20px 16px 32px', width: '100%', borderTop: '0.5px solid var(--brh)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--tp)' }}>Import order history</span>
+          <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--tp)' }}>Import order history</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--tm)' }}>
             <X size={20} />
           </button>
@@ -185,22 +185,22 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
 
         {result ? (
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
-            <div style={{ fontSize: '32px', marginBottom: '10px' }}>✅</div>
-            <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 4px' }}>
+            <div style={{ fontSize: '34px', marginBottom: '10px' }}>✅</div>
+            <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 4px' }}>
               {result.imported} item{result.imported !== 1 ? 's' : ''} imported
             </p>
             {result.newToCatalog > 0 && (
-              <p style={{ fontSize: '12px', color: 'var(--am)', margin: '0 0 20px' }}>
+              <p style={{ fontSize: '14px', color: 'var(--am)', margin: '0 0 20px' }}>
                 {result.newToCatalog} new ingredient{result.newToCatalog !== 1 ? 's' : ''} added to catalog
               </p>
             )}
-            <button onClick={onClose} style={{ padding: '11px 24px', background: 'var(--am)', border: 'none', borderRadius: '10px', color: '#141820', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button onClick={onClose} style={{ padding: '11px 24px', background: 'var(--am)', border: 'none', borderRadius: '10px', color: '#141820', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               Done
             </button>
           </div>
         ) : (
           <>
-            <p style={{ fontSize: '12px', color: 'var(--ts)', margin: '0 0 14px', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '14px', color: 'var(--ts)', margin: '0 0 14px', lineHeight: 1.5 }}>
               Upload a CSV export from Instacart, Amazon Fresh, or Kroger to seed your staple predictions.
             </p>
             <div
@@ -216,19 +216,19 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
               {importOrders.isPending ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                   <div style={{ width: '20px', height: '20px', border: '2px solid var(--br)', borderTopColor: 'var(--am)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                  <span style={{ fontSize: '12px', color: 'var(--ts)' }}>Importing…</span>
+                  <span style={{ fontSize: '14px', color: 'var(--ts)' }}>Importing…</span>
                 </div>
               ) : (
                 <>
                   <Upload size={22} color="var(--tm)" style={{ marginBottom: '8px' }} />
-                  <div style={{ fontSize: '13px', color: 'var(--tp)', marginBottom: '3px' }}>Drop CSV or tap to browse</div>
-                  <div style={{ fontSize: '11px', color: 'var(--ts)' }}>Instacart · Amazon Fresh · Kroger</div>
+                  <div style={{ fontSize: '15px', color: 'var(--tp)', marginBottom: '3px' }}>Drop CSV or tap to browse</div>
+                  <div style={{ fontSize: '13px', color: 'var(--ts)' }}>Instacart · Amazon Fresh · Kroger</div>
                 </>
               )}
               <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
             </div>
             {importOrders.error && (
-              <p style={{ fontSize: '12px', color: 'var(--rd)', margin: '0 0 10px' }}>
+              <p style={{ fontSize: '14px', color: 'var(--rd)', margin: '0 0 10px' }}>
                 {importOrders.error instanceof Error ? importOrders.error.message : 'Import failed'}
               </p>
             )}
@@ -294,7 +294,7 @@ export function SettingsScreen() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
           <Flame size={20} color="var(--am)" strokeWidth={2} />
-          <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--tp)' }}>Settings</span>
+          <span style={{ fontSize: '20px', fontWeight: 600, color: 'var(--tp)' }}>Settings</span>
         </div>
 
         {/* Profile card */}
@@ -320,10 +320,10 @@ export function SettingsScreen() {
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--tp)', marginBottom: '2px' }}>
+            <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '2px' }}>
               {displayName}
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--ts)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: '14px', color: 'var(--ts)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {email}
             </div>
           </div>
@@ -335,14 +335,14 @@ export function SettingsScreen() {
             display: 'flex', alignItems: 'center', padding: '12px 14px',
             borderBottom: '0.5px solid var(--br)', gap: '8px',
           }}>
-            <span style={{ flex: 1, fontSize: '13px', color: 'var(--tp)' }}>Week starts on</span>
+            <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>Week starts on</span>
             <select
               value={settings?.plan_start_dow ?? 5}
               onChange={e => updateDow.mutate(Number(e.target.value))}
               style={{
                 background: 'var(--dk3)', border: '0.5px solid var(--brh)',
                 borderRadius: '7px', padding: '5px 8px',
-                color: 'var(--tp)', fontSize: '12px',
+                color: 'var(--tp)', fontSize: '14px',
                 fontFamily: 'inherit', cursor: 'pointer',
               }}
             >
@@ -385,7 +385,7 @@ export function SettingsScreen() {
             <MemberAvatar key={m.id} name={m.display_name} role={m.role} />
           ))}
           {members.length === 0 && (
-            <div style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--ts)', borderBottom: '0.5px solid var(--br)' }}>
+            <div style={{ padding: '12px 14px', fontSize: '14px', color: 'var(--ts)', borderBottom: '0.5px solid var(--br)' }}>
               No members found.
             </div>
           )}
@@ -409,7 +409,7 @@ export function SettingsScreen() {
             }}
           >
             <Users size={15} />
-            <span style={{ fontSize: '13px', fontWeight: 500 }}>
+            <span style={{ fontSize: '15px', fontWeight: 500 }}>
               {createInvite.isPending ? 'Creating invite…' : 'Invite someone'}
             </span>
           </div>
@@ -418,7 +418,7 @@ export function SettingsScreen() {
         {/* Stores */}
         <SettingsSection title="Stores">
           {stores.length === 0 && (
-            <div style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--ts)', borderBottom: '0.5px solid var(--br)' }}>
+            <div style={{ padding: '12px 14px', fontSize: '14px', color: 'var(--ts)', borderBottom: '0.5px solid var(--br)' }}>
               No stores added yet.
             </div>
           )}
@@ -432,10 +432,10 @@ export function SettingsScreen() {
               }}
             >
               <Store size={14} color="var(--tm)" style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: '13px', color: 'var(--tp)' }}>{s.name}</span>
+              <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>{s.name}</span>
               {s.is_default && (
                 <span style={{
-                  fontSize: '10px', color: 'var(--am)',
+                  fontSize: '12px', color: 'var(--am)',
                   background: 'rgba(123,175,138,0.12)', padding: '2px 7px',
                   borderRadius: '5px',
                 }}>
@@ -460,7 +460,7 @@ export function SettingsScreen() {
               style={{
                 flex: 1, background: 'var(--dk3)', border: '0.5px solid var(--brh)',
                 borderRadius: '8px', padding: '8px 10px',
-                color: 'var(--tp)', fontSize: '13px',
+                color: 'var(--tp)', fontSize: '15px',
                 fontFamily: 'inherit', outline: 'none',
               }}
             />
@@ -489,7 +489,7 @@ export function SettingsScreen() {
             padding: '13px',
             background: 'transparent', border: '0.5px solid var(--rd)',
             borderRadius: '12px', color: 'var(--rd)',
-            fontSize: '14px', fontWeight: 500, cursor: 'pointer',
+            fontSize: '16px', fontWeight: 500, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: '8px', fontFamily: 'inherit',
           }}
