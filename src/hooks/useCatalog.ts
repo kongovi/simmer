@@ -83,12 +83,38 @@ export function useDeleteCatalogItem() {
  * @param canonicalId  The ingredient to keep
  * @param mergeIds     The ingredient IDs to merge away (will be deleted)
  */
+export interface MergeOverrides {
+  image_url?:          string | null
+  image_status?:       string | null
+  default_store?:      string | null
+  brand_note?:         string | null
+  default_aisle_order?: number | null
+}
+
+/**
+ * Merge multiple ingredients into a single canonical one.
+ * All FK references (recipe_ingredients, grocery_list_items, staples,
+ * purchase_history) are re-pointed to canonicalId, then the duplicates
+ * are deleted. Optional overrides are written to the canonical row after merge.
+ *
+ * @param canonicalId  The ingredient to keep
+ * @param mergeIds     The ingredient IDs to merge away (will be deleted)
+ * @param overrides    Optional field values to write onto the canonical row
+ */
 export function useMergeIngredients() {
   const queryClient = useQueryClient()
   const familyId    = useAppStore(s => s.familyId)
 
   return useMutation({
-    mutationFn: async ({ canonicalId, mergeIds }: { canonicalId: string; mergeIds: string[] }) => {
+    mutationFn: async ({
+      canonicalId,
+      mergeIds,
+      overrides,
+    }: {
+      canonicalId: string
+      mergeIds:    string[]
+      overrides?:  MergeOverrides
+    }) => {
       for (const mid of mergeIds) {
         // Re-point all FK references
         await supabase.from('recipe_ingredients').update({ ingredient_id: canonicalId }).eq('ingredient_id', mid)
@@ -98,6 +124,10 @@ export function useMergeIngredients() {
         // Delete the merged duplicate
         const { error } = await supabase.from('ingredients_catalog').delete().eq('id', mid)
         if (error) throw error
+      }
+      // Apply any chosen field overrides to the surviving canonical row
+      if (overrides && Object.keys(overrides).length > 0) {
+        await supabase.from('ingredients_catalog').update(overrides).eq('id', canonicalId)
       }
     },
     onSuccess: () => {

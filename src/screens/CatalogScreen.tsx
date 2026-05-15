@@ -290,26 +290,116 @@ function EditSheet({
 
 // ── Merge sheet ───────────────────────────────────────────────────────────────
 
+const SECTION_LABEL: React.CSSProperties = {
+  fontSize: '12px', fontWeight: 600, color: 'var(--tm)',
+  textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px',
+}
+
+function RadioList({
+  items,
+  selectedId,
+  onSelect,
+  renderLabel,
+}: {
+  items:       { id: string }[]
+  selectedId:  string
+  onSelect:    (id: string) => void
+  renderLabel: (item: { id: string }) => React.ReactNode
+}) {
+  return (
+    <div style={{
+      background: 'var(--dkc)', border: '0.5px solid var(--br)',
+      borderRadius: '12px', overflow: 'hidden', marginBottom: '20px',
+    }}>
+      {items.map((item, idx) => (
+        <div
+          key={item.id}
+          onClick={() => onSelect(item.id)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '12px 14px',
+            borderBottom: idx < items.length - 1 ? '0.5px solid var(--br)' : 'none',
+            cursor: 'pointer',
+            background: selectedId === item.id ? 'rgba(123,175,138,0.1)' : 'transparent',
+          }}
+        >
+          <div style={{
+            width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0,
+            border: `2px solid ${selectedId === item.id ? 'var(--am)' : 'var(--br)'}`,
+            background: selectedId === item.id ? 'var(--am)' : 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {selectedId === item.id && <Check size={11} color="#141820" strokeWidth={3} />}
+          </div>
+          {renderLabel(item)}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function MergeSheet({
   selected,
-  allItems,
   onClose,
   onDone,
 }: {
-  selected:  IngredientCatalog[]
-  allItems:  IngredientCatalog[]
-  onClose:   () => void
-  onDone:    () => void
+  selected: IngredientCatalog[]
+  onClose:  () => void
+  onDone:   () => void
 }) {
   const merge = useMergeIngredients()
-  const [canonicalId, setCanonicalId] = useState(selected[0]?.id ?? '')
 
-  const canonical = allItems.find(i => i.id === canonicalId)
+  // ── Name (canonical) ──
+  const [canonicalId, _setCanonicalId] = useState(selected[0]?.id ?? '')
+  const canonical = selected.find(i => i.id === canonicalId) ?? selected[0]
+
+  // ── Image ──
+  const [imageSourceId, setImageSourceId] = useState(canonicalId)
+  // ── Store ──
+  const [store, setStore] = useState<string | null>(canonical?.default_store ?? null)
+  // ── Notes ──
+  const [brandNote, setBrandNote] = useState<string | null>(canonical?.brand_note ?? null)
+  // ── Aisle ──
+  const [aisle, setAisle] = useState<number>(
+    canonical?.default_aisle_order ?? detectAisleOrder(canonical?.name ?? '', canonical?.emoji ?? null)
+  )
+
+  function setCanonicalId(id: string) {
+    _setCanonicalId(id)
+    const c = selected.find(i => i.id === id)
+    if (!c) return
+    setImageSourceId(id)
+    setStore(c.default_store ?? null)
+    setBrandNote(c.brand_note ?? null)
+    setAisle(c.default_aisle_order ?? detectAisleOrder(c.name, c.emoji ?? null))
+  }
+
+  // Items with actual images
+  const itemsWithImage = selected.filter(i => i.image_status === 'done' && i.image_url)
+
+  // Unique stores / notes across selected (excluding nulls)
+  const uniqueStores = [...new Set(selected.map(i => i.default_store).filter(Boolean))] as string[]
+  const uniqueNotes  = [...new Set(selected.map(i => i.brand_note).filter(Boolean))]  as string[]
 
   async function handleMerge() {
     const mergeIds = selected.filter(i => i.id !== canonicalId).map(i => i.id)
     if (mergeIds.length === 0) { onClose(); return }
-    await merge.mutateAsync({ canonicalId, mergeIds })
+
+    const overrides: Record<string, unknown> = {
+      default_store:      store,
+      brand_note:         brandNote,
+      default_aisle_order: aisle,
+    }
+    // Copy image from chosen source if it differs from the canonical row
+    if (imageSourceId !== canonicalId) {
+      const src = selected.find(i => i.id === imageSourceId)
+      if (src?.image_url) {
+        overrides.image_url    = src.image_url
+        overrides.image_status = src.image_status
+      }
+    }
+
+    await merge.mutateAsync({ canonicalId, mergeIds, overrides })
     onDone()
   }
 
@@ -326,62 +416,185 @@ function MergeSheet({
         background: 'var(--dk2)', borderRadius: '20px 20px 0 0',
         padding: '20px 16px 32px', width: '100%',
         borderTop: '0.5px solid var(--brh)',
-        maxHeight: '80vh', overflowY: 'auto',
+        maxHeight: '88vh', overflowY: 'auto',
       }}>
-        <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '6px' }}>
+        <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '4px' }}>
           Merge {selected.length} ingredients
         </div>
         <div style={{ fontSize: '13px', color: 'var(--ts)', marginBottom: '20px' }}>
-          Choose which name to keep. All recipe and grocery references will be updated.
+          Pick which value to keep for each field. All recipe and grocery references will be updated.
         </div>
 
-        <div style={{ fontSize: '12px', color: 'var(--tm)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-          Keep this name
-        </div>
-        <div style={{
-          background: 'var(--dkc)', border: '0.5px solid var(--br)',
-          borderRadius: '12px', overflow: 'hidden', marginBottom: '20px',
-        }}>
-          {selected.map((item, idx) => (
-            <div
-              key={item.id}
-              onClick={() => setCanonicalId(item.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '12px 14px',
-                borderBottom: idx < selected.length - 1 ? '0.5px solid var(--br)' : 'none',
-                cursor: 'pointer',
-                background: canonicalId === item.id ? 'rgba(123,175,138,0.1)' : 'transparent',
-              }}
-            >
-              <div style={{
-                width: '20px', height: '20px', borderRadius: '50%',
-                border: `2px solid ${canonicalId === item.id ? 'var(--am)' : 'var(--br)'}`,
-                background: canonicalId === item.id ? 'var(--am)' : 'transparent',
-                flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {canonicalId === item.id && <Check size={11} color="#141820" strokeWidth={3} />}
-              </div>
-              <span style={{ fontSize: '16px', marginRight: '2px' }}>{item.emoji ?? '🥄'}</span>
-              <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: canonicalId === item.id ? 600 : 400 }}>
-                {item.name}
-              </span>
+        {/* ── Name ── */}
+        <div style={SECTION_LABEL}>Keep this name</div>
+        <RadioList
+          items={selected}
+          selectedId={canonicalId}
+          onSelect={setCanonicalId}
+          renderLabel={item => {
+            const ing = item as IngredientCatalog
+            return (
+              <>
+                <span style={{ fontSize: '18px' }}>{ing.emoji ?? '🥄'}</span>
+                <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: canonicalId === ing.id ? 600 : 400 }}>
+                  {ing.name}
+                </span>
+              </>
+            )
+          }}
+        />
+
+        {/* ── Image ── */}
+        {itemsWithImage.length > 0 && (
+          <>
+            <div style={SECTION_LABEL}>Keep this image</div>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              {itemsWithImage.map(item => {
+                const sel = imageSourceId === item.id
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => setImageSourceId(item.id)}
+                    style={{
+                      cursor: 'pointer', borderRadius: '12px', overflow: 'hidden',
+                      border: `2px solid ${sel ? 'var(--am)' : 'var(--br)'}`,
+                      background: 'var(--dk3)', position: 'relative',
+                      width: '72px', height: '72px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <img
+                      src={item.image_url!}
+                      alt={item.name}
+                      style={{ width: '68px', height: '68px', objectFit: 'contain' }}
+                    />
+                    {sel && (
+                      <div style={{
+                        position: 'absolute', bottom: '4px', right: '4px',
+                        width: '18px', height: '18px', borderRadius: '50%',
+                        background: 'var(--am)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Check size={10} color="#141820" strokeWidth={3} />
+                      </div>
+                    )}
+                    <div style={{
+                      position: 'absolute', bottom: 0, left: 0, right: 0,
+                      background: 'rgba(0,0,0,0.55)',
+                      fontSize: '9px', color: '#fff', textAlign: 'center',
+                      padding: '2px 4px',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {item.name}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          ))}
-        </div>
-
-        {canonical && (
-          <div style={{
-            background: 'rgba(123,175,138,0.08)', border: '0.5px solid rgba(123,175,138,0.3)',
-            borderRadius: '10px', padding: '10px 14px', marginBottom: '20px',
-            fontSize: '13px', color: 'var(--ts)',
-          }}>
-            <span style={{ color: 'var(--am)', fontWeight: 500 }}>{canonical.name}</span> will be kept.{' '}
-            {selected.filter(i => i.id !== canonicalId).map(i => i.name).join(', ')} will be deleted after all references are updated.
-          </div>
+          </>
         )}
 
+        {/* ── Store ── */}
+        {uniqueStores.length > 0 && (
+          <>
+            <div style={SECTION_LABEL}>Default store</div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '20px' }}>
+              {uniqueStores.map(s => (
+                <button
+                  key={s}
+                  onClick={() => setStore(store === s ? null : s)}
+                  style={{
+                    padding: '7px 13px', borderRadius: '20px',
+                    border: `0.5px solid ${store === s ? 'var(--am)' : 'var(--br)'}`,
+                    background: store === s ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                    color: store === s ? 'var(--am)' : 'var(--tp)',
+                    fontSize: '14px', fontWeight: store === s ? 600 : 400,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+              <button
+                onClick={() => setStore(null)}
+                style={{
+                  padding: '7px 13px', borderRadius: '20px',
+                  border: `0.5px solid ${store === null ? 'var(--am)' : 'var(--br)'}`,
+                  background: store === null ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                  color: store === null ? 'var(--am)' : 'var(--ts)',
+                  fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                None
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Notes ── */}
+        {uniqueNotes.length > 0 && (
+          <>
+            <div style={SECTION_LABEL}>Notes</div>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '20px' }}>
+              {uniqueNotes.map(n => (
+                <button
+                  key={n}
+                  onClick={() => setBrandNote(brandNote === n ? null : n)}
+                  style={{
+                    padding: '7px 13px', borderRadius: '20px',
+                    border: `0.5px solid ${brandNote === n ? 'var(--am)' : 'var(--br)'}`,
+                    background: brandNote === n ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                    color: brandNote === n ? 'var(--am)' : 'var(--tp)',
+                    fontSize: '14px', fontWeight: brandNote === n ? 600 : 400,
+                    cursor: 'pointer', fontFamily: 'inherit', fontStyle: 'italic',
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+              <button
+                onClick={() => setBrandNote(null)}
+                style={{
+                  padding: '7px 13px', borderRadius: '20px',
+                  border: `0.5px solid ${brandNote === null ? 'var(--am)' : 'var(--br)'}`,
+                  background: brandNote === null ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                  color: brandNote === null ? 'var(--am)' : 'var(--ts)',
+                  fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                None
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Aisle ── */}
+        <div style={SECTION_LABEL}>Aisle</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '24px' }}>
+          {Object.entries(AISLE_LABELS).map(([key, label]) => {
+            const a = Number(key)
+            const sel = aisle === a
+            return (
+              <button
+                key={a}
+                onClick={() => setAisle(a)}
+                style={{
+                  padding: '6px 10px', borderRadius: '18px',
+                  border: `0.5px solid ${sel ? 'var(--am)' : 'var(--br)'}`,
+                  background: sel ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                  color: sel ? 'var(--am)' : 'var(--ts)',
+                  fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
+                  fontWeight: sel ? 500 : 400,
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ── Actions ── */}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={onClose}
@@ -691,7 +904,6 @@ export function CatalogScreen() {
       {merging && (
         <MergeSheet
           selected={selectedItems}
-          allItems={items}
           onClose={() => setMerging(false)}
           onDone={() => { setMerging(false); exitSelectMode() }}
         />
