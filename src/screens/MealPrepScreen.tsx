@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, CalendarDays } from 'lucide-react'
+import { Search, ChevronDown, CalendarDays, ArrowDown, ArrowUp } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { useAppStore } from '../stores/appStore'
 import { useUserSettings } from '../hooks/useUserSettings'
@@ -8,12 +8,35 @@ import { useMealPrep, formatTotals, slotDayLabel } from '../hooks/useMealPrep'
 import type { PrepIngredient } from '../hooks/useMealPrep'
 import { getWeekStart, toISODate, formatWeekRange } from '../lib/weekUtils'
 
+// ── Prep heuristic ────────────────────────────────────────────────────────────
+
+/** Returns true if an ingredient typically requires hands-on prep (chopping, trimming, etc.) */
+function defaultNeedsPrep(name: string, emoji: string | null): boolean {
+  const n = name.toLowerCase()
+
+  // Dry goods, pantry staples, sauces → no prep
+  if (/\b(salt|pepper|oil|butter|flour|sugar|breadcrumb|panko|spice|powder|dried|canned|sauce|stock|broth|vinegar|honey|syrup|extract|seasoning|coconut milk|soy sauce|fish sauce|worcestershire|hot sauce|ketchup|mustard|mayo|cream|condensed|bouillon|seasoning|ground cumin|ground coriander|ground cinnamon|ground sage|ground white|garlic powder|onion powder|chili powder|turmeric|paprika|harissa|lavash|noodle|pasta|rice|sugar|puff pastry|shaoxing|palm sugar|white sugar|distilled|dark soy)\b/.test(n)) return false
+
+  // Fresh veg, alliums, herbs, whole proteins → needs prep
+  if (/\b(onion|garlic|carrot|celery|shallot|scallion|leek|cucumber|zucchini|tomato|potato|mushroom|spinach|kale|chard|cabbage|broccoli|cauliflower|fennel|beet|parsnip|squash|eggplant|lemon|lime|orange|ginger|parsley|cilantro|basil|mint|thyme|rosemary|chive|dill|pepper|bell pepper|bean sprout|bok choy|corn|avocado|mango|egg|eggs|chicken|beef|lamb|pork|fish|salmon|shrimp|turkey|duck|steak|fillet|thigh|breast|rack|sausage|tofu|scallion)\b/.test(n)) return true
+
+  // Emoji fallback
+  const prepEmoji = new Set(['🧅','🧄','🥕','🫑','🌶','🥒','🍅','🥬','🥦','🧅','🌿','🥚','🍋','🥩','🍖','🍗','🐟','🦐','🥑','🧆'])
+  if (emoji && prepEmoji.has(emoji)) return true
+
+  return false
+}
+
+/** Get a numeric sort weight from totals (sum of all quantities, for ordering) */
+function sortWeight(item: PrepIngredient): number {
+  return item.totals.reduce((sum, t) => sum + (t.quantity ?? 0), 0)
+}
+
 // ── MealPrepScreen ────────────────────────────────────────────────────────────
 
 export function MealPrepScreen() {
   const navigate = useNavigate()
 
-  // Use the planner's current week from global store, fall back to current week
   const plannerWeekStart = useAppStore(s => s.plannerWeekStart)
   const { data: settings } = useUserSettings()
   const planDow = settings?.plan_start_dow ?? 5
@@ -24,8 +47,15 @@ export function MealPrepScreen() {
 
   const { data: prepItems = [], isLoading } = useMealPrep(weekStart)
 
-  const [search,   setSearch]   = useState('')
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [search,    setSearch]    = useState('')
+  const [expanded,  setExpanded]  = useState<Set<string>>(new Set())
+  const [noPrepOpen, setNoPrepOpen] = useState(false)
+
+  // Manual overrides: 'noprep' = user moved to no-prep, 'prep' = user moved to prep
+  const [overrides, setOverrides] = useState<Record<string, 'prep' | 'noprep'>>(() => {
+    try { return JSON.parse(localStorage.getItem('prep-section-overrides') ?? '{}') }
+    catch { return {} }
+  })
 
   function toggleCard(ingredientId: string) {
     setExpanded(prev => {
@@ -36,14 +66,31 @@ export function MealPrepScreen() {
     })
   }
 
+  function moveItem(id: string, to: 'prep' | 'noprep') {
+    setOverrides(prev => {
+      const next = { ...prev, [id]: to }
+      localStorage.setItem('prep-section-overrides', JSON.stringify(next))
+      return next
+    })
+  }
+
+  function getSection(item: PrepIngredient): 'prep' | 'noprep' {
+    if (overrides[item.ingredient_id]) return overrides[item.ingredient_id]
+    return defaultNeedsPrep(item.name, item.emoji) ? 'prep' : 'noprep'
+  }
+
   const filtered = search.trim()
     ? prepItems.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
     : prepItems
 
+  const prepSection   = filtered.filter(i => getSection(i) === 'prep')
+    .sort((a, b) => sortWeight(b) - sortWeight(a))
+  const noPrepSection = filtered.filter(i => getSection(i) === 'noprep')
+    .sort((a, b) => sortWeight(b) - sortWeight(a))
+
   return (
     <Screen>
       <div style={{ padding: '16px 16px 0' }}>
-        {/* Header */}
         <h1 style={{ fontSize: '22px', fontWeight: 600, color: 'var(--tp)', margin: '0 0 3px' }}>
           Meal Prep
         </h1>
@@ -51,7 +98,6 @@ export function MealPrepScreen() {
           Week of {weekLabel} — ingredient totals
         </p>
 
-        {/* Search bar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '8px',
           background: 'var(--dk3)', border: '0.5px solid var(--brh)',
@@ -117,22 +163,68 @@ export function MealPrepScreen() {
         </div>
       )}
 
-      {/* Ingredient card list */}
+      {/* Sections */}
       {!isLoading && filtered.length > 0 && (
-        <div style={{ padding: '0 16px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
-            This week's prep
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {filtered.map(item => (
-              <PrepCard
-                key={item.ingredient_id}
-                item={item}
-                isOpen={expanded.has(item.ingredient_id)}
-                onToggle={() => toggleCard(item.ingredient_id)}
-              />
-            ))}
-          </div>
+        <div style={{ padding: '0 16px 32px' }}>
+
+          {/* ── Needs Prep ── */}
+          {prepSection.length > 0 && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
+                Needs prep · {prepSection.length}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {prepSection.map(item => (
+                  <PrepCard
+                    key={item.ingredient_id}
+                    item={item}
+                    isOpen={expanded.has(item.ingredient_id)}
+                    onToggle={() => toggleCard(item.ingredient_id)}
+                    section="prep"
+                    onMove={() => moveItem(item.ingredient_id, 'noprep')}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── No Prep ── */}
+          {noPrepSection.length > 0 && (
+            <div>
+              {/* Collapsible header */}
+              <button
+                onClick={() => setNoPrepOpen(o => !o)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: 'none', border: 'none', padding: '0 0 8px', cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  No prep needed · {noPrepSection.length}
+                </span>
+                <ChevronDown
+                  size={14}
+                  color="var(--tm)"
+                  style={{ transition: 'transform 0.2s', transform: noPrepOpen ? 'rotate(180deg)' : 'none' }}
+                />
+              </button>
+              {noPrepOpen && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {noPrepSection.map(item => (
+                    <PrepCard
+                      key={item.ingredient_id}
+                      item={item}
+                      isOpen={expanded.has(item.ingredient_id)}
+                      onToggle={() => toggleCard(item.ingredient_id)}
+                      section="noprep"
+                      onMove={() => moveItem(item.ingredient_id, 'prep')}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </Screen>
@@ -142,11 +234,13 @@ export function MealPrepScreen() {
 // ── PrepCard ──────────────────────────────────────────────────────────────────
 
 function PrepCard({
-  item, isOpen, onToggle,
+  item, isOpen, onToggle, section, onMove,
 }: {
   item:     PrepIngredient
   isOpen:   boolean
   onToggle: () => void
+  section:  'prep' | 'noprep'
+  onMove:   () => void
 }) {
   const totalLabel = formatTotals(item.totals, item.dishes.length)
 
@@ -160,7 +254,7 @@ function PrepCard({
         transition: 'border-color 0.15s',
       }}
     >
-      {/* Card header — always visible, tap to expand */}
+      {/* Card header */}
       <div
         onClick={onToggle}
         style={{
@@ -169,17 +263,22 @@ function PrepCard({
           cursor: 'pointer',
         }}
       >
-        {/* Ingredient icon */}
-        <div style={{ position: 'relative', width: '36px', height: '36px', flexShrink: 0 }}>
+        {/* Ingredient image — 15% wider than original 36px = ~42px, full-width image */}
+        <div style={{ position: 'relative', width: '42px', flexShrink: 0 }}>
           <div style={{
-            width: '36px', height: '36px',
+            width: '42px',
+            minHeight: '42px',
             background: item.image_status === 'done' && item.image_url ? 'transparent' : 'var(--dk3)',
             borderRadius: '9px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '20px', overflow: 'hidden',
+            fontSize: '22px', overflow: 'hidden',
           }}>
             {item.image_status === 'done' && item.image_url ? (
-              <img src={item.image_url} alt={item.name} style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
+              <img
+                src={item.image_url}
+                alt={item.name}
+                style={{ width: '42px', height: 'auto', display: 'block' }}
+              />
             ) : (
               item.emoji ?? '🥄'
             )}
@@ -206,7 +305,6 @@ function PrepCard({
           )}
         </div>
 
-        {/* Chevron */}
         <ChevronDown
           size={16}
           color="var(--tm)"
@@ -221,7 +319,6 @@ function PrepCard({
       {/* Expanded body */}
       {isOpen && (
         <div style={{ borderTop: '0.5px solid var(--br)' }}>
-          {/* Consolidated prep note */}
           {item.consolidated_prep && (
             <div style={{
               padding: '8px 14px',
@@ -233,7 +330,6 @@ function PrepCard({
             </div>
           )}
 
-          {/* Per-dish breakdown */}
           {item.dishes.map((dish, idx) => (
             <div
               key={idx}
@@ -242,18 +338,15 @@ function PrepCard({
                 justifyContent: 'space-between',
                 gap: '12px',
                 padding: '9px 14px',
-                borderBottom: idx < item.dishes.length - 1 ? '0.5px solid var(--br)' : 'none',
+                borderBottom: '0.5px solid var(--br)',
               }}
             >
-              {/* Dish name + day */}
               <span style={{ fontSize: '12px', color: 'var(--tp)', fontWeight: 500, minWidth: 0 }}>
                 {dish.recipe_name}
                 <span style={{ fontSize: '10px', color: 'var(--ts)', fontWeight: 400, marginLeft: '4px' }}>
                   · {slotDayLabel(dish.slot_date)}
                 </span>
               </span>
-
-              {/* Qty + prep note */}
               <span style={{ fontSize: '11px', color: 'var(--ts)', flexShrink: 0, textAlign: 'right' }}>
                 {dish.quantity != null ? (
                   <>
@@ -268,6 +361,23 @@ function PrepCard({
               </span>
             </div>
           ))}
+
+          {/* Move button */}
+          <button
+            onClick={e => { e.stopPropagation(); onMove() }}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+              padding: '9px 14px',
+              background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              color: 'var(--ts)', fontSize: '11px',
+            }}
+          >
+            {section === 'prep' ? (
+              <><ArrowDown size={11} /> Move to "No Prep"</>
+            ) : (
+              <><ArrowUp size={11} /> Move to "Needs Prep"</>
+            )}
+          </button>
         </div>
       )}
     </div>

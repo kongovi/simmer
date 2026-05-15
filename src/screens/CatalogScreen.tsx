@@ -119,7 +119,7 @@ function EditSheet({
         {/* Brand note */}
         <div style={{ marginBottom: '14px' }}>
           <label style={{ fontSize: '11px', color: 'var(--ts)', display: 'block', marginBottom: '6px' }}>
-            Brand note
+            Notes
           </label>
           <input
             value={brandNote}

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { Image } from 'https://deno.land/x/imagescript@1.2.15/mod.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -112,26 +113,23 @@ async function generateImageBytes(prompt: string, apiKey: string): Promise<Uint8
 }
 
 /**
- * Remove background from JPEG bytes using Remove.bg API.
+ * Remove background from JPEG bytes using Remove.bg API (multipart form-data).
  * Returns PNG bytes with transparent background, or throws.
  */
 async function removeBackground(jpegBytes: Uint8Array, removeBgKey: string): Promise<Uint8Array> {
-  // Convert to base64
-  let binary = ''
-  for (let i = 0; i < jpegBytes.length; i++) binary += String.fromCharCode(jpegBytes[i])
-  const b64 = btoa(binary)
+  const formData = new FormData()
+  formData.append('image_file', new Blob([jpegBytes], { type: 'image/jpeg' }), 'image.jpg')
+  formData.append('size', 'auto')
+  formData.append('format', 'png')
+
+  console.log(`Remove.bg: sending ${jpegBytes.length} bytes to API`)
 
   const res = await fetch('https://api.remove.bg/v1.0/removebg', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'X-Api-Key': removeBgKey,
     },
-    body: JSON.stringify({
-      image_base64: b64,
-      size: 'auto',
-      format: 'png',
-    }),
+    body: formData,
   })
 
   if (!res.ok) {
@@ -140,7 +138,27 @@ async function removeBackground(jpegBytes: Uint8Array, removeBgKey: string): Pro
   }
 
   const arrayBuf = await res.arrayBuffer()
+  console.log(`Remove.bg: received ${arrayBuf.byteLength} bytes PNG`)
   return new Uint8Array(arrayBuf)
+}
+
+/**
+ * Resize image bytes so neither dimension exceeds maxDimension.
+ * asJpeg=true → re-encodes as JPEG (for opaque fallback images)
+ * asJpeg=false → re-encodes as PNG (preserves transparency from remove.bg)
+ */
+async function resizeImage(bytes: Uint8Array, maxDimension: number, asJpeg: boolean): Promise<Uint8Array> {
+  const img = await Image.decode(bytes)
+  const longest = Math.max(img.width, img.height)
+  if (longest > maxDimension) {
+    const scale = maxDimension / longest
+    img.resize(Math.round(img.width * scale), Math.round(img.height * scale))
+  }
+  const resized = asJpeg
+    ? await img.encodeJPEG(85)
+    : await img.encode(3) // PNG compression level 3
+  console.log(`Resized: ${img.width}×${img.height} → ${bytes.length}B → ${resized.length}B`)
+  return resized
 }
 
 Deno.serve(async (req) => {
@@ -209,22 +227,26 @@ Deno.serve(async (req) => {
       let contentType = 'image/png'
 
       const removeBgKey = Deno.env.get('REMOVE_BG_API_KEY')
+      console.log(`REMOVE_BG_API_KEY present: ${!!removeBgKey}, length: ${removeBgKey?.length ?? 0}`)
       if (removeBgKey) {
         try {
           finalBytes = await removeBackground(jpegBytes, removeBgKey)
           console.log(`Remove.bg success for ingredient ${ingredientId}`)
         } catch (bgErr) {
-          console.warn(`Remove.bg failed for ${ingredientId}, using original JPEG:`, bgErr)
-          // Fall back to original JPEG but still use .png path convention
+          console.error(`Remove.bg failed for ${ingredientId}:`, bgErr instanceof Error ? bgErr.message : String(bgErr))
+          // Fall back to original JPEG
           finalBytes = jpegBytes
           contentType = 'image/jpeg'
           fileName = `${ingredientId}.jpg`
         }
       } else {
-        console.warn('REMOVE_BG_API_KEY not set — skipping background removal')
+        console.error('REMOVE_BG_API_KEY not set — skipping background removal')
         contentType = 'image/jpeg'
         fileName = `${ingredientId}.jpg`
       }
+
+      // Resize to 256×256 max before uploading
+      finalBytes = await resizeImage(finalBytes, 256, contentType === 'image/jpeg')
 
       // Upload to ingredient-images bucket
       const { error: uploadErr } = await supabaseAdmin.storage
@@ -311,7 +333,9 @@ Deno.serve(async (req) => {
       .eq('id', recipeId)
 
     // Generate image
-    const imageBytes = await generateImageBytes(prompt, apiKey)
+    const rawBytes = await generateImageBytes(prompt, apiKey)
+    // Resize to 512×512 max (recipe hero images need more detail than ingredient thumbnails)
+    const imageBytes = await resizeImage(rawBytes, 512, true)
 
     // Upload to recipe-images/{recipeId}.jpg
     const fileName = `${recipeId}.jpg`
