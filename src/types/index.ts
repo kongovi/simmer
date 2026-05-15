@@ -125,6 +125,7 @@ export interface FamilyStore {
   id: string
   family_id: string
   name: string
+  emoji: string | null
   is_default: boolean
   sort_order: number
   created_at: string

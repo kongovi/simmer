@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Sparkles, Flame } from 'lucide-react'
+import { useAIModelLabel } from '../lib/ai/modelLabel'
 import { Screen } from '../components/layout/Screen'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
 import { useSlotsForWeek, useAddDish, useRemoveDish, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
@@ -24,7 +25,8 @@ const MEAL_TYPES: { key: MealType; label: string }[] = [
 // ── PlannerScreen ─────────────────────────────────────────────────────────────
 
 export function PlannerScreen() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const aiLabel   = useAIModelLabel()
 
   // ── Settings / plan start dow ──
   const { data: settings }  = useUserSettings()
@@ -216,10 +218,10 @@ export function PlannerScreen() {
             <Sparkles size={16} color="var(--am)" style={{ flexShrink: 0 }} />
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--am)' }}>
-                Plan my week with Claude →
+                Plan my week with {aiLabel} →
               </div>
               <div style={{ fontSize: '12px', color: 'var(--ts)', marginTop: '1px' }}>
-                Describe meals and Claude fills the grid
+                Describe meals and {aiLabel} fills the grid
               </div>
             </div>
           </button>

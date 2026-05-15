@@ -14,6 +14,7 @@ import type { GroceryItem } from '../hooks/useGroceryList'
 import { useIngredientImageRealtime, useBackfillIngredientImages, useBackfillAllCatalogImages } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
 import { StoreIcon } from '../lib/storeIcons'
+import { useFamilyStores } from '../hooks/useFamilyStores'
 
 // ── GroceryScreen ─────────────────────────────────────────────────────────────
 
@@ -29,6 +30,11 @@ export function GroceryScreen() {
   useBackfillAllCatalogImages()
 
   const { data: knownStores = [] } = useKnownStores()
+  const { data: familyStores = [] } = useFamilyStores()
+  // Build a name → emoji map so user-set emojis propagate to tiles + tabs
+  const storeEmojiMap = useMemo(() =>
+    Object.fromEntries(familyStores.filter(s => s.emoji).map(s => [s.name, s.emoji!])),
+  [familyStores])
 
   // ── Store tabs ──
   const [activeStore,       setActiveStore]       = useState('All')
@@ -276,7 +282,7 @@ export function GroceryScreen() {
                   transition: 'all 0.15s',
                 }}
               >
-                {store !== 'All' && <StoreIcon name={store} size={14} />}
+                {store !== 'All' && <StoreIcon name={store} emoji={storeEmojiMap[store]} size={14} />}
                 {store}
               </button>
             ))}
@@ -367,6 +373,7 @@ export function GroceryScreen() {
                 <GroceryBox
                   key={item.id}
                   item={item}
+                  storeEmojiMap={storeEmojiMap}
                   onTap={() => list && toggleItem.mutate({ id: item.id, listId: list.id, checked: true })}
                   onLongPress={() => openEditSheet(item)}
                   onContextMenu={() => handleStoreCycle(item)}
@@ -395,6 +402,7 @@ export function GroceryScreen() {
                     key={item.id}
                     item={item}
                     done
+                    storeEmojiMap={storeEmojiMap}
                     onTap={() => list && toggleItem.mutate({ id: item.id, listId: list.id, checked: false })}
                     onLongPress={() => openEditSheet(item)}
                     onContextMenu={() => handleStoreCycle(item)}
@@ -671,7 +679,7 @@ export function GroceryScreen() {
                             background: selected ? 'var(--am)' : 'none',
                             flexShrink: 0,
                           }} />
-                          <StoreIcon name={store} size={16} />
+                          <StoreIcon name={store} emoji={storeEmojiMap[store]} size={16} />
                           <span style={{ fontSize: '15px', color: selected ? 'var(--tp)' : 'var(--ts)', fontWeight: selected ? 500 : 400 }}>
                             {store}
                           </span>
@@ -734,10 +742,11 @@ export function GroceryScreen() {
 // ── GroceryBox ────────────────────────────────────────────────────────────────
 
 function GroceryBox({
-  item, done = false, onTap, onLongPress, onContextMenu,
+  item, done = false, storeEmojiMap = {}, onTap, onLongPress, onContextMenu,
 }: {
   item:           GroceryItem
   done?:          boolean
+  storeEmojiMap?: Record<string, string>
   onTap:          () => void
   onLongPress:    () => void
   onContextMenu?: () => void
@@ -745,7 +754,8 @@ function GroceryBox({
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
 
-  function handlePointerDown() {
+  function handlePointerDown(e: React.PointerEvent) {
+    if (e.button !== 0) return          // ignore right-click / middle-click
     didLongPress.current = false
     pressTimer.current = setTimeout(() => {
       didLongPress.current = true
@@ -753,7 +763,8 @@ function GroceryBox({
     }, 500)
   }
 
-  function handlePointerUp() {
+  function handlePointerUp(e: React.PointerEvent) {
+    if (e.button !== 0) return          // ignore right-click / middle-click
     if (pressTimer.current) clearTimeout(pressTimer.current)
     if (!didLongPress.current) onTap()
   }
@@ -803,7 +814,7 @@ function GroceryBox({
         </div>
       ) : storeName ? (
         <div style={{ position: 'absolute', top: '5px', right: '5px' }}>
-          <StoreIcon name={storeName} size={16} />
+          <StoreIcon name={storeName} emoji={storeEmojiMap[storeName]} size={16} />
         </div>
       ) : null}
 

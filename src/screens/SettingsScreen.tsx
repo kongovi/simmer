@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   LogOut, User, ChevronRight, Flame,
   Bot, BookOpen, Users, Plus, Trash2, Copy, Check, X, Upload,
+  ChevronUp, ChevronDown,
 } from 'lucide-react'
 import { StoreIcon } from '../lib/storeIcons'
 import { Screen } from '../components/layout/Screen'
@@ -10,7 +11,7 @@ import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
 import { useFamilyMembers, useFamilyInvites, useCreateInvite, useDeleteInvite, buildInviteUrl } from '../hooks/useFamilyMembers'
-import { useFamilyStores, useAddFamilyStore, useDeleteFamilyStore } from '../hooks/useFamilyStores'
+import { useFamilyStores, useAddFamilyStore, useDeleteFamilyStore, useUpdateFamilyStoreEmoji, useReorderFamilyStore } from '../hooks/useFamilyStores'
 import { useOrderImport } from '../hooks/useOrderImport'
 import type { ImportResult } from '../hooks/useOrderImport'
 
@@ -258,8 +259,12 @@ export function SettingsScreen() {
   const { data: stores  = [] } = useFamilyStores()
   const addStore                = useAddFamilyStore()
   const deleteStore             = useDeleteFamilyStore()
+  const updateStoreEmoji        = useUpdateFamilyStoreEmoji()
+  const reorderStore            = useReorderFamilyStore()
 
-  const [newStoreName,  setNewStoreName]  = useState('')
+  const [newStoreName,   setNewStoreName]   = useState('')
+  const [editEmojiId,    setEditEmojiId]    = useState<string | null>(null)
+  const [editEmojiValue, setEditEmojiValue] = useState('')
   const [showImport,    setShowImport]    = useState(false)
 
   const displayName = user?.user_metadata?.full_name
@@ -428,11 +433,64 @@ export function SettingsScreen() {
               key={s.id}
               style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '11px 14px',
-                borderBottom: idx < stores.length - 1 || true ? '0.5px solid var(--br)' : 'none',
+                padding: '10px 14px',
+                borderBottom: '0.5px solid var(--br)',
               }}
             >
-              <StoreIcon name={s.name} size={18} />
+              {/* Reorder buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
+                <button
+                  onClick={() => reorderStore.mutate({ stores, storeId: s.id, direction: 'up' })}
+                  disabled={idx === 0}
+                  style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', padding: '1px', color: idx === 0 ? 'var(--tm)' : 'var(--ts)', lineHeight: 0, opacity: idx === 0 ? 0.3 : 1 }}
+                >
+                  <ChevronUp size={13} />
+                </button>
+                <button
+                  onClick={() => reorderStore.mutate({ stores, storeId: s.id, direction: 'down' })}
+                  disabled={idx === stores.length - 1}
+                  style={{ background: 'none', border: 'none', cursor: idx === stores.length - 1 ? 'default' : 'pointer', padding: '1px', color: idx === stores.length - 1 ? 'var(--tm)' : 'var(--ts)', lineHeight: 0, opacity: idx === stores.length - 1 ? 0.3 : 1 }}
+                >
+                  <ChevronDown size={13} />
+                </button>
+              </div>
+
+              {/* Emoji — tap to edit */}
+              {editEmojiId === s.id ? (
+                <input
+                  autoFocus
+                  value={editEmojiValue}
+                  onChange={e => setEditEmojiValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === 'Escape') {
+                      const val = editEmojiValue.trim() || null
+                      updateStoreEmoji.mutate({ storeId: s.id, emoji: val })
+                      setEditEmojiId(null)
+                    }
+                  }}
+                  onBlur={() => {
+                    const val = editEmojiValue.trim() || null
+                    updateStoreEmoji.mutate({ storeId: s.id, emoji: val })
+                    setEditEmojiId(null)
+                  }}
+                  placeholder="emoji"
+                  style={{
+                    width: '36px', textAlign: 'center',
+                    background: 'var(--dk3)', border: '0.5px solid var(--am)',
+                    borderRadius: '6px', padding: '3px 4px',
+                    fontSize: '16px', fontFamily: 'inherit', outline: 'none', color: 'var(--tp)',
+                  }}
+                />
+              ) : (
+                <button
+                  title="Tap to change icon"
+                  onClick={() => { setEditEmojiId(s.id); setEditEmojiValue(s.emoji ?? '') }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', lineHeight: 0, flexShrink: 0 }}
+                >
+                  <StoreIcon name={s.name} emoji={s.emoji} size={18} />
+                </button>
+              )}
+
               <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>{s.name}</span>
               {s.is_default && (
                 <span style={{

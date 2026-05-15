@@ -72,14 +72,19 @@ export function faviconUrl(domain: string, size = 32): string {
 
 interface StoreIconProps {
   name: string
+  /** User-set emoji override (from family_stores.emoji). Takes precedence over the map. */
+  emoji?: string | null
   /** Rendered size in px. The favicon img is fetched at 2× for retina. Default: 16 */
   size?: number
   style?: React.CSSProperties
 }
 
 /** Renders a brand favicon or emoji for the given store name. */
-export function StoreIcon({ name, size = 16, style }: StoreIconProps) {
-  const info = getStoreIconInfo(name)
+export function StoreIcon({ name, emoji, size = 16, style }: StoreIconProps) {
+  // User-set emoji always wins over the automatic map lookup
+  const info: StoreIconInfo = emoji
+    ? { type: 'emoji', emoji }
+    : getStoreIconInfo(name)
 
   if (info.type === 'favicon') {
     return (

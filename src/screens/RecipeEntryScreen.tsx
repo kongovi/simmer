@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Sparkles } from 'lucide-react'
+import { useAIModelLabel } from '../lib/ai/modelLabel'
 
 export function RecipeEntryScreen() {
   const navigate = useNavigate()
   const [text, setText] = useState('')
+  const aiLabel = useAIModelLabel()
 
   function handleStructure() {
     if (!text.trim()) return
@@ -28,7 +30,7 @@ export function RecipeEntryScreen() {
       </div>
       <div style={{ padding: '4px 20px 12px 46px' }}>
         <p style={{ fontSize: '12px', color: 'var(--ts)', margin: 0 }}>
-          Claude will extract and structure it
+          {aiLabel} will extract and structure it
         </p>
       </div>
 
@@ -79,7 +81,7 @@ export function RecipeEntryScreen() {
           }}
         >
           <Sparkles size={16} />
-          Structure with Claude
+          Structure with {aiLabel}
         </button>
       </div>
     </div>

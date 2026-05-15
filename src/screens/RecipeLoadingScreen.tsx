@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Check, Clock, Loader2 } from 'lucide-react'
 import { parseRecipeFromText } from '../lib/recipeParser'
 import { supabase } from '../lib/supabase'
+import { useAIModelLabel } from '../lib/ai/modelLabel'
 
 type StepState = 'pending' | 'active' | 'done' | 'error'
 
@@ -24,6 +25,7 @@ export function RecipeLoadingScreen() {
   const navigate  = useNavigate()
   const location  = useLocation()
   const state     = location.state as { rawText?: string; sourceUrl?: string } | null
+  const aiLabel   = useAIModelLabel()
 
   const [stepStates, setStepStates] = useState<Record<string, StepState>>({
     parse: 'pending', extract: 'pending', catalog: 'pending', steps: 'pending', image: 'pending',
@@ -129,7 +131,7 @@ export function RecipeLoadingScreen() {
           Structuring…
         </h2>
         <p style={{ fontSize: '12px', color: 'var(--ts)', textAlign: 'center', margin: '0 0 28px' }}>
-          Claude is reading your recipe
+          {aiLabel} is reading your recipe
         </p>
 
         {/* Steps list */}

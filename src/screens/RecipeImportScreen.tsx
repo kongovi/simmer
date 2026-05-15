@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Link as LinkIcon, Sparkles } from 'lucide-react'
+import { useAIModelLabel } from '../lib/ai/modelLabel'
 
 export function RecipeImportScreen() {
   const navigate = useNavigate()
   const [url, setUrl] = useState('')
+  const aiLabel = useAIModelLabel()
 
   const isValid = url.trim().startsWith('http')
 
@@ -31,7 +33,7 @@ export function RecipeImportScreen() {
       </div>
       <div style={{ padding: '4px 20px 20px 46px' }}>
         <p style={{ fontSize: '12px', color: 'var(--ts)', margin: 0 }}>
-          Claude imports and structures any recipe page
+          {aiLabel} imports and structures any recipe page
         </p>
       </div>
 
