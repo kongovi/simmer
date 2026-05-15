@@ -5,7 +5,7 @@ import { Screen } from '../components/layout/Screen'
 import { useCatalogItems, useUpdateCatalogItem } from '../hooks/useCatalog'
 import { useFamilyStores } from '../hooks/useFamilyStores'
 import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
-import { detectAisleOrder } from '../lib/aisleUtils'
+import { detectAisleOrder, AISLE_LABELS } from '../lib/aisleUtils'
 import type { IngredientCatalog } from '../types'
 
 // ── Edit sheet ────────────────────────────────────────────────────────────────
@@ -21,6 +21,8 @@ function EditSheet({
 }) {
   const update = useUpdateCatalogItem()
 
+  const [name,         setName]         = useState(item.name ?? '')
+  const [aisle,        setAisle]        = useState<number>(item.default_aisle_order ?? detectAisleOrder(item.name, item.emoji ?? null))
   const [store,        setStore]        = useState(item.default_store ?? '')
   const [brandNote,    setBrandNote]    = useState(item.brand_note ?? '')
   const [isPantry,     setIsPantry]     = useState(item.is_pantry_staple)
@@ -30,10 +32,12 @@ function EditSheet({
     await update.mutateAsync({
       id: item.id,
       update: {
-        default_store:    store    || null,
-        brand_note:       brandNote || null,
-        is_pantry_staple: isPantry,
-        is_bulk_staple:   isBulk,
+        name:               name.trim() || item.name,
+        default_store:      store    || null,
+        brand_note:         brandNote || null,
+        is_pantry_staple:   isPantry,
+        is_bulk_staple:     isBulk,
+        default_aisle_order: aisle,
       },
     })
     onClose()
@@ -57,6 +61,22 @@ function EditSheet({
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
           <span style={{ fontSize: '22px' }}>{item.emoji ?? '🥄'}</span>
           <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--tp)' }}>{item.name}</span>
+        </div>
+
+        {/* Name */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Name</div>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+              borderRadius: '8px', padding: '9px 11px',
+              color: 'var(--tp)', fontSize: '14px', fontWeight: 500,
+              fontFamily: 'inherit', outline: 'none',
+            }}
+          />
         </div>
 
         {/* Store */}
@@ -112,6 +132,33 @@ function EditSheet({
               fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
             }}
           />
+        </div>
+
+        {/* Aisle */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {Object.entries(AISLE_LABELS).map(([key, label]) => {
+              const a = Number(key)
+              const selected = aisle === a
+              return (
+                <button
+                  key={a}
+                  onClick={() => setAisle(a)}
+                  style={{
+                    padding: '6px 10px', borderRadius: '18px',
+                    border: `0.5px solid ${selected ? 'var(--am)' : 'var(--br)'}`,
+                    background: selected ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                    color: selected ? 'var(--am)' : 'var(--ts)',
+                    fontSize: '11px', fontFamily: 'inherit', cursor: 'pointer',
+                    fontWeight: selected ? 500 : 400,
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Toggles */}
@@ -174,11 +221,6 @@ export function CatalogScreen() {
 
   // Group by aisle
   type AisleGroup = { aisle: number; label: string; items: IngredientCatalog[] }
-  const AISLE_LABELS: Record<number, string> = {
-    1: '🥦 Produce', 2: '🥩 Meat & Fish', 3: '🥛 Dairy & Eggs',
-    4: '🥫 Canned & Dry', 5: '🫒 Oils, Spices & Pantry',
-    6: '🧃 Beverages', 7: '🛒 Other',
-  }
 
   const grouped: AisleGroup[] = []
   const aisleMap = new Map<number, IngredientCatalog[]>()

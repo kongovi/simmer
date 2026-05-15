@@ -4,10 +4,12 @@ import { Sparkles } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import {
   useActiveGroceryList, useGroceryListItems, useGroceryListRealtime,
-  useToggleItem, useAddManualItem, useUpdateItemStore,
+  useToggleItem, useAddManualItem, useUpdateGroceryItem,
   useKnownStores, useIngredientSuggestions,
   itemDisplayName, itemEmoji, itemQtyLabel,
+  detectAisleOrder,
 } from '../hooks/useGroceryList'
+import { AISLE_LABELS } from '../lib/aisleUtils'
 import type { GroceryItem } from '../hooks/useGroceryList'
 import { useIngredientImageRealtime, useBackfillIngredientImages } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
@@ -67,7 +69,7 @@ export function GroceryScreen() {
   // ── Mutations ──
   const toggleItem  = useToggleItem()
   const addItem     = useAddManualItem()
-  const updateStore = useUpdateItemStore()
+  const updateItem  = useUpdateGroceryItem()
 
   // ── Add bar / KB pane ──
   const [showKb,    setShowKb]    = useState(false)
@@ -111,27 +113,52 @@ export function GroceryScreen() {
     )
   }
 
-  // ── Store assignment sheet (long-press) ──
-  const [storeSheetItem, setStoreSheetItem] = useState<GroceryItem | null>(null)
-  const [sheetNewStore,  setSheetNewStore]  = useState('')
+  // ── Edit item sheet (long-press) ──
+  const [editSheetItem, setEditSheetItem] = useState<GroceryItem | null>(null)
+  const [editName,      setEditName]      = useState('')
+  const [editQty,       setEditQty]       = useState('')
+  const [editUnit,      setEditUnit]      = useState('')
+  const [editNotes,     setEditNotes]     = useState('')
+  const [editAisle,     setEditAisle]     = useState<number>(7)
+  const [editStore,     setEditStore]     = useState<string | null>(null)
+  const [editNewStore,  setEditNewStore]  = useState('')
 
-  function handleSelectStore(store: string) {
-    if (!storeSheetItem || !list) return
-    updateStore.mutate({
-      itemId:       storeSheetItem.id,
-      listId:       list.id,
-      store,
-      ingredientId: storeSheetItem.ingredient_id,
-    })
-    setStoreSheetItem(null)
+  function openEditSheet(item: GroceryItem) {
+    setEditSheetItem(item)
+    setEditName(itemDisplayName(item))
+    setEditQty(item.quantity != null ? String(item.quantity) : '')
+    setEditUnit(item.unit ?? '')
+    setEditNotes(item.ingredient?.brand_note ?? '')
+    setEditAisle(item.aisle_order ?? detectAisleOrder(itemDisplayName(item), item.ingredient?.emoji ?? null))
+    setEditStore(item.assigned_store ?? item.ingredient?.default_store ?? null)
+    setEditNewStore('')
   }
 
-  function handleAddSheetStore() {
-    const name = sheetNewStore.trim()
-    if (!name) return
-    if (!allStores.includes(name)) setExtraStores(prev => [...prev, name])
-    handleSelectStore(name)
-    setSheetNewStore('')
+  function closeEditSheet() { setEditSheetItem(null) }
+
+  function handleSaveEdit() {
+    if (!editSheetItem || !list) return
+    const qty = editQty.trim() ? parseFloat(editQty.trim()) : null
+    updateItem.mutate({
+      itemId:            editSheetItem.id,
+      listId:            list.id,
+      quantity:          qty !== null && !isNaN(qty) ? qty : null,
+      unit:              editUnit.trim() || null,
+      aisleOrder:        editAisle,
+      assignedStore:     editStore || null,
+      ingredientId:      editSheetItem.ingredient_id,
+      name:              editName.trim(),
+      notes:             editNotes.trim() || null,
+      defaultAisleOrder: editAisle,
+    }, { onSuccess: closeEditSheet })
+  }
+
+  function handleAddEditStore() {
+    const s = editNewStore.trim()
+    if (!s) return
+    if (!allStores.includes(s)) setExtraStores(prev => [...prev, s])
+    setEditStore(s)
+    setEditNewStore('')
   }
 
   // ── Week range label ──
@@ -322,7 +349,7 @@ export function GroceryScreen() {
                   key={item.id}
                   item={item}
                   onTap={() => list && toggleItem.mutate({ id: item.id, listId: list.id, checked: true })}
-                  onLongPress={() => setStoreSheetItem(item)}
+                  onLongPress={() => openEditSheet(item)}
                 />
               ))}
             </div>
@@ -349,7 +376,7 @@ export function GroceryScreen() {
                     item={item}
                     done
                     onTap={() => list && toggleItem.mutate({ id: item.id, listId: list.id, checked: false })}
-                    onLongPress={() => setStoreSheetItem(item)}
+                    onLongPress={() => openEditSheet(item)}
                   />
                 ))}
               </div>
@@ -477,11 +504,11 @@ export function GroceryScreen() {
           </div>
         )}
 
-        {/* Store assignment bottom sheet */}
-        {storeSheetItem && (
+        {/* Edit item bottom sheet */}
+        {editSheetItem && (
           <>
             <div
-              onClick={() => { setStoreSheetItem(null); setSheetNewStore('') }}
+              onClick={closeEditSheet}
               style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 49 }}
             />
             <div style={{
@@ -489,83 +516,189 @@ export function GroceryScreen() {
               background: 'var(--dk2)',
               borderTop: '0.5px solid var(--brh)',
               borderRadius: '16px 16px 0 0',
-              padding: '16px 16px 32px',
               zIndex: 50,
+              maxHeight: '82vh',
+              display: 'flex', flexDirection: 'column',
             }}>
-              {/* Item name */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                marginBottom: '14px',
-              }}>
-                <span style={{ fontSize: '22px' }}>{itemEmoji(storeSheetItem)}</span>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--tp)' }}>
-                    {itemDisplayName(storeSheetItem)}
+              {/* Drag handle */}
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 0' }}>
+                <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: 'var(--br)' }} />
+              </div>
+
+              {/* Scrollable content */}
+              <div style={{ overflowY: 'auto', padding: '12px 16px 32px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+
+                {/* Header: image + name */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {/* Image or emoji */}
+                  <div style={{ flexShrink: 0, width: '48px', height: '48px', borderRadius: '12px', background: 'var(--dk3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {editSheetItem.ingredient?.image_status === 'done' && editSheetItem.ingredient.image_url ? (
+                      <img src={editSheetItem.ingredient.image_url} alt={editName} style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
+                    ) : (
+                      <span style={{ fontSize: '28px' }}>{itemEmoji(editSheetItem)}</span>
+                    )}
                   </div>
-                  <div style={{ fontSize: '10px', color: 'var(--ts)', marginTop: '1px' }}>
-                    Assign to store
+                  {/* Editable name */}
+                  <input
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    style={{
+                      flex: 1, background: 'var(--dk3)',
+                      border: '0.5px solid var(--brh)', borderRadius: '10px',
+                      padding: '10px 12px', color: 'var(--tp)',
+                      fontSize: '15px', fontWeight: 600, fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Quantity + unit */}
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quantity</div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={editQty}
+                      onChange={e => setEditQty(e.target.value)}
+                      placeholder="—"
+                      style={{
+                        width: '80px', background: 'var(--dk3)',
+                        border: '0.5px solid var(--brh)', borderRadius: '8px',
+                        padding: '8px 10px', color: 'var(--tp)',
+                        fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                      }}
+                    />
+                    <input
+                      value={editUnit}
+                      onChange={e => setEditUnit(e.target.value)}
+                      placeholder="unit (oz, lbs, cup…)"
+                      style={{
+                        flex: 1, background: 'var(--dk3)',
+                        border: '0.5px solid var(--brh)', borderRadius: '8px',
+                        padding: '8px 10px', color: 'var(--tp)',
+                        fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                      }}
+                    />
                   </div>
                 </div>
-              </div>
 
-              {/* Store radio list */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '10px' }}>
-                {allStores.map(store => {
-                  const current = storeSheetItem.assigned_store ?? storeSheetItem.ingredient?.default_store ?? null
-                  const selected = current === store
-                  return (
-                    <button
-                      key={store}
-                      onClick={() => handleSelectStore(store)}
+                {/* Notes */}
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</div>
+                  <input
+                    value={editNotes}
+                    onChange={e => setEditNotes(e.target.value)}
+                    placeholder="Brand, variety, notes…"
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: 'var(--dk3)',
+                      border: '0.5px solid var(--brh)', borderRadius: '8px',
+                      padding: '8px 10px', color: 'var(--tp)',
+                      fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* Aisle */}
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {Object.entries(AISLE_LABELS).map(([key, label]) => {
+                      const a = Number(key)
+                      const selected = editAisle === a
+                      return (
+                        <button
+                          key={a}
+                          onClick={() => setEditAisle(a)}
+                          style={{
+                            padding: '6px 11px', borderRadius: '18px',
+                            border: `0.5px solid ${selected ? 'var(--am)' : 'var(--brh)'}`,
+                            background: selected ? 'rgba(123,175,138,0.15)' : 'none',
+                            color: selected ? 'var(--am)' : 'var(--ts)',
+                            fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
+                            fontWeight: selected ? 500 : 400,
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Store */}
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Store</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '8px' }}>
+                    {allStores.map(store => {
+                      const selected = editStore === store
+                      return (
+                        <button
+                          key={store}
+                          onClick={() => setEditStore(selected ? null : store)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '10px',
+                            padding: '9px 12px', borderRadius: '10px',
+                            background: selected ? 'rgba(123,175,138,0.1)' : 'none',
+                            border: `0.5px solid ${selected ? 'rgba(123,175,138,0.35)' : 'transparent'}`,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          <span style={{
+                            width: '14px', height: '14px', borderRadius: '50%',
+                            border: `1.5px solid ${selected ? 'var(--am)' : 'var(--brh)'}`,
+                            background: selected ? 'var(--am)' : 'none',
+                            flexShrink: 0,
+                          }} />
+                          <span style={{ fontSize: '13px', color: selected ? 'var(--tp)' : 'var(--ts)', fontWeight: selected ? 500 : 400 }}>
+                            {store}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: '7px' }}>
+                    <input
+                      value={editNewStore}
+                      onChange={e => setEditNewStore(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddEditStore() }}
+                      placeholder="New store…"
                       style={{
-                        display: 'flex', alignItems: 'center', gap: '10px',
-                        padding: '10px 12px', borderRadius: '10px',
-                        background: selected ? 'rgba(123,175,138,0.1)' : 'none',
-                        border: `0.5px solid ${selected ? 'rgba(123,175,138,0.35)' : 'transparent'}`,
-                        cursor: 'pointer', fontFamily: 'inherit',
+                        flex: 1, background: 'var(--dk3)',
+                        border: '0.5px solid var(--brh)', borderRadius: '8px',
+                        padding: '8px 10px', color: 'var(--tp)',
+                        fontSize: '12px', fontFamily: 'inherit', outline: 'none',
+                      }}
+                    />
+                    <button
+                      onClick={handleAddEditStore}
+                      disabled={!editNewStore.trim()}
+                      style={{
+                        background: editNewStore.trim() ? 'var(--am)' : 'var(--dk3)',
+                        border: 'none', borderRadius: '8px', padding: '8px 14px',
+                        color: editNewStore.trim() ? '#141820' : 'var(--tm)',
+                        fontSize: '11px', fontWeight: 500, fontFamily: 'inherit',
+                        cursor: editNewStore.trim() ? 'pointer' : 'default',
                       }}
                     >
-                      <span style={{
-                        width: '14px', height: '14px', borderRadius: '50%',
-                        border: `1.5px solid ${selected ? 'var(--am)' : 'var(--brh)'}`,
-                        background: selected ? 'var(--am)' : 'none',
-                        flexShrink: 0,
-                      }} />
-                      <span style={{ fontSize: '13px', color: selected ? 'var(--tp)' : 'var(--ts)', fontWeight: selected ? 500 : 400 }}>
-                        {store}
-                      </span>
+                      Add
                     </button>
-                  )
-                })}
-              </div>
+                  </div>
+                </div>
 
-              {/* New store input */}
-              <div style={{ display: 'flex', gap: '7px' }}>
-                <input
-                  value={sheetNewStore}
-                  onChange={e => setSheetNewStore(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleAddSheetStore() }}
-                  placeholder="New store…"
-                  style={{
-                    flex: 1, background: 'var(--dk3)',
-                    border: '0.5px solid var(--brh)', borderRadius: '8px',
-                    padding: '8px 10px', color: 'var(--tp)',
-                    fontSize: '12px', fontFamily: 'inherit', outline: 'none',
-                  }}
-                />
+                {/* Save button */}
                 <button
-                  onClick={handleAddSheetStore}
-                  disabled={!sheetNewStore.trim()}
+                  onClick={handleSaveEdit}
+                  disabled={updateItem.isPending}
                   style={{
-                    background: sheetNewStore.trim() ? 'var(--am)' : 'var(--dk3)',
-                    border: 'none', borderRadius: '8px', padding: '8px 14px',
-                    color: sheetNewStore.trim() ? '#141820' : 'var(--tm)',
-                    fontSize: '11px', fontWeight: 500,
-                    fontFamily: 'inherit',
-                    cursor: sheetNewStore.trim() ? 'pointer' : 'default',
+                    width: '100%', padding: '13px',
+                    background: 'var(--am)', border: 'none', borderRadius: '12px',
+                    color: '#141820', fontSize: '14px', fontWeight: 600,
+                    fontFamily: 'inherit', cursor: 'pointer',
+                    opacity: updateItem.isPending ? 0.6 : 1,
                   }}
                 >
-                  Add
+                  {updateItem.isPending ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </div>

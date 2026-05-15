@@ -1,3 +1,13 @@
+export const AISLE_LABELS: Record<number, string> = {
+  1: '🥦 Produce',
+  2: '🥩 Meat & Fish',
+  3: '🥛 Dairy & Eggs',
+  4: '🥫 Canned & Dry',
+  5: '🫒 Oils & Spices',
+  6: '🧃 Beverages',
+  7: '🛒 Other',
+}
+
 /** Silently assign aisle sort order from ingredient name/emoji.
  *  1=Produce  2=Meat&Seafood  3=Dairy&Eggs  4=Canned&Packaged
  *  5=Oils&Spices  6=Beverages  7=Other */

@@ -451,6 +451,58 @@ export function useUpdateItemStore() {
   })
 }
 
+/** Update all editable fields on a grocery item and persist preferences to the catalog. */
+export function useUpdateGroceryItem() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async ({
+      itemId, listId,
+      quantity, unit, aisleOrder, assignedStore,
+      ingredientId, name, notes, defaultAisleOrder,
+    }: {
+      itemId:            string
+      listId:            string
+      quantity?:         number | null
+      unit?:             string | null
+      aisleOrder?:       number | null
+      assignedStore?:    string | null
+      ingredientId?:     string | null
+      name?:             string
+      notes?:            string | null
+      defaultAisleOrder?: number | null
+    }) => {
+      const { error: itemErr } = await supabase
+        .from('grocery_list_items')
+        .update({
+          quantity:       quantity ?? null,
+          unit:           unit     || null,
+          aisle_order:    aisleOrder ?? null,
+          assigned_store: assignedStore || null,
+        })
+        .eq('id', itemId)
+      if (itemErr) throw itemErr
+
+      if (ingredientId) {
+        const catUpdate: Record<string, unknown> = {}
+        if (name             !== undefined) catUpdate.name               = name.trim()
+        if (notes            !== undefined) catUpdate.brand_note         = notes || null
+        if (defaultAisleOrder !== undefined) catUpdate.default_aisle_order = defaultAisleOrder
+        if (assignedStore    !== undefined) catUpdate.default_store      = assignedStore || null
+        if (Object.keys(catUpdate).length > 0) {
+          await supabase.from('ingredients_catalog').update(catUpdate).eq('id', ingredientId)
+        }
+      }
+    },
+    onSuccess: (_v, { listId }) => {
+      queryClient.invalidateQueries({ queryKey: ['grocery-items', listId] })
+      queryClient.invalidateQueries({ queryKey: ['catalog',       familyId] })
+      queryClient.invalidateQueries({ queryKey: ['known-stores',  familyId] })
+    },
+  })
+}
+
 // ── Realtime ──────────────────────────────────────────────────────────────────
 
 /** Live updates: any change to this list's items invalidates the cache. */

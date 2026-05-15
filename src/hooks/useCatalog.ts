@@ -28,11 +28,13 @@ export function useCatalogItems(search?: string) {
 }
 
 export interface CatalogItemUpdate {
+  name?:                    string
   default_store?:           string | null
   brand_note?:              string | null
   is_pantry_staple?:        boolean
   is_bulk_staple?:          boolean
   purchase_frequency_days?: number | null
+  default_aisle_order?:     number | null
 }
 
 export function useUpdateCatalogItem() {
