@@ -212,6 +212,7 @@ Deno.serve(async (req) => {
     ingredient?: boolean
     ingredientId?: string
     ingredientName?: string
+    customPromptAddition?: string
   } = {}
   try {
     body = await req.json()
@@ -221,7 +222,7 @@ Deno.serve(async (req) => {
     })
   }
 
-  const { recipeId, prompt, apiKey: clientApiKey, ingredient, ingredientId, ingredientName } = body
+  const { recipeId, prompt, apiKey: clientApiKey, ingredient, ingredientId, ingredientName, customPromptAddition } = body
 
   // ── INGREDIENT MODE ────────────────────────────────────────────────────────
   if (ingredient === true) {
@@ -257,8 +258,11 @@ Deno.serve(async (req) => {
         .update({ image_status: 'generating' })
         .eq('id', ingredientId)
 
-      // Generate image
-      const imgPrompt = buildIngredientPrompt(ingredientName)
+      // Generate image — base prompt + optional custom addition
+      const baseIngredientPrompt = buildIngredientPrompt(ingredientName)
+      const imgPrompt = customPromptAddition?.trim()
+        ? `${baseIngredientPrompt}\n\nAdditional guidance: ${customPromptAddition.trim()}`
+        : baseIngredientPrompt
       const jpegBytes = await generateImageBytes(imgPrompt, apiKey)
 
       // Try Replicate background removal
@@ -368,8 +372,11 @@ Deno.serve(async (req) => {
       .update({ image_status: 'generating', updated_at: new Date().toISOString() })
       .eq('id', recipeId)
 
-    // Generate image
-    const rawBytes = await generateImageBytes(prompt, apiKey)
+    // Generate image — append custom addition if provided (without polluting nb2_prompt in DB)
+    const fullPrompt = customPromptAddition?.trim()
+      ? `${prompt}\n\nAdditional guidance: ${customPromptAddition.trim()}`
+      : prompt
+    const rawBytes = await generateImageBytes(fullPrompt, apiKey)
     // Resize to 512×512 max
     const imageBytes = await resizeImage(rawBytes, 512, true)
 

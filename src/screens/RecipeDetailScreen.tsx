@@ -43,16 +43,26 @@ export function RecipeDetailScreen() {
   const [cookingMode,   setCookingMode]   = useState(false)
   const [regenBusy,     setRegenBusy]     = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [regenSheetOpen,   setRegenSheetOpen]   = useState(false)
+  const [regenCustomText,  setRegenCustomText]  = useState('')
 
   const deleteRecipe = useDeleteRecipe()
 
   // Realtime: swap in generated image when ready
   useRecipeImageRealtime()
 
+  function openRegenSheet() {
+    if (!recipe?.nb2_prompt || regenBusy) return
+    setRegenCustomText('')
+    setRegenSheetOpen(true)
+  }
+
   async function handleRegenImage() {
     if (!recipe?.nb2_prompt || regenBusy) return
+    setRegenSheetOpen(false)
     setRegenBusy(true)
-    callNanoBanana2(recipe.nb2_prompt, recipe.id).finally(() => setRegenBusy(false))
+    callNanoBanana2(recipe.nb2_prompt, recipe.id, regenCustomText || undefined)
+      .finally(() => setRegenBusy(false))
   }
 
   const isLoading = rLoading || iLoading || sLoading
@@ -120,7 +130,7 @@ export function RecipeDetailScreen() {
                   {/* Regenerate button — shown when failed, pending, or no prompt */}
                   {recipe.image_status !== 'generating' && !regenBusy && recipe.nb2_prompt && (
                     <button
-                      onClick={handleRegenImage}
+                      onClick={openRegenSheet}
                       style={{
                         display: 'flex', alignItems: 'center', gap: '5px',
                         background: 'rgba(0,0,0,0.18)', border: 'none',
@@ -151,19 +161,32 @@ export function RecipeDetailScreen() {
               Recipes
             </button>
 
-            {/* Edit button overlay */}
-            <button
-              onClick={() => navigate(`/recipes/${recipe.id}/edit`)}
-              style={{
-                position: 'absolute', top: '12px', right: '12px',
-                background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
-                padding: '6px 10px', cursor: 'pointer', color: '#fff',
-                display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px',
-              }}
-            >
-              <Pencil size={12} />
-              Edit
-            </button>
+            {/* Edit + Regen buttons overlay */}
+            <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '6px' }}>
+              {recipe.nb2_prompt && !regenBusy && recipe.image_status !== 'generating' && (
+                <button
+                  onClick={openRegenSheet}
+                  style={{
+                    background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
+                    padding: '6px 10px', cursor: 'pointer', color: '#fff',
+                    display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px',
+                  }}
+                >
+                  <RefreshCw size={12} />
+                </button>
+              )}
+              <button
+                onClick={() => navigate(`/recipes/${recipe.id}/edit`)}
+                style={{
+                  background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
+                  padding: '6px 10px', cursor: 'pointer', color: '#fff',
+                  display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px',
+                }}
+              >
+                <Pencil size={12} />
+                Edit
+              </button>
+            </div>
           </div>
 
           {/* Recipe header */}
@@ -395,6 +418,66 @@ export function RecipeDetailScreen() {
           )}
         </div>
       </div>
+
+      {/* Regen prompt sheet */}
+      {regenSheetOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}
+          onClick={e => { if (e.target === e.currentTarget) setRegenSheetOpen(false) }}
+        >
+          <div style={{
+            background: 'var(--dk2)', borderRadius: '20px 20px 0 0',
+            padding: '20px 16px 32px', width: '100%',
+            borderTop: '0.5px solid var(--brh)',
+          }}>
+            <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '4px' }}>
+              Regenerate image
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--ts)', marginBottom: '16px' }}>
+              Base style: retro-pop plated dish illustration. Add custom instructions below to adjust the result.
+            </div>
+            <textarea
+              autoFocus
+              value={regenCustomText}
+              onChange={e => setRegenCustomText(e.target.value)}
+              placeholder={'e.g. "make the sauce more vibrant", "add fresh herb garnish", "warmer lighting"'}
+              rows={3}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+                borderRadius: '10px', padding: '10px 12px',
+                color: 'var(--tp)', fontSize: '15px',
+                fontFamily: 'inherit', outline: 'none', resize: 'none',
+                marginBottom: '14px',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setRegenSheetOpen(false)}
+                style={{
+                  flex: 1, padding: '13px', background: 'var(--dk3)',
+                  border: '0.5px solid var(--br)', borderRadius: '12px',
+                  color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRegenImage}
+                style={{
+                  flex: 2, padding: '13px', background: 'var(--am)',
+                  border: 'none', borderRadius: '12px',
+                  color: '#141820', fontSize: '15px', fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                }}
+              >
+                <RefreshCw size={14} /> Generate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cooking mode overlay */}
       {cookingMode && steps && (

@@ -31,12 +31,14 @@ function getImageModel(): ImageModel {
 /**
  * Fire-and-forget ingredient image generation.
  * Always uses NB2 (ingredient mode hits the same Edge Function).
+ * @param customPromptAddition  Optional free-text appended after the base style prompt.
  */
 export async function generateIngredientImage(
   ingredientId: string,
   ingredientName: string,
+  customPromptAddition?: string,
 ): Promise<string> {
-  return callNanoBanana2Ingredient(ingredientId, ingredientName)
+  return callNanoBanana2Ingredient(ingredientId, ingredientName, customPromptAddition)
 }
 
 export async function generateDishImage(

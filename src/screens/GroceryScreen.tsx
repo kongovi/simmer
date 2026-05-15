@@ -482,7 +482,15 @@ export function GroceryScreen() {
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    <span style={{ fontSize: '22px', lineHeight: 1 }}>{sug.emoji ?? '🛒'}</span>
+                    {sug.image_status === 'done' && sug.image_url ? (
+                      <img
+                        src={sug.image_url}
+                        alt={sug.name}
+                        style={{ width: '36px', height: '36px', objectFit: 'contain', display: 'block' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '22px', lineHeight: 1 }}>{sug.emoji ?? '🛒'}</span>
+                    )}
                     <span style={{ fontSize: '10px', color: 'var(--ts)', textAlign: 'center', lineHeight: 1.2 }}>
                       {sug.name}
                     </span>

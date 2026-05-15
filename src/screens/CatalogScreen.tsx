@@ -25,19 +25,23 @@ function EditSheet({
   const update  = useUpdateCatalogItem()
   const destroy = useDeleteCatalogItem()
 
-  const [name,         setName]         = useState(item.name ?? '')
-  const [aisle,        setAisle]        = useState<number>(item.default_aisle_order ?? detectAisleOrder(item.name, item.emoji ?? null))
-  const [store,        setStore]        = useState(item.default_store ?? '')
-  const [brandNote,    setBrandNote]    = useState(item.brand_note ?? '')
-  const [isPantry,     setIsPantry]     = useState(item.is_pantry_staple)
-  const [isBulk,       setIsBulk]       = useState(item.is_bulk_staple)
-  const [regenStatus,  setRegenStatus]  = useState<'idle' | 'busy'>('idle')
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [name,             setName]             = useState(item.name ?? '')
+  const [aisle,            setAisle]            = useState<number>(item.default_aisle_order ?? detectAisleOrder(item.name, item.emoji ?? null))
+  const [store,            setStore]            = useState(item.default_store ?? '')
+  const [brandNote,        setBrandNote]        = useState(item.brand_note ?? '')
+  const [isPantry,         setIsPantry]         = useState(item.is_pantry_staple)
+  const [isBulk,           setIsBulk]           = useState(item.is_bulk_staple)
+  const [regenStatus,      setRegenStatus]      = useState<'idle' | 'busy'>('idle')
+  const [confirmDelete,    setConfirmDelete]    = useState(false)
+  const [regenExpanded,    setRegenExpanded]    = useState(false)
+  const [regenCustomText,  setRegenCustomText]  = useState('')
 
   async function handleRegen() {
+    setRegenExpanded(false)
     setRegenStatus('busy')
-    await generateIngredientImage(item.id, item.name).catch(() => {})
+    await generateIngredientImage(item.id, item.name, regenCustomText || undefined).catch(() => {})
     setRegenStatus('idle')
+    setRegenCustomText('')
   }
 
   async function handleSave() {
@@ -105,7 +109,11 @@ function EditSheet({
             <span style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', display: 'block' }}>{item.name}</span>
             {/* Regenerate image button */}
             <button
-              onClick={handleRegen}
+              onClick={() => {
+                if (regenStatus === 'busy' || item.image_status === 'generating') return
+                setRegenExpanded(e => !e)
+                setRegenCustomText('')
+              }}
               disabled={regenStatus === 'busy' || item.image_status === 'generating'}
               style={{
                 marginTop: '4px',
@@ -121,6 +129,53 @@ function EditSheet({
             </button>
           </div>
         </div>
+
+        {/* Inline regen expansion */}
+        {regenExpanded && (
+          <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--dk3)', borderRadius: '10px', border: '0.5px solid var(--brh)' }}>
+            <div style={{ fontSize: '12px', color: 'var(--ts)', marginBottom: '6px' }}>
+              Base style: retro-pop ingredient illustration with transparent background. Add custom instructions below.
+            </div>
+            <textarea
+              autoFocus
+              value={regenCustomText}
+              onChange={e => setRegenCustomText(e.target.value)}
+              placeholder={'e.g. "show it sliced", "add a wooden surface", "make it more vibrant"'}
+              rows={2}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: 'var(--dk2)', border: '0.5px solid var(--brh)',
+                borderRadius: '8px', padding: '8px 10px',
+                color: 'var(--tp)', fontSize: '14px',
+                fontFamily: 'inherit', outline: 'none',
+                resize: 'none', marginBottom: '8px', display: 'block',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                onClick={() => setRegenExpanded(false)}
+                style={{
+                  flex: 1, padding: '8px', background: 'none',
+                  border: '0.5px solid var(--br)', borderRadius: '8px',
+                  color: 'var(--ts)', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRegen}
+                style={{
+                  flex: 2, padding: '8px', background: 'var(--am)', border: 'none',
+                  borderRadius: '8px', color: '#141820', fontSize: '13px',
+                  fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                }}
+              >
+                <RefreshCw size={12} /> Generate
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Name */}
         <div style={{ marginBottom: '16px' }}>

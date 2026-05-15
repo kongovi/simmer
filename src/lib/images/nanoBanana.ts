@@ -7,7 +7,11 @@ import { supabase } from '../supabase'
  * Returns the public Storage URL on success, or '' on failure (non-blocking caller
  * should not care — Realtime will push the update when the image is ready).
  */
-export async function callNanoBanana2(prompt: string, recipeId: string): Promise<string> {
+export async function callNanoBanana2(
+  prompt: string,
+  recipeId: string,
+  customPromptAddition?: string,
+): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) {
     console.warn('nanoBanana: no session — skipping image generation')
@@ -27,7 +31,10 @@ export async function callNanoBanana2(prompt: string, recipeId: string): Promise
         Authorization: `Bearer ${session.access_token}`,
         apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
       },
-      body: JSON.stringify({ recipeId, prompt, apiKey: clientApiKey }),
+      body: JSON.stringify({
+        recipeId, prompt, apiKey: clientApiKey,
+        ...(customPromptAddition?.trim() ? { customPromptAddition: customPromptAddition.trim() } : {}),
+      }),
     }
   )
 
@@ -49,9 +56,14 @@ export async function callNanoBanana2(prompt: string, recipeId: string): Promise
 /**
  * Calls the `generate-image` Edge Function in ingredient mode.
  * Generates a retro-pop illustration of the ingredient and removes its background.
+ * @param customPromptAddition  Optional extra text appended after the base style prompt.
  * Returns the public Storage URL on success, or '' on failure.
  */
-export async function callNanoBanana2Ingredient(ingredientId: string, ingredientName: string): Promise<string> {
+export async function callNanoBanana2Ingredient(
+  ingredientId: string,
+  ingredientName: string,
+  customPromptAddition?: string,
+): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) {
     console.warn('nanoBanana ingredient: no session — skipping image generation')
@@ -69,7 +81,10 @@ export async function callNanoBanana2Ingredient(ingredientId: string, ingredient
         Authorization: `Bearer ${session.access_token}`,
         apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
       },
-      body: JSON.stringify({ ingredient: true, ingredientId, ingredientName, apiKey: clientApiKey }),
+      body: JSON.stringify({
+        ingredient: true, ingredientId, ingredientName, apiKey: clientApiKey,
+        ...(customPromptAddition?.trim() ? { customPromptAddition: customPromptAddition.trim() } : {}),
+      }),
     }
   )
 
