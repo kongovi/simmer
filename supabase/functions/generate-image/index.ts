@@ -143,31 +143,16 @@ async function replicatePost(
 }
 
 /**
- * Remove background via Replicate lucataco/remove-bg.
- * Dynamically resolves the latest model version, then POSTs to the versioned
- * predictions endpoint (community models require this rather than the models API).
- * Pre-resizes to 1024px max to avoid payload size issues.
- * Returns PNG bytes with transparent background, or throws.
+ * Run a single Replicate prediction for lucataco/remove-bg given a known version hash.
+ * Handles polling if Prefer:wait doesn't resolve it in time.
+ * Returns PNG bytes or throws.
  */
-async function removeBackground(imageBytes: Uint8Array, replicateKey: string): Promise<Uint8Array> {
-  const smallBytes = await resizeImage(imageBytes, 1024, true)
-  const dataUri = `data:image/jpeg;base64,${bytesToBase64(smallBytes)}`
-  console.log(`Replicate bg-remove: ${smallBytes.length} bytes (resized from ${imageBytes.length})`)
-
-  // Resolve the latest version hash for lucataco/remove-bg
-  const modelInfoRes = await fetch(
-    'https://api.replicate.com/v1/models/lucataco/remove-bg',
-    { headers: { Authorization: `Bearer ${replicateKey}` } }
-  )
-  if (!modelInfoRes.ok) {
-    throw new Error(`Could not resolve Replicate model info: ${modelInfoRes.status}`)
-  }
-  const modelInfo = await modelInfoRes.json() as { latest_version?: { id: string } }
-  const versionId = modelInfo.latest_version?.id
-  if (!versionId) throw new Error('lucataco/remove-bg: no latest_version in model info')
-  console.log(`Using lucataco/remove-bg version: ${versionId.slice(0, 8)}`)
-
-  // Use the versioned predictions endpoint (required for community models)
+async function runReplicatePrediction(
+  versionId: string,
+  dataUri: string,
+  replicateKey: string,
+): Promise<Uint8Array> {
+  console.log(`Trying lucataco/remove-bg version: ${versionId.slice(0, 8)}`)
   const createRes = await replicatePost(
     JSON.stringify({ version: versionId, input: { image: dataUri } }),
     replicateKey,
@@ -202,13 +187,116 @@ async function removeBackground(imageBytes: Uint8Array, replicateKey: string): P
   }
 
   const outputUrl = Array.isArray(prediction.output) ? prediction.output[0] : prediction.output
-  console.log(`Replicate bg-remove succeeded, downloading output`)
-
   const imgRes = await fetch(outputUrl)
   if (!imgRes.ok) throw new Error(`Failed to download Replicate output: ${imgRes.status}`)
   const buf = await imgRes.arrayBuffer()
-  console.log(`Replicate bg-remove: received ${buf.byteLength} bytes PNG`)
+  console.log(`Replicate bg-remove succeeded: ${buf.byteLength} bytes PNG`)
   return new Uint8Array(buf)
+}
+
+/**
+ * Scrape https://replicate.com/lucataco/remove-bg/examples to find the current
+ * version hash. Tries regex first; falls back to asking Claude if regex misses.
+ * Returns the hash string or null if nothing could be found.
+ */
+async function scrapeVersionFromReplicate(): Promise<string | null> {
+  try {
+    const pageRes = await fetch('https://replicate.com/lucataco/remove-bg/examples')
+    if (!pageRes.ok) {
+      console.warn(`Scrape fetch failed: ${pageRes.status}`)
+      return null
+    }
+    const html = await pageRes.text()
+
+    // Try regex first — version hashes are embedded as JSON in the page
+    const regexMatch = html.match(/"version":\s*"([a-f0-9]{40,64})"/)
+    if (regexMatch) {
+      console.log(`Scraped version via regex: ${regexMatch[1].slice(0, 8)}`)
+      return regexMatch[1]
+    }
+
+    // Fallback: ask Claude to extract it from the page HTML
+    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')
+    if (!anthropicKey) {
+      console.warn('Scrape regex found nothing and ANTHROPIC_API_KEY is not set')
+      return null
+    }
+
+    console.log('Regex found no version — asking Claude to scrape the page')
+    const snippet = html.slice(0, 30000) // first 30k chars covers most embedded JSON
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-haiku-20241022',
+        max_tokens: 100,
+        messages: [{
+          role: 'user',
+          content: `This is the HTML of a Replicate model page. Extract the model version hash — a 40–64 character lowercase hexadecimal string. Return ONLY the hash, nothing else.\n\n${snippet}`,
+        }],
+      }),
+    })
+
+    if (!aiRes.ok) {
+      console.warn(`Claude scrape request failed: ${aiRes.status}`)
+      return null
+    }
+
+    const aiJson = await aiRes.json()
+    const text = (aiJson?.content?.[0]?.text ?? '').trim()
+    if (/^[a-f0-9]{40,64}$/i.test(text)) {
+      console.log(`Scraped version via Claude: ${text.slice(0, 8)}`)
+      return text
+    }
+
+    console.warn(`Claude returned non-hash text: "${text.slice(0, 60)}"`)
+    return null
+  } catch (e) {
+    console.warn('scrapeVersionFromReplicate error:', e)
+    return null
+  }
+}
+
+/**
+ * Remove background via Replicate lucataco/remove-bg.
+ * Attempt 1: resolve latest version via Replicate model API, run prediction.
+ * Attempt 2 (on any failure): scrape the examples page (regex → Claude) for the
+ *   version hash, then retry once more.
+ * If both attempts fail, throws — caller falls back to the original JPEG silently.
+ */
+async function removeBackground(imageBytes: Uint8Array, replicateKey: string): Promise<Uint8Array> {
+  const smallBytes = await resizeImage(imageBytes, 1024, true)
+  const dataUri = `data:image/jpeg;base64,${bytesToBase64(smallBytes)}`
+  console.log(`Replicate bg-remove: ${smallBytes.length} bytes (resized from ${imageBytes.length})`)
+
+  // ── Attempt 1: version from Replicate model API ────────────────────────────
+  try {
+    const modelInfoRes = await fetch(
+      'https://api.replicate.com/v1/models/lucataco/remove-bg',
+      { headers: { Authorization: `Bearer ${replicateKey}` } }
+    )
+    if (!modelInfoRes.ok) throw new Error(`Model info HTTP ${modelInfoRes.status}`)
+    const modelInfo = await modelInfoRes.json() as { latest_version?: { id: string } }
+    const versionId = modelInfo.latest_version?.id
+    if (!versionId) throw new Error('No latest_version in model info')
+    return await runReplicatePrediction(versionId, dataUri, replicateKey)
+  } catch (e1) {
+    console.warn(`bg-remove attempt 1 failed: ${e1 instanceof Error ? e1.message : e1}`)
+  }
+
+  // ── Attempt 2: scrape version from examples page (regex → Claude) ──────────
+  console.log('Falling back to scraping replicate.com for version hash')
+  const scrapedVersion = await scrapeVersionFromReplicate()
+  if (!scrapedVersion) {
+    throw new Error('Could not determine Replicate version hash from API or scrape')
+  }
+  return await runReplicatePrediction(scrapedVersion, dataUri, replicateKey)
+  // If this also throws, it propagates up — processIngredient catches it and
+  // silently falls back to the original JPEG
 }
 
 /**
