@@ -117,3 +117,43 @@ export function useBackfillIngredientImages(
     })
   }, [items])
 }
+
+/**
+ * On mount, queries the full ingredients_catalog for ALL pending/failed items
+ * (not just those on the current grocery list) and fires generation for each.
+ * Staggers 300ms apart so 50 ingredients take ~15s to kick off rather than
+ * flooding the Edge Function with 50 simultaneous requests.
+ *
+ * Mount this once in GroceryScreen alongside useBackfillIngredientImages.
+ */
+export function useBackfillAllCatalogImages() {
+  const familyId = useAppStore(s => s.familyId)
+  const didRun   = useRef(false)
+
+  useEffect(() => {
+    if (!familyId || didRun.current) return
+    didRun.current = true
+
+    async function run() {
+      const { data, error } = await supabase
+        .from('ingredients_catalog')
+        .select('id, name')
+        .eq('family_id', familyId)
+        .in('image_status', ['pending', 'failed'])
+
+      if (error || !data?.length) return
+
+      console.log(`[catalog backfill] Generating images for ${data.length} ingredient(s)…`)
+
+      data.forEach((ing, i) => {
+        setTimeout(() => {
+          generateIngredientImage(ing.id, ing.name).catch(err =>
+            console.warn(`Catalog backfill error [${ing.name}]:`, err)
+          )
+        }, i * 300) // 0ms, 300ms, 600ms, … — 50 items ≈ 15s to kick off
+      })
+    }
+
+    run()
+  }, [familyId])
+}

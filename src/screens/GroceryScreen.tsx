@@ -4,14 +4,14 @@ import { Sparkles, Flame } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import {
   useActiveGroceryList, useGroceryListItems, useGroceryListRealtime,
-  useToggleItem, useAddManualItem, useUpdateGroceryItem,
+  useToggleItem, useAddManualItem, useUpdateGroceryItem, useUpdateItemStore,
   useKnownStores, useIngredientSuggestions,
   itemDisplayName, itemEmoji, itemQtyLabel,
   detectAisleOrder,
 } from '../hooks/useGroceryList'
 import { AISLE_LABELS } from '../lib/aisleUtils'
 import type { GroceryItem } from '../hooks/useGroceryList'
-import { useIngredientImageRealtime, useBackfillIngredientImages } from '../hooks/useIngredientImages'
+import { useIngredientImageRealtime, useBackfillIngredientImages, useBackfillAllCatalogImages } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
 import { StoreIcon } from '../lib/storeIcons'
 
@@ -26,6 +26,7 @@ export function GroceryScreen() {
   useGroceryListRealtime(list?.id ?? null)
   useIngredientImageRealtime()
   useBackfillIngredientImages(items)
+  useBackfillAllCatalogImages()
 
   const { data: knownStores = [] } = useKnownStores()
 
@@ -71,6 +72,21 @@ export function GroceryScreen() {
   const toggleItem  = useToggleItem()
   const addItem     = useAddManualItem()
   const updateItem  = useUpdateGroceryItem()
+  const assignStore = useUpdateItemStore()
+
+  /** Right-click / context-menu: cycle the item through available stores. */
+  function handleStoreCycle(item: GroceryItem) {
+    if (!list) return
+    const cycle = [null, ...allStores] as (string | null)[]
+    const currentIdx = cycle.indexOf(item.assigned_store ?? null)
+    const next = cycle[(currentIdx + 1) % cycle.length]
+    assignStore.mutate({
+      itemId: item.id,
+      listId: list.id,
+      store: next ?? '',
+      ingredientId: item.ingredient_id,
+    })
+  }
 
   // ── Add bar / KB pane ──
   const [showKb,    setShowKb]    = useState(false)
@@ -353,6 +369,7 @@ export function GroceryScreen() {
                   item={item}
                   onTap={() => list && toggleItem.mutate({ id: item.id, listId: list.id, checked: true })}
                   onLongPress={() => openEditSheet(item)}
+                  onContextMenu={() => handleStoreCycle(item)}
                 />
               ))}
             </div>
@@ -380,6 +397,7 @@ export function GroceryScreen() {
                     done
                     onTap={() => list && toggleItem.mutate({ id: item.id, listId: list.id, checked: false })}
                     onLongPress={() => openEditSheet(item)}
+                    onContextMenu={() => handleStoreCycle(item)}
                   />
                 ))}
               </div>
@@ -716,12 +734,13 @@ export function GroceryScreen() {
 // ── GroceryBox ────────────────────────────────────────────────────────────────
 
 function GroceryBox({
-  item, done = false, onTap, onLongPress,
+  item, done = false, onTap, onLongPress, onContextMenu,
 }: {
-  item:        GroceryItem
-  done?:       boolean
-  onTap:       () => void
-  onLongPress: () => void
+  item:           GroceryItem
+  done?:          boolean
+  onTap:          () => void
+  onLongPress:    () => void
+  onContextMenu?: () => void
 }) {
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
@@ -755,6 +774,7 @@ function GroceryBox({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
+      onContextMenu={e => { e.preventDefault(); onContextMenu?.() }}
       style={{
         position: 'relative',
         background: 'var(--dkc)',
