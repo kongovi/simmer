@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Check, AlertTriangle, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Check, AlertTriangle, Plus, Trash2, GitMerge } from 'lucide-react'
 import type { ParsedRecipe, ParsedIngredient, ParsedStep } from '../lib/recipeParser'
 import { useSaveRecipe } from '../hooks/useRecipes'
-import { useIngredientsCatalog, matchIngredient } from '../hooks/useIngredientsCatalog'
+import { useIngredientsCatalog, matchIngredient, matchIngredientFull } from '../hooks/useIngredientsCatalog'
 
 // 6 card colors — pick same one used by RecipeCard
 const CARD_COLORS = ['#d4e8d4', '#f0e8d0', '#f0e0d8', '#d8e0ea', '#dce8e0', '#ecdae2']
@@ -34,6 +34,16 @@ export function RecipeReviewScreen() {
   const [saveError, setSaveError]   = useState<string | null>(null)
   const placeholderColor            = useRef(tempColor())
 
+  // Indices where the user chose "Keep separate" — override any inferred merge
+  const [keepSeparate, setKeepSeparate] = useState<Set<number>>(new Set())
+  function toggleKeepSeparate(idx: number) {
+    setKeepSeparate(prev => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx); else next.add(idx)
+      return next
+    })
+  }
+
   if (!parsed && !state?.partial) {
     // No state — redirect back
     navigate('/recipes/new', { replace: true })
@@ -41,6 +51,12 @@ export function RecipeReviewScreen() {
   }
 
   const flaggedCount = ingredients.filter(i => i.flag === 'confirm_quantity').length
+
+  // Count inferred merges the user hasn't dismissed yet
+  const mergeCount = ingredients.filter((ing, idx) => {
+    const { catalog: m, isMerge } = matchIngredientFull(ing.name, catalog)
+    return isMerge && !!m && !keepSeparate.has(idx)
+  }).length
 
   // ── Ingredient helpers ──────────────────────────────────────────
   function updateIngredientQty(idx: number, qty: string) {
@@ -76,10 +92,12 @@ export function RecipeReviewScreen() {
         meal_type: mealType || null,
         tags: parsed?.tags ?? [],
         difficulty: parsed?.difficulty ?? null,
-        ingredients: ingredients.map(ing => {
-          const match = matchIngredient(ing.name, catalog)
+        ingredients: ingredients.map((ing, idx) => {
+          const { catalog: match, isMerge } = matchIngredientFull(ing.name, catalog)
+          // If user chose "Keep separate" for a merge, don't pass catalogId → creates new entry
+          const useMatch = match && !(isMerge && keepSeparate.has(idx))
           return {
-            catalogId: match?.id,
+            catalogId: useMatch ? match.id : undefined,
             name: ing.name,
             emoji: ing.emoji,
             quantity: ing.quantity,
@@ -112,7 +130,12 @@ export function RecipeReviewScreen() {
           <div style={{ flex: 1 }}>
             {flaggedCount > 0 && (
               <div style={{ fontSize: '11px', color: 'var(--am)', fontWeight: 500, marginBottom: '2px' }}>
-                ⚠ {flaggedCount} item{flaggedCount > 1 ? 's' : ''} need review
+                ⚠ {flaggedCount} quantity{flaggedCount > 1 ? 's' : ''} need review
+              </div>
+            )}
+            {mergeCount > 0 && (
+              <div style={{ fontSize: '11px', color: '#c97d2a', fontWeight: 500, marginBottom: '2px' }}>
+                ⇢ {mergeCount} ingredient{mergeCount > 1 ? 's' : ''} merged with existing
               </div>
             )}
             <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)' }}>Review &amp; save</div>
@@ -190,80 +213,139 @@ export function RecipeReviewScreen() {
         {/* Ingredients */}
         <Section title={`Ingredients — tap qty to edit`}>
           {ingredients.map((ing, idx) => {
-            const catalogMatch = matchIngredient(ing.name, catalog)
-            const isNew        = !catalogMatch
-            const needsReview  = ing.flag === 'confirm_quantity'
+            const { catalog: catalogMatch, isMerge } = matchIngredientFull(ing.name, catalog)
+            const userKeptSeparate = keepSeparate.has(idx)
+            // Effective state after user overrides
+            const effectiveIsNew   = !catalogMatch || (isMerge && userKeptSeparate)
+            const showMergeAlert   = isMerge && !!catalogMatch && !userKeptSeparate
+            const needsReview      = ing.flag === 'confirm_quantity'
 
             return (
               <div
                 key={idx}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
                   padding: '9px 14px',
                   borderBottom: idx < ingredients.length - 1 ? '0.5px solid var(--br)' : 'none',
                 }}
               >
-                {/* Flag icon */}
-                <div style={{ width: '16px', flexShrink: 0 }}>
-                  {needsReview ? (
-                    <AlertTriangle size={13} color="var(--am)" />
-                  ) : (
-                    <Check size={13} color="var(--gl)" />
-                  )}
-                </div>
-
-                {/* Emoji + name */}
-                <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
-                    {ing.name}
-                    {isNew && (
-                      <span style={{ fontSize: '9px', color: 'var(--gl)', marginLeft: '5px', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px' }}>
-                        + new
-                      </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {/* Status icon */}
+                  <div style={{ width: '16px', flexShrink: 0 }}>
+                    {needsReview ? (
+                      <AlertTriangle size={13} color="var(--am)" />
+                    ) : showMergeAlert ? (
+                      <GitMerge size={13} color="#c97d2a" />
+                    ) : (
+                      <Check size={13} color={effectiveIsNew ? 'var(--ts)' : 'var(--gl)'} />
                     )}
                   </div>
-                  {ing.prep_note && (
-                    <div style={{ fontSize: '11px', color: 'var(--ts)' }}>{ing.prep_note}</div>
-                  )}
-                  {needsReview && (
-                    <div style={{ fontSize: '10px', color: 'var(--am)', marginTop: '1px' }}>confirm quantity</div>
-                  )}
+
+                  {/* Emoji + name */}
+                  <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
+                      {ing.name}
+                      {effectiveIsNew && !showMergeAlert && (
+                        <span style={{ fontSize: '9px', color: 'var(--gl)', marginLeft: '5px', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px' }}>
+                          + new
+                        </span>
+                      )}
+                    </div>
+                    {ing.prep_note && (
+                      <div style={{ fontSize: '11px', color: 'var(--ts)' }}>{ing.prep_note}</div>
+                    )}
+                    {needsReview && (
+                      <div style={{ fontSize: '10px', color: 'var(--am)', marginTop: '1px' }}>confirm quantity</div>
+                    )}
+                  </div>
+
+                  {/* Quantity */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                    <input
+                      type="number"
+                      value={ing.quantity ?? ''}
+                      onChange={e => updateIngredientQty(idx, e.target.value)}
+                      placeholder="?"
+                      style={{
+                        width: '44px',
+                        backgroundColor: needsReview ? 'rgba(239,159,39,0.1)' : 'var(--dk3)',
+                        border: `0.5px solid ${needsReview ? 'var(--am)' : 'var(--br)'}`,
+                        borderRadius: '6px',
+                        padding: '3px 5px',
+                        fontSize: '12px',
+                        color: 'var(--tp)',
+                        textAlign: 'right',
+                        outline: 'none',
+                      }}
+                    />
+                    {ing.unit && (
+                      <span style={{ fontSize: '11px', color: 'var(--ts)' }}>{ing.unit}</span>
+                    )}
+                  </div>
+
+                  {/* Remove */}
+                  <button
+                    onClick={() => removeIngredient(idx)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
 
-                {/* Quantity — tappable to edit */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                  <input
-                    type="number"
-                    value={ing.quantity ?? ''}
-                    onChange={e => updateIngredientQty(idx, e.target.value)}
-                    placeholder="?"
-                    style={{
-                      width: '44px',
-                      backgroundColor: needsReview ? 'rgba(239,159,39,0.1)' : 'var(--dk3)',
-                      border: `0.5px solid ${needsReview ? 'var(--am)' : 'var(--br)'}`,
-                      borderRadius: '6px',
-                      padding: '3px 5px',
-                      fontSize: '12px',
-                      color: 'var(--tp)',
-                      textAlign: 'right',
-                      outline: 'none',
-                    }}
-                  />
-                  {ing.unit && (
-                    <span style={{ fontSize: '11px', color: 'var(--ts)' }}>{ing.unit}</span>
-                  )}
-                </div>
+                {/* Merge alert row */}
+                {showMergeAlert && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginTop: '5px', marginLeft: '26px',
+                    background: 'rgba(201,125,42,0.1)',
+                    border: '0.5px solid rgba(201,125,42,0.35)',
+                    borderRadius: '6px', padding: '4px 8px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '10px', color: '#c97d2a' }}>
+                        Merging with existing →
+                      </span>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#c97d2a' }}>
+                        {catalogMatch.name}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => toggleKeepSeparate(idx)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
+                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
+                      }}
+                    >
+                      Keep separate
+                    </button>
+                  </div>
+                )}
 
-                {/* Remove */}
-                <button
-                  onClick={() => removeIngredient(idx)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}
-                >
-                  <Trash2 size={13} />
-                </button>
+                {/* "Kept separate" confirmation row */}
+                {isMerge && userKeptSeparate && catalogMatch && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginTop: '5px', marginLeft: '26px',
+                    background: 'rgba(93,202,165,0.08)',
+                    border: '0.5px solid rgba(93,202,165,0.25)',
+                    borderRadius: '6px', padding: '4px 8px',
+                  }}>
+                    <span style={{ fontSize: '10px', color: 'var(--gl)' }}>
+                      Will be saved as a new ingredient
+                    </span>
+                    <button
+                      onClick={() => toggleKeepSeparate(idx)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
+                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
+                      }}
+                    >
+                      Undo
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
