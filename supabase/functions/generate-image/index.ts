@@ -117,18 +117,49 @@ async function generateImageBytes(prompt: string, apiKey: string): Promise<Uint8
 }
 
 /**
- * Remove background using Replicate's 851-labs/background-remover model.
- * Uses "Prefer: wait" for a synchronous response (falls back to polling).
+ * Remove background using remove.bg API (primary).
+ * Synchronous — single HTTP call, returns PNG bytes with transparent background, or throws.
+ */
+async function removeBackgroundRemoveBg(imageBytes: Uint8Array, removeBgKey: string): Promise<Uint8Array> {
+  console.log(`remove.bg: sending ${imageBytes.length} bytes`)
+
+  const b64 = bytesToBase64(imageBytes)
+  // URL-encode the base64 string for form submission
+  const body = `image_file_b64=${encodeURIComponent(b64)}&size=auto&format=png`
+
+  const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+    method: 'POST',
+    headers: {
+      'X-Api-Key': removeBgKey,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`remove.bg HTTP ${res.status}: ${errText.slice(0, 300)}`)
+  }
+
+  const buf = await res.arrayBuffer()
+  console.log(`remove.bg: received ${buf.byteLength} bytes PNG`)
+  return new Uint8Array(buf)
+}
+
+/**
+ * Remove background using Replicate's cjwbw/rembg model (fallback).
+ * Uses "Prefer: wait" for a synchronous response, falls back to polling.
  * Returns PNG bytes with transparent background, or throws.
  */
-async function removeBackground(imageBytes: Uint8Array, replicateKey: string): Promise<Uint8Array> {
-  const dataUri = `data:image/jpeg;base64,${bytesToBase64(imageBytes)}`
+async function removeBackgroundReplicate(imageBytes: Uint8Array, replicateKey: string): Promise<Uint8Array> {
+  // Resize to 512px max before sending — keeps payload under Replicate's limits
+  const smallBytes = await resizeImage(imageBytes, 512, true)
+  const dataUri = `data:image/jpeg;base64,${bytesToBase64(smallBytes)}`
 
-  console.log(`Replicate bg-remove: sending ${imageBytes.length} bytes`)
+  console.log(`Replicate bg-remove: sending ${smallBytes.length} bytes (resized from ${imageBytes.length})`)
 
-  // Create prediction — "Prefer: wait" requests synchronous response (≤60s)
   const createRes = await fetch(
-    'https://api.replicate.com/v1/models/851-labs/background-remover/predictions',
+    'https://api.replicate.com/v1/predictions',
     {
       method: 'POST',
       headers: {
@@ -136,13 +167,17 @@ async function removeBackground(imageBytes: Uint8Array, replicateKey: string): P
         'Content-Type': 'application/json',
         Prefer: 'wait=60',
       },
-      body: JSON.stringify({ input: { image: dataUri } }),
+      // cjwbw/rembg — reliable, well-maintained background removal model
+      body: JSON.stringify({
+        version: 'fb8af171cfa1616ddcf1242c851c5c28d9e76786',
+        input: { image: dataUri },
+      }),
     }
   )
 
   if (!createRes.ok) {
     const body = await createRes.text()
-    throw new Error(`Replicate HTTP ${createRes.status}: ${body}`)
+    throw new Error(`Replicate HTTP ${createRes.status}: ${body.slice(0, 300)}`)
   }
 
   let prediction = await createRes.json() as {
@@ -152,12 +187,10 @@ async function removeBackground(imageBytes: Uint8Array, replicateKey: string): P
     error?: string
   }
 
-  // If "Prefer: wait" already resolved it, use the output directly
+  // If "Prefer: wait" already resolved it, skip polling
   if (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
-    // Poll until done (max 30 attempts × 2s = 60s)
     for (let attempt = 0; attempt < 30; attempt++) {
       await new Promise(r => setTimeout(r, 2000))
-
       const pollRes = await fetch(
         `https://api.replicate.com/v1/predictions/${prediction.id}`,
         { headers: { Authorization: `Bearer ${replicateKey}` } }
@@ -174,13 +207,34 @@ async function removeBackground(imageBytes: Uint8Array, replicateKey: string): P
   }
 
   console.log(`Replicate bg-remove succeeded, downloading output`)
-
-  // Download the resulting PNG (transparent background)
   const imgRes = await fetch(prediction.output)
   if (!imgRes.ok) throw new Error(`Failed to download Replicate output: ${imgRes.status}`)
   const buf = await imgRes.arrayBuffer()
   console.log(`Replicate bg-remove: received ${buf.byteLength} bytes PNG`)
   return new Uint8Array(buf)
+}
+
+/**
+ * Try remove.bg first, then Replicate. Throws only if both fail (or no keys provided).
+ */
+async function removeBackground(
+  imageBytes: Uint8Array,
+  removeBgKey: string | undefined,
+  replicateKey: string | undefined,
+): Promise<Uint8Array> {
+  if (removeBgKey) {
+    try {
+      return await removeBackgroundRemoveBg(imageBytes, removeBgKey)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`remove.bg failed (will try Replicate fallback): ${msg}`)
+      if (!replicateKey) throw new Error(`remove.bg failed and no REPLICATE_API_KEY set: ${msg}`)
+    }
+  }
+  if (replicateKey) {
+    return await removeBackgroundReplicate(imageBytes, replicateKey)
+  }
+  throw new Error('No background removal key available (set REMOVE_BG_API_KEY or REPLICATE_API_KEY)')
 }
 
 /**
@@ -265,26 +319,28 @@ Deno.serve(async (req) => {
         : baseIngredientPrompt
       const jpegBytes = await generateImageBytes(imgPrompt, apiKey)
 
-      // Try Replicate background removal
+      // Background removal — try remove.bg first, Replicate as fallback
       let finalBytes = jpegBytes
       let fileName = `${ingredientId}.png`
       let contentType = 'image/png'
 
+      const removeBgKey = Deno.env.get('REMOVE_BG_API_KEY')
       const replicateKey = Deno.env.get('REPLICATE_API_KEY')
-      console.log(`REPLICATE_API_KEY present: ${!!replicateKey}`)
-      if (replicateKey) {
+      console.log(`BG removal keys — REMOVE_BG_API_KEY: ${!!removeBgKey}, REPLICATE_API_KEY: ${!!replicateKey}`)
+
+      if (removeBgKey || replicateKey) {
         try {
-          finalBytes = await removeBackground(jpegBytes, replicateKey)
-          console.log(`Replicate bg-remove success for ingredient ${ingredientId}`)
+          finalBytes = await removeBackground(jpegBytes, removeBgKey, replicateKey)
+          console.log(`BG removal success for ingredient ${ingredientId}`)
         } catch (bgErr) {
-          console.error(`Replicate bg-remove failed for ${ingredientId}:`, bgErr instanceof Error ? bgErr.message : String(bgErr))
+          console.error(`BG removal failed for ${ingredientId}:`, bgErr instanceof Error ? bgErr.message : String(bgErr))
           // Fall back to original JPEG
           finalBytes = jpegBytes
           contentType = 'image/jpeg'
           fileName = `${ingredientId}.jpg`
         }
       } else {
-        console.warn('REPLICATE_API_KEY not set — skipping background removal')
+        console.warn('No BG removal key set (REMOVE_BG_API_KEY or REPLICATE_API_KEY) — skipping')
         contentType = 'image/jpeg'
         fileName = `${ingredientId}.jpg`
       }
