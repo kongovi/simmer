@@ -1,6 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Image } from 'https://deno.land/x/imagescript@1.2.15/mod.ts'
 
+// EdgeRuntime is a Supabase/Deno global — declare for TypeScript
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -116,34 +119,33 @@ async function generateImageBytes(prompt: string, apiKey: string): Promise<Uint8
   }
 }
 
-// Replicate models to try in order for background removal.
-// Models API endpoint (/v1/models/{owner}/{name}/predictions) always uses the latest version.
-const REPLICATE_BG_MODELS = [
-  'https://api.replicate.com/v1/models/lucataco/remove-bg/predictions',
-]
-
-/** POST to a Replicate model endpoint, retrying once after 15s on 429. */
+/**
+ * POST to a Replicate predictions endpoint, retrying once after 15s on 429.
+ * Uses Prefer: wait=60 for synchronous resolution.
+ */
 async function replicatePost(
-  modelUrl: string,
   body: string,
   replicateKey: string,
 ): Promise<Response> {
+  const url = 'https://api.replicate.com/v1/predictions'
   const headers = {
     Authorization: `Bearer ${replicateKey}`,
     'Content-Type': 'application/json',
     Prefer: 'wait=60',
   }
-  let res = await fetch(modelUrl, { method: 'POST', headers, body })
+  let res = await fetch(url, { method: 'POST', headers, body })
   if (res.status === 429) {
-    console.warn(`Replicate 429 rate limit — waiting 15s before retry`)
+    console.warn('Replicate 429 rate limit — waiting 15s before retry')
     await new Promise(r => setTimeout(r, 15000))
-    res = await fetch(modelUrl, { method: 'POST', headers, body })
+    res = await fetch(url, { method: 'POST', headers, body })
   }
   return res
 }
 
 /**
- * Remove background via Replicate (lucataco/remove-bg).
+ * Remove background via Replicate lucataco/remove-bg.
+ * Dynamically resolves the latest model version, then POSTs to the versioned
+ * predictions endpoint (community models require this rather than the models API).
  * Pre-resizes to 1024px max to avoid payload size issues.
  * Returns PNG bytes with transparent background, or throws.
  */
@@ -152,10 +154,22 @@ async function removeBackground(imageBytes: Uint8Array, replicateKey: string): P
   const dataUri = `data:image/jpeg;base64,${bytesToBase64(smallBytes)}`
   console.log(`Replicate bg-remove: ${smallBytes.length} bytes (resized from ${imageBytes.length})`)
 
-  const modelUrl = REPLICATE_BG_MODELS[0]
+  // Resolve the latest version hash for lucataco/remove-bg
+  const modelInfoRes = await fetch(
+    'https://api.replicate.com/v1/models/lucataco/remove-bg',
+    { headers: { Authorization: `Bearer ${replicateKey}` } }
+  )
+  if (!modelInfoRes.ok) {
+    throw new Error(`Could not resolve Replicate model info: ${modelInfoRes.status}`)
+  }
+  const modelInfo = await modelInfoRes.json() as { latest_version?: { id: string } }
+  const versionId = modelInfo.latest_version?.id
+  if (!versionId) throw new Error('lucataco/remove-bg: no latest_version in model info')
+  console.log(`Using lucataco/remove-bg version: ${versionId.slice(0, 8)}`)
+
+  // Use the versioned predictions endpoint (required for community models)
   const createRes = await replicatePost(
-    modelUrl,
-    JSON.stringify({ input: { image: dataUri } }),
+    JSON.stringify({ version: versionId, input: { image: dataUri } }),
     replicateKey,
   )
 
@@ -216,6 +230,132 @@ async function resizeImage(bytes: Uint8Array, maxDimension: number, asJpeg: bool
   return resized
 }
 
+// ── Background workers ────────────────────────────────────────────────────────
+// These run after the 202 response is sent, kept alive by EdgeRuntime.waitUntil.
+
+type SupabaseAdmin = ReturnType<typeof createClient>
+
+async function processIngredient(
+  supabaseAdmin: SupabaseAdmin,
+  ingredientId: string,
+  ingredientName: string,
+  apiKey: string,
+  replicateKey: string | undefined,
+  customPromptAddition: string | undefined,
+): Promise<void> {
+  try {
+    const baseIngredientPrompt = buildIngredientPrompt(ingredientName)
+    const imgPrompt = customPromptAddition?.trim()
+      ? `${baseIngredientPrompt}\n\nAdditional guidance: ${customPromptAddition.trim()}`
+      : baseIngredientPrompt
+    const jpegBytes = await generateImageBytes(imgPrompt, apiKey)
+
+    // Background removal via Replicate
+    let finalBytes = jpegBytes
+    let fileName = `${ingredientId}.png`
+    let contentType = 'image/png'
+
+    console.log(`REPLICATE_API_KEY present: ${!!replicateKey}`)
+
+    if (replicateKey) {
+      try {
+        finalBytes = await removeBackground(jpegBytes, replicateKey)
+        console.log(`BG removal success for ingredient ${ingredientId}`)
+      } catch (bgErr) {
+        console.error(`BG removal failed for ${ingredientId}:`, bgErr instanceof Error ? bgErr.message : String(bgErr))
+        finalBytes = jpegBytes
+        contentType = 'image/jpeg'
+        fileName = `${ingredientId}.jpg`
+      }
+    } else {
+      console.warn('REPLICATE_API_KEY not set — skipping background removal')
+      contentType = 'image/jpeg'
+      fileName = `${ingredientId}.jpg`
+    }
+
+    // Resize to 256×256 max before uploading
+    finalBytes = await resizeImage(finalBytes, 256, contentType === 'image/jpeg')
+
+    const { error: uploadErr } = await supabaseAdmin.storage
+      .from('ingredient-images')
+      .upload(fileName, finalBytes, { contentType, upsert: true })
+    if (uploadErr) throw uploadErr
+
+    const { data: { publicUrl } } = supabaseAdmin.storage
+      .from('ingredient-images')
+      .getPublicUrl(fileName)
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('ingredients_catalog')
+      .update({ image_url: publicUrl, image_status: 'done' })
+      .eq('id', ingredientId)
+    if (updateErr) throw updateErr
+
+    console.log(`Ingredient ${ingredientId} image done: ${publicUrl}`)
+  } catch (err) {
+    console.error('processIngredient error:', err)
+    try {
+      await supabaseAdmin
+        .from('ingredients_catalog')
+        .update({ image_status: 'failed' })
+        .eq('id', ingredientId)
+    } catch (e2) {
+      console.error('Failed to mark ingredient as failed:', e2)
+    }
+  }
+}
+
+async function processRecipe(
+  supabaseAdmin: SupabaseAdmin,
+  recipeId: string,
+  prompt: string,
+  apiKey: string,
+  customPromptAddition: string | undefined,
+): Promise<void> {
+  try {
+    const fullPrompt = customPromptAddition?.trim()
+      ? `${prompt}\n\nAdditional guidance: ${customPromptAddition.trim()}`
+      : prompt
+    const rawBytes = await generateImageBytes(fullPrompt, apiKey)
+    const imageBytes = await resizeImage(rawBytes, 512, true)
+
+    const fileName = `${recipeId}.jpg`
+    const { error: uploadErr } = await supabaseAdmin.storage
+      .from('recipe-images')
+      .upload(fileName, imageBytes, { contentType: 'image/jpeg', upsert: true })
+    if (uploadErr) throw uploadErr
+
+    const { data: { publicUrl } } = supabaseAdmin.storage
+      .from('recipe-images')
+      .getPublicUrl(fileName)
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('recipes')
+      .update({
+        image_url: publicUrl,
+        image_status: 'done',
+        nb2_prompt: prompt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', recipeId)
+    if (updateErr) throw updateErr
+
+    console.log(`Recipe ${recipeId} image done: ${publicUrl}`)
+  } catch (err) {
+    console.error('processRecipe error:', err)
+    try {
+      await supabaseAdmin
+        .from('recipes')
+        .update({ image_status: 'failed', updated_at: new Date().toISOString() })
+        .eq('id', recipeId)
+    } catch (e2) {
+      console.error('Failed to mark recipe as failed:', e2)
+    }
+  }
+}
+
+// ── Request handler ───────────────────────────────────────────────────────────
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
 
@@ -238,214 +378,62 @@ Deno.serve(async (req) => {
 
   const { recipeId, prompt, apiKey: clientApiKey, ingredient, ingredientId, ingredientName, customPromptAddition } = body
 
-  // ── INGREDIENT MODE ────────────────────────────────────────────────────────
-  if (ingredient === true) {
-    try {
-      const authHeader = req.headers.get('Authorization')
-      if (!authHeader) {
-        return new Response(JSON.stringify({ error: 'No authorization header' }), {
-          status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        })
-      }
-
-      if (!ingredientId || !ingredientName) {
-        return new Response(JSON.stringify({ error: 'Missing ingredientId or ingredientName' }), {
-          status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const apiKey = Deno.env.get('GOOGLE_AI_API_KEY') || clientApiKey
-      if (!apiKey) {
-        return new Response(JSON.stringify({ error: 'No Google API key' }), {
-          status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const supabaseAdmin = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      )
-
-      // Mark as generating
-      await supabaseAdmin
-        .from('ingredients_catalog')
-        .update({ image_status: 'generating' })
-        .eq('id', ingredientId)
-
-      // Generate image — base prompt + optional custom addition
-      const baseIngredientPrompt = buildIngredientPrompt(ingredientName)
-      const imgPrompt = customPromptAddition?.trim()
-        ? `${baseIngredientPrompt}\n\nAdditional guidance: ${customPromptAddition.trim()}`
-        : baseIngredientPrompt
-      const jpegBytes = await generateImageBytes(imgPrompt, apiKey)
-
-      // Background removal via Replicate
-      let finalBytes = jpegBytes
-      let fileName = `${ingredientId}.png`
-      let contentType = 'image/png'
-
-      const replicateKey = Deno.env.get('REPLICATE_API_KEY')
-      console.log(`REPLICATE_API_KEY present: ${!!replicateKey}`)
-
-      if (replicateKey) {
-        try {
-          finalBytes = await removeBackground(jpegBytes, replicateKey)
-          console.log(`BG removal success for ingredient ${ingredientId}`)
-        } catch (bgErr) {
-          console.error(`BG removal failed for ${ingredientId}:`, bgErr instanceof Error ? bgErr.message : String(bgErr))
-          // Fall back to original JPEG
-          finalBytes = jpegBytes
-          contentType = 'image/jpeg'
-          fileName = `${ingredientId}.jpg`
-        }
-      } else {
-        console.warn('REPLICATE_API_KEY not set — skipping background removal')
-        contentType = 'image/jpeg'
-        fileName = `${ingredientId}.jpg`
-      }
-
-      // Resize to 256×256 max before uploading
-      finalBytes = await resizeImage(finalBytes, 256, contentType === 'image/jpeg')
-
-      // Upload to ingredient-images bucket
-      const { error: uploadErr } = await supabaseAdmin.storage
-        .from('ingredient-images')
-        .upload(fileName, finalBytes, { contentType, upsert: true })
-      if (uploadErr) throw uploadErr
-
-      const { data: { publicUrl } } = supabaseAdmin.storage
-        .from('ingredient-images')
-        .getPublicUrl(fileName)
-
-      // Update catalog row
-      const { error: updateErr } = await supabaseAdmin
-        .from('ingredients_catalog')
-        .update({ image_url: publicUrl, image_status: 'done' })
-        .eq('id', ingredientId)
-      if (updateErr) throw updateErr
-
-      return new Response(JSON.stringify({ url: publicUrl }), {
-        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      })
-
-    } catch (err) {
-      console.error('generate-image ingredient error:', err)
-
-      if (ingredientId) {
-        try {
-          const supabaseAdmin = createClient(
-            Deno.env.get('SUPABASE_URL')!,
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-          )
-          await supabaseAdmin
-            .from('ingredients_catalog')
-            .update({ image_status: 'failed' })
-            .eq('id', ingredientId)
-        } catch (e2) {
-          console.error('Failed to mark ingredient as failed:', e2)
-        }
-      }
-
-      return new Response(
-        JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }),
-        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-      )
-    }
+  // Auth check
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: 'No authorization header' }), {
+      status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    })
   }
 
-  // ── RECIPE MODE ────────────────────────────────────────────────────────────
-  try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'No authorization header' }), {
-        status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      })
-    }
+  // Input validation
+  if (ingredient === true && (!ingredientId || !ingredientName)) {
+    return new Response(JSON.stringify({ error: 'Missing ingredientId or ingredientName' }), {
+      status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    })
+  }
+  if (!ingredient && (!recipeId || !prompt)) {
+    return new Response(JSON.stringify({ error: 'Missing recipeId or prompt' }), {
+      status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    })
+  }
 
-    if (!recipeId || !prompt) {
-      return new Response(JSON.stringify({ error: 'Missing recipeId or prompt' }), {
-        status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      })
-    }
+  const apiKey = Deno.env.get('GOOGLE_AI_API_KEY') || clientApiKey
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'No Google API key' }), {
+      status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    })
+  }
 
-    const apiKey = Deno.env.get('GOOGLE_AI_API_KEY') || clientApiKey
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No Google API key — set GOOGLE_AI_API_KEY secret or pass apiKey in body' }), {
-        status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-      })
-    }
-    console.log('Using API key source:', Deno.env.get('GOOGLE_AI_API_KEY') ? 'server secret' : 'client-passed')
+  const replicateKey = Deno.env.get('REPLICATE_API_KEY')
+  const supabaseAdmin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
-
-    // Mark as generating
+  // Mark as generating (synchronous — happens before we return 202)
+  if (ingredient === true) {
+    await supabaseAdmin
+      .from('ingredients_catalog')
+      .update({ image_status: 'generating' })
+      .eq('id', ingredientId)
+  } else {
     await supabaseAdmin
       .from('recipes')
       .update({ image_status: 'generating', updated_at: new Date().toISOString() })
       .eq('id', recipeId)
-
-    // Generate image — append custom addition if provided (without polluting nb2_prompt in DB)
-    const fullPrompt = customPromptAddition?.trim()
-      ? `${prompt}\n\nAdditional guidance: ${customPromptAddition.trim()}`
-      : prompt
-    const rawBytes = await generateImageBytes(fullPrompt, apiKey)
-    // Resize to 512×512 max
-    const imageBytes = await resizeImage(rawBytes, 512, true)
-
-    // Upload to recipe-images/{recipeId}.jpg
-    const fileName = `${recipeId}.jpg`
-    const { error: uploadErr } = await supabaseAdmin.storage
-      .from('recipe-images')
-      .upload(fileName, imageBytes, {
-        contentType: 'image/jpeg',
-        upsert: true,
-      })
-    if (uploadErr) throw uploadErr
-
-    const { data: { publicUrl } } = supabaseAdmin.storage
-      .from('recipe-images')
-      .getPublicUrl(fileName)
-
-    // Update recipe with final image_url + status
-    const { error: updateErr } = await supabaseAdmin
-      .from('recipes')
-      .update({
-        image_url: publicUrl,
-        image_status: 'done',
-        nb2_prompt: prompt,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', recipeId)
-    if (updateErr) throw updateErr
-
-    return new Response(JSON.stringify({ url: publicUrl }), {
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    })
-
-  } catch (err) {
-    console.error('generate-image error:', err)
-
-    if (recipeId) {
-      try {
-        const supabaseAdmin = createClient(
-          Deno.env.get('SUPABASE_URL')!,
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-        )
-        await supabaseAdmin
-          .from('recipes')
-          .update({ image_status: 'failed', updated_at: new Date().toISOString() })
-          .eq('id', recipeId)
-      } catch (e2) {
-        console.error('Failed to mark recipe as failed:', e2)
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }),
-      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-    )
   }
+
+  // Kick off the real work in the background — survives client disconnect
+  const workPromise = ingredient === true
+    ? processIngredient(supabaseAdmin, ingredientId!, ingredientName!, apiKey, replicateKey, customPromptAddition)
+    : processRecipe(supabaseAdmin, recipeId!, prompt!, apiKey, customPromptAddition)
+
+  EdgeRuntime.waitUntil(workPromise)
+
+  // Return immediately — client relies on Realtime for the final URL
+  return new Response(JSON.stringify({ queued: true }), {
+    status: 202,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  })
 })

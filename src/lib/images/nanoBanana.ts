@@ -38,6 +38,9 @@ export async function callNanoBanana2(
     }
   )
 
+  // 202 = queued (waitUntil pattern) — image will arrive via Realtime
+  if (res.status === 202) return ''
+
   if (!res.ok) {
     const err = await res.text()
     console.error('nanoBanana: Edge Function error', res.status, err)
@@ -87,6 +90,9 @@ export async function callNanoBanana2Ingredient(
       }),
     }
   )
+
+  // 202 = queued (waitUntil pattern) — image will arrive via Realtime
+  if (res.status === 202) return ''
 
   if (!res.ok) {
     const err = await res.text()
