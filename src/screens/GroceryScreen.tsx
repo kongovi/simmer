@@ -13,6 +13,7 @@ import { AISLE_LABELS } from '../lib/aisleUtils'
 import type { GroceryItem } from '../hooks/useGroceryList'
 import { useIngredientImageRealtime, useBackfillIngredientImages } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
+import { StoreIcon } from '../lib/storeIcons'
 
 // ── GroceryScreen ─────────────────────────────────────────────────────────────
 
@@ -249,6 +250,7 @@ export function GroceryScreen() {
                 onClick={() => setActiveStore(store)}
                 style={{
                   flexShrink: 0,
+                  display: 'flex', alignItems: 'center', gap: '5px',
                   fontSize: '13px', fontWeight: 500,
                   padding: '6px 12px', borderRadius: '18px',
                   border: `0.5px solid ${activeStore === store ? 'var(--am)' : 'var(--brh)'}`,
@@ -258,6 +260,7 @@ export function GroceryScreen() {
                   transition: 'all 0.15s',
                 }}
               >
+                {store !== 'All' && <StoreIcon name={store} size={14} />}
                 {store}
               </button>
             ))}
@@ -650,6 +653,7 @@ export function GroceryScreen() {
                             background: selected ? 'var(--am)' : 'none',
                             flexShrink: 0,
                           }} />
+                          <StoreIcon name={store} size={16} />
                           <span style={{ fontSize: '15px', color: selected ? 'var(--tp)' : 'var(--ts)', fontWeight: selected ? 500 : 400 }}>
                             {store}
                           </span>
@@ -739,11 +743,12 @@ function GroceryBox({
     if (pressTimer.current) clearTimeout(pressTimer.current)
   }
 
-  const name      = itemDisplayName(item)
-  const emoji     = itemEmoji(item)
-  const qty       = itemQtyLabel(item)
-  const brandNote = item.ingredient?.brand_note ?? null
-  const imgUrl    = item.ingredient?.image_status === 'done' ? item.ingredient.image_url : null
+  const name       = itemDisplayName(item)
+  const emoji      = itemEmoji(item)
+  const qty        = itemQtyLabel(item)
+  const brandNote  = item.ingredient?.brand_note ?? null
+  const imgUrl     = item.ingredient?.image_status === 'done' ? item.ingredient.image_url : null
+  const storeName  = item.assigned_store ?? item.ingredient?.default_store ?? null
 
   return (
     <div
@@ -766,8 +771,8 @@ function GroceryBox({
         WebkitUserSelect: 'none',
       }}
     >
-      {/* ✓ badge */}
-      {done && (
+      {/* ✓ badge (done) or store favicon (not done) */}
+      {done ? (
         <div style={{
           position: 'absolute', top: '5px', right: '5px',
           width: '14px', height: '14px', borderRadius: '50%',
@@ -776,7 +781,11 @@ function GroceryBox({
         }}>
           <span style={{ fontSize: '9px', color: 'white', fontWeight: 600 }}>✓</span>
         </div>
-      )}
+      ) : storeName ? (
+        <div style={{ position: 'absolute', top: '5px', right: '5px' }}>
+          <StoreIcon name={storeName} size={16} />
+        </div>
+      ) : null}
 
       <div style={{ position: 'relative', flexShrink: 0 }}>
         {imgUrl ? (

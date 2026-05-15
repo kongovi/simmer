@@ -2,8 +2,9 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   LogOut, User, ChevronRight, Flame,
-  Bot, BookOpen, Users, Store, Plus, Trash2, Copy, Check, X, Upload,
+  Bot, BookOpen, Users, Plus, Trash2, Copy, Check, X, Upload,
 } from 'lucide-react'
+import { StoreIcon } from '../lib/storeIcons'
 import { Screen } from '../components/layout/Screen'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
@@ -431,7 +432,7 @@ export function SettingsScreen() {
                 borderBottom: idx < stores.length - 1 || true ? '0.5px solid var(--br)' : 'none',
               }}
             >
-              <Store size={14} color="var(--tm)" style={{ flexShrink: 0 }} />
+              <StoreIcon name={s.name} size={18} />
               <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>{s.name}</span>
               {s.is_default && (
                 <span style={{
