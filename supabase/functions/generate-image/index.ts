@@ -119,7 +119,6 @@ async function generateImageBytes(prompt: string, apiKey: string): Promise<Uint8
 // Replicate models to try in order for background removal.
 // Models API endpoint (/v1/models/{owner}/{name}/predictions) always uses the latest version.
 const REPLICATE_BG_MODELS = [
-  'https://api.replicate.com/v1/models/851-labs/background-remover/predictions',
   'https://api.replicate.com/v1/models/lucataco/remove-bg/predictions',
 ]
 
