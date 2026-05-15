@@ -70,7 +70,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
       >
         {hasImage ? (
           <img
-            src={recipe.image_url!}
+            src={`${recipe.image_url}?t=${Date.parse(recipe.updated_at)}`}
             alt={recipe.name}
             loading="lazy"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}

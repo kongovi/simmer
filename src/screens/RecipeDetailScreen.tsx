@@ -111,7 +111,7 @@ export function RecipeDetailScreen() {
             >
               {recipe.image_url ? (
                 <>
-                  <img src={recipe.image_url} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={`${recipe.image_url}?t=${Date.parse(recipe.updated_at)}`} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   {(recipe.image_status === 'generating' || regenBusy) && (
                     <div style={{
                       position: 'absolute', bottom: '10px', left: '10px',
