@@ -28,9 +28,19 @@ export function useAddFamilyStore() {
 
   return useMutation({
     mutationFn: async (name: string) => {
+      // Put the new store at the end by using max(sort_order) + 1
+      const { data: existing } = await supabase
+        .from('family_stores')
+        .select('sort_order')
+        .eq('family_id', familyId!)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const nextOrder = (existing?.sort_order ?? -1) + 1
+
       const { data, error } = await supabase
         .from('family_stores')
-        .insert({ family_id: familyId!, name: name.trim() })
+        .insert({ family_id: familyId!, name: name.trim(), sort_order: nextOrder })
         .select()
         .single()
       if (error) throw error
@@ -81,7 +91,11 @@ export function useUpdateFamilyStoreEmoji() {
   })
 }
 
-/** Move a store up or down by swapping sort_orders with its neighbour. */
+/**
+ * Move a store up or down, then write sequential sort_orders (0, 1, 2…) for
+ * the entire list so the order is always unambiguous regardless of what values
+ * were previously stored.
+ */
 export function useReorderFamilyStore() {
   const queryClient = useQueryClient()
   const familyId    = useAppStore(s => s.familyId)
@@ -97,10 +111,16 @@ export function useReorderFamilyStore() {
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1
       if (swapIdx < 0 || swapIdx >= stores.length) return
 
-      const a = stores[idx]
-      const b = stores[swapIdx]
-      await supabase.from('family_stores').update({ sort_order: b.sort_order }).eq('id', a.id)
-      await supabase.from('family_stores').update({ sort_order: a.sort_order }).eq('id', b.id)
+      // Build the new ordered array by swapping the two items
+      const reordered = [...stores]
+      ;[reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]]
+
+      // Write sequential sort_orders for every item so future swaps always work
+      await Promise.all(
+        reordered.map((s, i) =>
+          supabase.from('family_stores').update({ sort_order: i }).eq('id', s.id)
+        )
+      )
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['family-stores', familyId] })
