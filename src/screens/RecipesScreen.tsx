@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Link, Plus, Search, Flame } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { RecipeCard } from '../components/recipes/RecipeCard'
-import { useRecipes, useRecipeImageRealtime } from '../hooks/useRecipes'
+import { useRecipes, useRecipeImageRealtime, useBackfillRecipeImages } from '../hooks/useRecipes'
 
 type FilterKey = 'all' | 'dinner' | 'lunch' | 'breakfast' | 'quick'
 
@@ -22,6 +22,8 @@ export function RecipesScreen() {
 
   // Subscribe to Realtime image updates so cards swap in the generated image
   useRecipeImageRealtime()
+  // Kick off generation for any pending/failed recipes
+  useBackfillRecipeImages()
 
   const { data: recipes = [], isLoading } = useRecipes({
     search: search.trim() || undefined,

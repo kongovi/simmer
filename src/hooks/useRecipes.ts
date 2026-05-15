@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
 import { generateDishImage, generateIngredientImage, buildImagePrompt } from '../lib/images'
+import { callNanoBanana2 } from '../lib/images/nanoBanana'
 import type { Recipe } from '../types'
 
 export interface RecipeFilters {
@@ -430,4 +431,39 @@ export function useDeleteRecipe() {
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
     },
   })
+}
+
+/**
+ * On mount, finds all recipes with image_status 'pending' or 'failed' that have
+ * a stored nb2_prompt and fires image generation for each one. Uses a ref so it
+ * only runs once per session even if the component re-renders.
+ */
+export function useBackfillRecipeImages() {
+  const familyId = useAppStore(s => s.familyId)
+  const didRun   = useRef(false)
+
+  useEffect(() => {
+    if (!familyId || didRun.current) return
+    didRun.current = true
+
+    async function backfill() {
+      const { data, error } = await supabase
+        .from('recipes')
+        .select('id, nb2_prompt')
+        .eq('family_id', familyId)
+        .in('image_status', ['pending', 'failed'])
+        .not('nb2_prompt', 'is', null)
+
+      if (error || !data?.length) return
+
+      console.log(`[backfill] Generating images for ${data.length} recipe(s)…`)
+
+      // Fire all in parallel — each call is non-blocking and updates the DB itself
+      for (const recipe of data) {
+        callNanoBanana2(recipe.nb2_prompt as string, recipe.id).catch(() => {})
+      }
+    }
+
+    backfill()
+  }, [familyId])
 }
