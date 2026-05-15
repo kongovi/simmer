@@ -834,7 +834,7 @@ function GroceryBox({
           <img
             src={imgUrl}
             alt={name}
-            style={{ width: '80px', height: '80px', objectFit: 'contain', display: 'block' }}
+            style={{ width: '100px', height: 'auto', display: 'block' }}
           />
         ) : (
           <span style={{ fontSize: '54px', lineHeight: 1, display: 'block' }}>{emoji}</span>
