@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
 import { generateDishImage, generateIngredientImage, buildImagePrompt } from '../lib/images'
 import { callNanoBanana2 } from '../lib/images/nanoBanana'
+import { normalizeIngredientName } from '../lib/ingredientNormalize'
 import type { Recipe } from '../types'
 
 export interface RecipeFilters {
@@ -24,7 +25,7 @@ export function useRecipes(filters: RecipeFilters = {}) {
         .from('recipes')
         .select('*')
         .eq('family_id', familyId!)
-        .order('created_at', { ascending: false })
+        .order('name', { ascending: true })
 
       if (filters.search) q = q.ilike('name', `%${filters.search}%`)
       if (filters.mealType) q = q.eq('meal_type', filters.mealType)
@@ -214,6 +215,9 @@ export function useSaveRecipe() {
       const needsImageGen: { id: string; name: string }[] = []
 
       for (const ing of payload.ingredients) {
+        // Normalize name: "ground cumin" → "Cumin powder" (spices only, not meats)
+        const ingName = normalizeIngredientName(ing.name)
+
         if (ing.catalogId) {
           // Already resolved — just check whether image gen is needed
           ingredientIds.push(ing.catalogId)
@@ -222,35 +226,35 @@ export function useSaveRecipe() {
             .select('id, image_url')
             .eq('id', ing.catalogId)
             .maybeSingle()
-          if (cat && !cat.image_url) needsImageGen.push({ id: ing.catalogId, name: ing.name })
+          if (cat && !cat.image_url) needsImageGen.push({ id: ing.catalogId, name: ingName })
           continue
         }
 
         // Optimistic insert: try INSERT first; on unique violation look up existing
         const { data: inserted, error: insertErr } = await supabase
           .from('ingredients_catalog')
-          .insert({ family_id: familyId, name: ing.name, emoji: ing.emoji })
+          .insert({ family_id: familyId, name: ingName, emoji: ing.emoji })
           .select('id, image_url')
           .single()
 
         if (insertErr) {
-          // Unique violation — look up the existing row
+          // Unique violation — look up the existing row by normalized name
           const { data: existing } = await supabase
             .from('ingredients_catalog')
             .select('id, image_url')
             .eq('family_id', familyId)
-            .ilike('name', ing.name)
+            .ilike('name', ingName)
             .limit(1)
             .maybeSingle()
           if (existing?.id) {
             ingredientIds.push(existing.id as string)
-            if (!existing.image_url) needsImageGen.push({ id: existing.id as string, name: ing.name })
+            if (!existing.image_url) needsImageGen.push({ id: existing.id as string, name: ingName })
           }
           continue
         }
 
         ingredientIds.push(inserted.id as string)
-        needsImageGen.push({ id: inserted.id as string, name: ing.name }) // new entry always needs image
+        needsImageGen.push({ id: inserted.id as string, name: ingName }) // new entry always needs image
       }
 
       // 2. Pick recipe emoji + build image prompt parts
@@ -341,9 +345,11 @@ export function useUpdateRecipe() {
       for (const ing of payload.ingredients) {
         if (ing.catalogId) { ingredientIds.push(ing.catalogId); continue }
 
+        const ingName = normalizeIngredientName(ing.name)
+
         const { data: inserted, error: insertErr } = await supabase
           .from('ingredients_catalog')
-          .insert({ family_id: familyId, name: ing.name, emoji: ing.emoji })
+          .insert({ family_id: familyId, name: ingName, emoji: ing.emoji })
           .select('id')
           .single()
 
@@ -352,7 +358,7 @@ export function useUpdateRecipe() {
             .from('ingredients_catalog')
             .select('id')
             .eq('family_id', familyId)
-            .ilike('name', ing.name)
+            .ilike('name', ingName)
             .limit(1)
             .maybeSingle()
           if (existing?.id) ingredientIds.push(existing.id as string)

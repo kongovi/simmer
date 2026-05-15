@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays, Pencil, RefreshCw } from 'lucide-react'
-import { useRecipe, useRecipeIngredients, useRecipeSteps, useRecipeImageRealtime } from '../hooks/useRecipes'
+import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { useRecipe, useRecipeIngredients, useRecipeSteps, useRecipeImageRealtime, useDeleteRecipe } from '../hooks/useRecipes'
 import { CookingMode } from '../components/recipes/CookingMode'
 import { callNanoBanana2 } from '../lib/images/nanoBanana'
 
@@ -38,10 +38,13 @@ export function RecipeDetailScreen() {
   const { data: ingredients, isLoading: iLoading } = useRecipeIngredients(id)
   const { data: steps,       isLoading: sLoading }  = useRecipeSteps(id)
 
-  const [tab,         setTab]         = useState<Tab>('ingredients')
-  const [servings,    setServings]    = useState<number | null>(null)
-  const [cookingMode, setCookingMode] = useState(false)
-  const [regenBusy,   setRegenBusy]  = useState(false)
+  const [tab,           setTab]           = useState<Tab>('ingredients')
+  const [servings,      setServings]      = useState<number | null>(null)
+  const [cookingMode,   setCookingMode]   = useState(false)
+  const [regenBusy,     setRegenBusy]     = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const deleteRecipe = useDeleteRecipe()
 
   // Realtime: swap in generated image when ready
   useRecipeImageRealtime()
@@ -328,26 +331,68 @@ export function RecipeDetailScreen() {
           </div>
         </div>
 
-        {/* Pinned bottom: Add to meal plan */}
+        {/* Pinned bottom: Add to meal plan + Delete */}
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: 'var(--dk2)', borderTop: '0.5px solid var(--br)', padding: '12px 16px' }}>
-          <button
-            onClick={() => navigate('/planner/add', {
-              state: {
-                recipeId:    recipe.id,
-                recipeName:  recipe.name,
-                recipeEmoji: recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️'),
-              },
-            })}
-            style={{
-              width: '100%', padding: '13px',
-              backgroundColor: 'var(--dk3)', color: 'var(--tp)',
-              border: '0.5px solid var(--brh)', borderRadius: '12px',
-              fontSize: '16px', fontWeight: 500, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-            }}
-          >
-            <CalendarDays size={16} /> Add to meal plan
-          </button>
+          {confirmDelete ? (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                style={{
+                  flex: 1, padding: '13px', background: 'var(--dk3)',
+                  border: '0.5px solid var(--br)', borderRadius: '12px',
+                  color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await deleteRecipe.mutateAsync(recipe.id)
+                  navigate('/recipes')
+                }}
+                disabled={deleteRecipe.isPending}
+                style={{
+                  flex: 2, padding: '13px', background: 'rgba(208,90,48,0.15)',
+                  border: '0.5px solid var(--rd)', borderRadius: '12px',
+                  color: 'var(--rd)', fontSize: '15px', fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {deleteRecipe.isPending ? 'Deleting…' : 'Delete recipe'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                style={{
+                  padding: '13px 14px', background: 'none',
+                  border: '0.5px solid var(--br)', borderRadius: '12px',
+                  color: 'var(--ts)', cursor: 'pointer', lineHeight: 0,
+                }}
+              >
+                <Trash2 size={16} />
+              </button>
+              <button
+                onClick={() => navigate('/planner/add', {
+                  state: {
+                    recipeId:    recipe.id,
+                    recipeName:  recipe.name,
+                    recipeEmoji: recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️'),
+                  },
+                })}
+                style={{
+                  flex: 1, padding: '13px',
+                  backgroundColor: 'var(--dk3)', color: 'var(--tp)',
+                  border: '0.5px solid var(--brh)', borderRadius: '12px',
+                  fontSize: '16px', fontWeight: 500, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                }}
+              >
+                <CalendarDays size={16} /> Add to meal plan
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

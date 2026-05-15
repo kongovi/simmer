@@ -54,3 +54,56 @@ export function useUpdateCatalogItem() {
     },
   })
 }
+
+export function useDeleteCatalogItem() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('ingredients_catalog')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalog', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['grocery'] })
+    },
+  })
+}
+
+/**
+ * Merge multiple ingredients into a single canonical one.
+ * All FK references (recipe_ingredients, grocery_list_items, staples,
+ * purchase_history) are re-pointed to canonicalId, then the duplicates
+ * are deleted.
+ *
+ * @param canonicalId  The ingredient to keep
+ * @param mergeIds     The ingredient IDs to merge away (will be deleted)
+ */
+export function useMergeIngredients() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async ({ canonicalId, mergeIds }: { canonicalId: string; mergeIds: string[] }) => {
+      for (const mid of mergeIds) {
+        // Re-point all FK references
+        await supabase.from('recipe_ingredients').update({ ingredient_id: canonicalId }).eq('ingredient_id', mid)
+        await supabase.from('grocery_list_items').update({ ingredient_id: canonicalId }).eq('ingredient_id', mid)
+        await supabase.from('staples').update({ ingredient_id: canonicalId }).eq('ingredient_id', mid)
+        await supabase.from('purchase_history').update({ ingredient_id: canonicalId }).eq('ingredient_id', mid)
+        // Delete the merged duplicate
+        const { error } = await supabase.from('ingredients_catalog').delete().eq('id', mid)
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalog', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['grocery'] })
+      queryClient.invalidateQueries({ queryKey: ['recipe-ingredients'] })
+    },
+  })
+}

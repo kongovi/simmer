@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Search, Store, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Search, Store, RefreshCw, Trash2, GitMerge, Check, X } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
-import { useCatalogItems, useUpdateCatalogItem } from '../hooks/useCatalog'
+import { useCatalogItems, useUpdateCatalogItem, useDeleteCatalogItem, useMergeIngredients } from '../hooks/useCatalog'
 import { useFamilyStores } from '../hooks/useFamilyStores'
 import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
@@ -15,12 +15,15 @@ function EditSheet({
   item,
   stores,
   onClose,
+  onDeleted,
 }: {
-  item:   IngredientCatalog
-  stores: string[]
-  onClose: () => void
+  item:      IngredientCatalog
+  stores:    string[]
+  onClose:   () => void
+  onDeleted: () => void
 }) {
-  const update = useUpdateCatalogItem()
+  const update  = useUpdateCatalogItem()
+  const destroy = useDeleteCatalogItem()
 
   const [name,         setName]         = useState(item.name ?? '')
   const [aisle,        setAisle]        = useState<number>(item.default_aisle_order ?? detectAisleOrder(item.name, item.emoji ?? null))
@@ -29,6 +32,7 @@ function EditSheet({
   const [isPantry,     setIsPantry]     = useState(item.is_pantry_staple)
   const [isBulk,       setIsBulk]       = useState(item.is_bulk_staple)
   const [regenStatus,  setRegenStatus]  = useState<'idle' | 'busy'>('idle')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function handleRegen() {
     setRegenStatus('busy')
@@ -51,6 +55,11 @@ function EditSheet({
     onClose()
   }
 
+  async function handleDelete() {
+    await destroy.mutateAsync(item.id)
+    onDeleted()
+  }
+
   return (
     <div
       style={{
@@ -64,6 +73,7 @@ function EditSheet({
         background: 'var(--dk2)', borderRadius: '20px 20px 0 0',
         padding: '20px 16px 32px', width: '100%',
         borderTop: '0.5px solid var(--brh)',
+        maxHeight: '90vh', overflowY: 'auto',
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
@@ -226,10 +236,176 @@ function EditSheet({
             borderRadius: '12px', color: '#141820',
             fontSize: '16px', fontWeight: 600,
             cursor: 'pointer', fontFamily: 'inherit',
+            marginBottom: '10px',
           }}
         >
           {update.isPending ? 'Saving…' : 'Save'}
         </button>
+
+        {/* Delete */}
+        {confirmDelete ? (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              style={{
+                flex: 1, padding: '11px', background: 'var(--dk3)',
+                border: '0.5px solid var(--br)', borderRadius: '10px',
+                color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={destroy.isPending}
+              style={{
+                flex: 1, padding: '11px', background: 'rgba(208,90,48,0.15)',
+                border: '0.5px solid var(--rd)', borderRadius: '10px',
+                color: 'var(--rd)', fontSize: '15px', fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              {destroy.isPending ? 'Deleting…' : 'Yes, delete'}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            style={{
+              width: '100%', padding: '11px', background: 'none',
+              border: '0.5px solid var(--rd)', borderRadius: '10px',
+              color: 'var(--rd)', fontSize: '15px', cursor: 'pointer',
+              fontFamily: 'inherit', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', gap: '6px',
+            }}
+          >
+            <Trash2 size={14} />
+            Delete ingredient
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Merge sheet ───────────────────────────────────────────────────────────────
+
+function MergeSheet({
+  selected,
+  allItems,
+  onClose,
+  onDone,
+}: {
+  selected:  IngredientCatalog[]
+  allItems:  IngredientCatalog[]
+  onClose:   () => void
+  onDone:    () => void
+}) {
+  const merge = useMergeIngredients()
+  const [canonicalId, setCanonicalId] = useState(selected[0]?.id ?? '')
+
+  const canonical = allItems.find(i => i.id === canonicalId)
+
+  async function handleMerge() {
+    const mergeIds = selected.filter(i => i.id !== canonicalId).map(i => i.id)
+    if (mergeIds.length === 0) { onClose(); return }
+    await merge.mutateAsync({ canonicalId, mergeIds })
+    onDone()
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: 'rgba(0,0,0,0.65)',
+        display: 'flex', alignItems: 'flex-end',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background: 'var(--dk2)', borderRadius: '20px 20px 0 0',
+        padding: '20px 16px 32px', width: '100%',
+        borderTop: '0.5px solid var(--brh)',
+        maxHeight: '80vh', overflowY: 'auto',
+      }}>
+        <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '6px' }}>
+          Merge {selected.length} ingredients
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--ts)', marginBottom: '20px' }}>
+          Choose which name to keep. All recipe and grocery references will be updated.
+        </div>
+
+        <div style={{ fontSize: '12px', color: 'var(--tm)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+          Keep this name
+        </div>
+        <div style={{
+          background: 'var(--dkc)', border: '0.5px solid var(--br)',
+          borderRadius: '12px', overflow: 'hidden', marginBottom: '20px',
+        }}>
+          {selected.map((item, idx) => (
+            <div
+              key={item.id}
+              onClick={() => setCanonicalId(item.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '12px 14px',
+                borderBottom: idx < selected.length - 1 ? '0.5px solid var(--br)' : 'none',
+                cursor: 'pointer',
+                background: canonicalId === item.id ? 'rgba(123,175,138,0.1)' : 'transparent',
+              }}
+            >
+              <div style={{
+                width: '20px', height: '20px', borderRadius: '50%',
+                border: `2px solid ${canonicalId === item.id ? 'var(--am)' : 'var(--br)'}`,
+                background: canonicalId === item.id ? 'var(--am)' : 'transparent',
+                flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {canonicalId === item.id && <Check size={11} color="#141820" strokeWidth={3} />}
+              </div>
+              <span style={{ fontSize: '16px', marginRight: '2px' }}>{item.emoji ?? '🥄'}</span>
+              <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: canonicalId === item.id ? 600 : 400 }}>
+                {item.name}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {canonical && (
+          <div style={{
+            background: 'rgba(123,175,138,0.08)', border: '0.5px solid rgba(123,175,138,0.3)',
+            borderRadius: '10px', padding: '10px 14px', marginBottom: '20px',
+            fontSize: '13px', color: 'var(--ts)',
+          }}>
+            <span style={{ color: 'var(--am)', fontWeight: 500 }}>{canonical.name}</span> will be kept.{' '}
+            {selected.filter(i => i.id !== canonicalId).map(i => i.name).join(', ')} will be deleted after all references are updated.
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '13px', background: 'var(--dk3)',
+              border: '0.5px solid var(--br)', borderRadius: '12px',
+              color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleMerge}
+            disabled={merge.isPending}
+            style={{
+              flex: 2, padding: '13px', background: 'var(--am)',
+              border: 'none', borderRadius: '12px',
+              color: '#141820', fontSize: '15px', fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            {merge.isPending ? 'Merging…' : `Merge into "${canonical?.name}"`}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -258,9 +434,12 @@ function Toggle({ label, checked, onToggle }: { label: string; checked: boolean;
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export function CatalogScreen() {
-  const navigate         = useNavigate()
-  const [search, setSearch] = useState('')
-  const [editing, setEditing] = useState<IngredientCatalog | null>(null)
+  const navigate = useNavigate()
+  const [search,      setSearch]      = useState('')
+  const [editing,     setEditing]     = useState<IngredientCatalog | null>(null)
+  const [selectMode,  setSelectMode]  = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [merging,     setMerging]     = useState(false)
 
   useIngredientImageRealtime()
 
@@ -268,13 +447,13 @@ export function CatalogScreen() {
   const { data: storeRows = [] } = useFamilyStores()
   const stores = storeRows.map(s => s.name)
 
-  // Group by aisle
+  // Group by aisle — prefer explicitly-saved default_aisle_order, fall back to auto-detect
   type AisleGroup = { aisle: number; label: string; items: IngredientCatalog[] }
 
   const grouped: AisleGroup[] = []
   const aisleMap = new Map<number, IngredientCatalog[]>()
   for (const item of items) {
-    const a = detectAisleOrder(item.name, item.emoji ?? null)
+    const a = item.default_aisle_order ?? detectAisleOrder(item.name, item.emoji ?? null)
     if (!aisleMap.has(a)) aisleMap.set(a, [])
     aisleMap.get(a)!.push(item)
   }
@@ -282,18 +461,76 @@ export function CatalogScreen() {
     grouped.push({ aisle, label: AISLE_LABELS[aisle] ?? '🛒 Other', items: aisleItems })
   }
 
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const selectedItems = items.filter(i => selectedIds.has(i.id))
+
   return (
     <Screen>
       <div style={{ padding: '16px 16px 0', maxWidth: '480px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-          <button
-            onClick={() => navigate('/settings')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0, color: 'var(--am)' }}
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <span style={{ fontSize: '19px', fontWeight: 600, color: 'var(--tp)' }}>Ingredient Catalog</span>
+          {selectMode ? (
+            <>
+              <button
+                onClick={exitSelectMode}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0, color: 'var(--ts)' }}
+              >
+                <X size={20} />
+              </button>
+              <span style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', flex: 1 }}>
+                {selectedIds.size} selected
+              </span>
+              {selectedIds.size >= 2 && (
+                <button
+                  onClick={() => setMerging(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    background: 'var(--am)', border: 'none', borderRadius: '8px',
+                    padding: '7px 12px', color: '#141820',
+                    fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  <GitMerge size={13} />
+                  Merge
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/settings')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0, color: 'var(--am)' }}
+              >
+                <ArrowLeft size={20} />
+              </button>
+              <span style={{ fontSize: '19px', fontWeight: 600, color: 'var(--tp)', flex: 1 }}>Ingredient Catalog</span>
+              <button
+                onClick={() => setSelectMode(true)}
+                style={{
+                  background: 'none', border: '0.5px solid var(--br)',
+                  borderRadius: '8px', padding: '5px 10px',
+                  color: 'var(--ts)', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                }}
+              >
+                <GitMerge size={13} />
+                Merge
+              </button>
+            </>
+          )}
         </div>
 
         {/* Search */}
@@ -313,6 +550,16 @@ export function CatalogScreen() {
             }}
           />
         </div>
+
+        {selectMode && (
+          <div style={{
+            fontSize: '13px', color: 'var(--ts)', marginBottom: '12px',
+            padding: '8px 12px', background: 'rgba(123,175,138,0.08)',
+            borderRadius: '8px', border: '0.5px solid rgba(123,175,138,0.2)',
+          }}>
+            Tap ingredients to select them, then tap <strong>Merge</strong> to combine into one.
+          </div>
+        )}
 
         {/* Loading */}
         {isLoading && (
@@ -348,64 +595,83 @@ export function CatalogScreen() {
               background: 'var(--dkc)', border: '0.5px solid var(--br)',
               borderRadius: '12px', overflow: 'hidden',
             }}>
-              {group.items.map((item, idx) => (
-                <div
-                  key={item.id}
-                  onClick={() => setEditing(item)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '11px 14px',
-                    borderBottom: idx < group.items.length - 1 ? '0.5px solid var(--br)' : 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{ position: 'relative', width: '24px', flexShrink: 0 }}>
-                    {item.image_status === 'done' && item.image_url ? (
-                      <img
-                        src={item.image_url}
-                        alt={item.name}
-                        style={{ width: '24px', height: '24px', objectFit: 'contain', display: 'block', borderRadius: '4px' }}
-                      />
-                    ) : (
-                      <span style={{ fontSize: '20px', width: '24px', textAlign: 'center', display: 'block' }}>
-                        {item.emoji ?? '🥄'}
-                      </span>
-                    )}
-                    {item.image_status === 'generating' && (
+              {group.items.map((item, idx) => {
+                const isSelected = selectedIds.has(item.id)
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      if (selectMode) { toggleSelect(item.id) }
+                      else { setEditing(item) }
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '11px 14px',
+                      borderBottom: idx < group.items.length - 1 ? '0.5px solid var(--br)' : 'none',
+                      cursor: 'pointer',
+                      background: isSelected ? 'rgba(123,175,138,0.1)' : 'transparent',
+                    }}
+                  >
+                    {/* Select checkbox in merge mode */}
+                    {selectMode && (
                       <div style={{
-                        position: 'absolute', bottom: 0, left: 0,
-                        width: '6px', height: '6px', borderRadius: '50%',
-                        background: 'var(--am)',
-                        animation: 'nb2-pulse 1.2s ease-in-out infinite',
-                      }} />
+                        width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0,
+                        border: `2px solid ${isSelected ? 'var(--am)' : 'var(--br)'}`,
+                        background: isSelected ? 'var(--am)' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {isSelected && <Check size={11} color="#141820" strokeWidth={3} />}
+                      </div>
+                    )}
+
+                    <div style={{ position: 'relative', width: '24px', flexShrink: 0 }}>
+                      {item.image_status === 'done' && item.image_url ? (
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          style={{ width: '24px', height: '24px', objectFit: 'contain', display: 'block', borderRadius: '4px' }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: '20px', width: '24px', textAlign: 'center', display: 'block' }}>
+                          {item.emoji ?? '🥄'}
+                        </span>
+                      )}
+                      {item.image_status === 'generating' && (
+                        <div style={{
+                          position: 'absolute', bottom: 0, left: 0,
+                          width: '6px', height: '6px', borderRadius: '50%',
+                          background: 'var(--am)',
+                          animation: 'nb2-pulse 1.2s ease-in-out infinite',
+                        }} />
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>{item.name}</div>
+                      {item.brand_note && (
+                        <div style={{ fontSize: '13px', color: 'var(--ts)', fontStyle: 'italic' }}>{item.brand_note}</div>
+                      )}
+                    </div>
+                    {item.default_store && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        background: 'rgba(255,255,255,0.05)', borderRadius: '6px',
+                        padding: '3px 7px', flexShrink: 0,
+                      }}>
+                        <Store size={10} color="var(--ts)" />
+                        <span style={{ fontSize: '12px', color: 'var(--ts)' }}>{item.default_store}</span>
+                      </div>
+                    )}
+                    {item.is_pantry_staple && (
+                      <div style={{
+                        background: 'rgba(123,175,138,0.12)', borderRadius: '6px',
+                        padding: '3px 7px', flexShrink: 0,
+                      }}>
+                        <span style={{ fontSize: '12px', color: 'var(--am)' }}>staple</span>
+                      </div>
                     )}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>{item.name}</div>
-                    {item.brand_note && (
-                      <div style={{ fontSize: '13px', color: 'var(--ts)', fontStyle: 'italic' }}>{item.brand_note}</div>
-                    )}
-                  </div>
-                  {item.default_store && (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: '4px',
-                      background: 'rgba(255,255,255,0.05)', borderRadius: '6px',
-                      padding: '3px 7px', flexShrink: 0,
-                    }}>
-                      <Store size={10} color="var(--ts)" />
-                      <span style={{ fontSize: '12px', color: 'var(--ts)' }}>{item.default_store}</span>
-                    </div>
-                  )}
-                  {item.is_pantry_staple && (
-                    <div style={{
-                      background: 'rgba(123,175,138,0.12)', borderRadius: '6px',
-                      padding: '3px 7px', flexShrink: 0,
-                    }}>
-                      <span style={{ fontSize: '12px', color: 'var(--am)' }}>staple</span>
-                    </div>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         ))}
@@ -417,6 +683,17 @@ export function CatalogScreen() {
           item={editing}
           stores={stores}
           onClose={() => setEditing(null)}
+          onDeleted={() => setEditing(null)}
+        />
+      )}
+
+      {/* Merge sheet */}
+      {merging && (
+        <MergeSheet
+          selected={selectedItems}
+          allItems={items}
+          onClose={() => setMerging(false)}
+          onDone={() => { setMerging(false); exitSelectMode() }}
         />
       )}
     </Screen>
