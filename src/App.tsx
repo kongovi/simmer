@@ -5,6 +5,7 @@ import { supabase } from './lib/supabase'
 import { useAppStore } from './stores/appStore'
 import { useEnsureFamilyId } from './hooks/useEnsureFamilyId'
 import { useUserSettings } from './hooks/useUserSettings'
+import { useIngredientCatalogRealtime } from './hooks/useGroceryList'
 import { BottomNav } from './components/layout/BottomNav'
 import { LoginScreen } from './screens/LoginScreen'
 import { GroceryScreen } from './screens/GroceryScreen'
@@ -98,6 +99,7 @@ function ProtectedLayout() {
 
   // Bootstrap family after auth
   useEnsureFamilyId()
+  useIngredientCatalogRealtime()
 
   // Wait for the initial getSession() before making any routing decision.
   // This prevents stripping the ?code= from the URL before Supabase can
@@ -108,13 +110,15 @@ function ProtectedLayout() {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Show nav on primary tabs only — not on sub-screens
+  // Show nav on all pages except auth/onboarding/join flows
+  const p = location.pathname
   const showNav =
-    location.pathname === '/grocery'  ||
-    location.pathname === '/recipes'  ||
-    location.pathname === '/planner'  ||
-    location.pathname === '/prep'     ||
-    location.pathname === '/settings'
+    p.startsWith('/grocery')  ||
+    p.startsWith('/recipes')  ||
+    p.startsWith('/planner')  ||
+    p.startsWith('/prep')     ||
+    p.startsWith('/settings') ||
+    p.startsWith('/staging')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

@@ -506,6 +506,41 @@ export function useUpdateGroceryItem() {
 // ── Realtime ──────────────────────────────────────────────────────────────────
 
 /** Live updates: any change to this list's items invalidates the cache. */
+/**
+ * Listens to ingredients_catalog changes and invalidates any cached queries
+ * that embed ingredient data (grocery items, recipe ingredients, catalog list).
+ * Mount this in ProtectedLayout so all pages see live image_status updates.
+ */
+export function useIngredientCatalogRealtime() {
+  const familyId = useAppStore(s => s.familyId)
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!familyId) return
+
+    const channel = supabase
+      .channel(`ingredient-catalog-${familyId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'ingredients_catalog',
+          filter: `family_id=eq.${familyId}`,
+        },
+        () => {
+          // Invalidate every query that joins ingredient data
+          queryClient.invalidateQueries({ queryKey: ['grocery-items'] })
+          queryClient.invalidateQueries({ queryKey: ['recipe-ingredients'] })
+          queryClient.invalidateQueries({ queryKey: ['catalog-items'] })
+        },
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [familyId, queryClient])
+}
+
 export function useGroceryListRealtime(listId: string | null) {
   const queryClient = useQueryClient()
 
