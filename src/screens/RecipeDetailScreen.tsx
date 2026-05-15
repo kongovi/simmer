@@ -198,8 +198,8 @@ export function RecipeDetailScreen() {
     </div>
   )
 
-  const imageArea = (height: string | number) => (
-    <div style={{ width: '100%', height, backgroundColor: bg, overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+  const imageArea = (height: string | number, borderRadius?: string) => (
+    <div style={{ width: '100%', height, backgroundColor: bg, overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius }}>
       {recipe.image_url ? (
         <>
           <img src={`${recipe.image_url}?t=${Date.parse(recipe.updated_at)}`} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -331,9 +331,11 @@ export function RecipeDetailScreen() {
             </div>
 
             {/* Right panel: image */}
-            <div style={{ width: '50%', position: 'relative' }}>
-              {imageArea('100%')}
-              {overlayButtons}
+            <div style={{ width: '50%', padding: '24px 24px 24px 0', boxSizing: 'border-box' }}>
+              <div style={{ position: 'relative', height: '100%', borderRadius: '14px', overflow: 'hidden' }}>
+                {imageArea('100%')}
+                {overlayButtons}
+              </div>
             </div>
           </div>
 
