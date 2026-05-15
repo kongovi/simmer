@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Check, AlertTriangle, Plus, Trash2, GitMerge } from 'lucide-react'
 import type { ParsedRecipe, ParsedIngredient, ParsedStep } from '../lib/recipeParser'
 import { useSaveRecipe } from '../hooks/useRecipes'
-import { useIngredientsCatalog, matchIngredient, matchIngredientFull } from '../hooks/useIngredientsCatalog'
+import { useIngredientsCatalog, matchIngredientFull } from '../hooks/useIngredientsCatalog'
 
 // 6 card colors — pick same one used by RecipeCard
 const CARD_COLORS = ['#d4e8d4', '#f0e8d0', '#f0e0d8', '#d8e0ea', '#dce8e0', '#ecdae2']
