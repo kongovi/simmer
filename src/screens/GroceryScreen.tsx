@@ -645,15 +645,25 @@ function GroceryBox({
         </div>
       )}
 
-      {imgUrl ? (
-        <img
-          src={imgUrl}
-          alt={name}
-          style={{ width: '36px', height: '36px', objectFit: 'contain' }}
-        />
-      ) : (
-        <span style={{ fontSize: '26px', lineHeight: 1 }}>{emoji}</span>
-      )}
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        {imgUrl ? (
+          <img
+            src={imgUrl}
+            alt={name}
+            style={{ width: '36px', height: '36px', objectFit: 'contain', display: 'block' }}
+          />
+        ) : (
+          <span style={{ fontSize: '26px', lineHeight: 1, display: 'block' }}>{emoji}</span>
+        )}
+        {item.ingredient?.image_status === 'generating' && (
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0,
+            width: '7px', height: '7px', borderRadius: '50%',
+            background: 'var(--am)',
+            animation: 'nb2-pulse 1.2s ease-in-out infinite',
+          }} />
+        )}
+      </div>
       <span style={{
         fontSize: '10px', color: done ? 'var(--tm)' : 'var(--tp)',
         fontWeight: 500, textAlign: 'center', lineHeight: 1.3,

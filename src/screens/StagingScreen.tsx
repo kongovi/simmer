@@ -469,13 +469,23 @@ function ZoneItem({
       padding: '7px 0',
       borderBottom: '0.5px solid rgba(255,255,255,0.05)',
     }}>
-      {showImg ? (
-        <img src={imageUrl!} alt={name} style={{ width: '24px', height: '24px', objectFit: 'contain', flexShrink: 0 }} />
-      ) : (
-        <span style={{ fontSize: '16px', width: '24px', textAlign: 'center', flexShrink: 0 }}>
-          {emoji ?? '🛒'}
-        </span>
-      )}
+      <div style={{ position: 'relative', width: '24px', flexShrink: 0 }}>
+        {showImg ? (
+          <img src={imageUrl!} alt={name} style={{ width: '24px', height: '24px', objectFit: 'contain', display: 'block' }} />
+        ) : (
+          <span style={{ fontSize: '16px', width: '24px', textAlign: 'center', display: 'block' }}>
+            {emoji ?? '🛒'}
+          </span>
+        )}
+        {imageStatus === 'generating' && (
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0,
+            width: '6px', height: '6px', borderRadius: '50%',
+            background: 'var(--am)',
+            animation: 'nb2-pulse 1.2s ease-in-out infinite',
+          }} />
+        )}
+      </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: '12px', color: 'var(--tp)', fontWeight: 500 }}>{name}</div>
         {note && (

@@ -170,17 +170,27 @@ function PrepCard({
         }}
       >
         {/* Ingredient icon */}
-        <div style={{
-          width: '36px', height: '36px', flexShrink: 0,
-          background: item.image_status === 'done' && item.image_url ? 'transparent' : 'var(--dk3)',
-          borderRadius: '9px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '20px', overflow: 'hidden',
-        }}>
-          {item.image_status === 'done' && item.image_url ? (
-            <img src={item.image_url} alt={item.name} style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
-          ) : (
-            item.emoji ?? '🥄'
+        <div style={{ position: 'relative', width: '36px', height: '36px', flexShrink: 0 }}>
+          <div style={{
+            width: '36px', height: '36px',
+            background: item.image_status === 'done' && item.image_url ? 'transparent' : 'var(--dk3)',
+            borderRadius: '9px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '20px', overflow: 'hidden',
+          }}>
+            {item.image_status === 'done' && item.image_url ? (
+              <img src={item.image_url} alt={item.name} style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
+            ) : (
+              item.emoji ?? '🥄'
+            )}
+          </div>
+          {item.image_status === 'generating' && (
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0,
+              width: '7px', height: '7px', borderRadius: '50%',
+              background: 'var(--am)',
+              animation: 'nb2-pulse 1.2s ease-in-out infinite',
+            }} />
           )}
         </div>
 

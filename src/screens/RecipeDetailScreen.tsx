@@ -222,11 +222,21 @@ export function RecipeDetailScreen() {
                       borderBottom: idx < (ingredients?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none',
                     }}
                   >
-                    {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
-                      <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', flexShrink: 0 }} />
-                    ) : (
-                      <span style={{ fontSize: '18px', flexShrink: 0 }}>{row.ingredient?.emoji ?? '🥄'}</span>
-                    )}
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
+                        <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', display: 'block' }} />
+                      ) : (
+                        <span style={{ fontSize: '18px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
+                      )}
+                      {row.ingredient?.image_status === 'generating' && (
+                        <div style={{
+                          position: 'absolute', bottom: 0, left: 0,
+                          width: '6px', height: '6px', borderRadius: '50%',
+                          background: 'var(--am)',
+                          animation: 'nb2-pulse 1.2s ease-in-out infinite',
+                        }} />
+                      )}
+                    </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
                         {row.ingredient?.name ?? '—'}

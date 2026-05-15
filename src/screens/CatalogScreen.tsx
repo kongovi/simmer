@@ -268,17 +268,27 @@ export function CatalogScreen() {
                     cursor: 'pointer',
                   }}
                 >
-                  {item.image_status === 'done' && item.image_url ? (
-                    <img
-                      src={item.image_url}
-                      alt={item.name}
-                      style={{ width: '24px', height: '24px', objectFit: 'contain', flexShrink: 0, borderRadius: '4px' }}
-                    />
-                  ) : (
-                    <span style={{ fontSize: '18px', width: '24px', textAlign: 'center', flexShrink: 0 }}>
-                      {item.emoji ?? '🥄'}
-                    </span>
-                  )}
+                  <div style={{ position: 'relative', width: '24px', flexShrink: 0 }}>
+                    {item.image_status === 'done' && item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.name}
+                        style={{ width: '24px', height: '24px', objectFit: 'contain', display: 'block', borderRadius: '4px' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '18px', width: '24px', textAlign: 'center', display: 'block' }}>
+                        {item.emoji ?? '🥄'}
+                      </span>
+                    )}
+                    {item.image_status === 'generating' && (
+                      <div style={{
+                        position: 'absolute', bottom: 0, left: 0,
+                        width: '6px', height: '6px', borderRadius: '50%',
+                        background: 'var(--am)',
+                        animation: 'nb2-pulse 1.2s ease-in-out infinite',
+                      }} />
+                    )}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>{item.name}</div>
                     {item.brand_note && (
