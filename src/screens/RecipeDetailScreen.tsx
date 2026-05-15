@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays, Pencil } from 'lucide-react'
+import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays, Pencil, RefreshCw } from 'lucide-react'
 import { useRecipe, useRecipeIngredients, useRecipeSteps, useRecipeImageRealtime } from '../hooks/useRecipes'
 import { CookingMode } from '../components/recipes/CookingMode'
+import { callNanoBanana2 } from '../lib/images/nanoBanana'
 
 // Card colors from prototype
 const CARD_COLORS = ['#d4e8d4', '#f0e8d0', '#f0e0d8', '#d8e0ea', '#dce8e0', '#ecdae2']
@@ -40,9 +41,16 @@ export function RecipeDetailScreen() {
   const [tab,         setTab]         = useState<Tab>('ingredients')
   const [servings,    setServings]    = useState<number | null>(null)
   const [cookingMode, setCookingMode] = useState(false)
+  const [regenBusy,   setRegenBusy]  = useState(false)
 
   // Realtime: swap in generated image when ready
   useRecipeImageRealtime()
+
+  async function handleRegenImage() {
+    if (!recipe?.nb2_prompt || regenBusy) return
+    setRegenBusy(true)
+    callNanoBanana2(recipe.nb2_prompt, recipe.id).finally(() => setRegenBusy(false))
+  }
 
   const isLoading = rLoading || iLoading || sLoading
 
@@ -91,19 +99,37 @@ export function RecipeDetailScreen() {
               {recipe.image_url ? (
                 <img src={recipe.image_url} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <div
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-                    opacity: recipe.image_status === 'generating' ? 0.6 : 0.35,
-                    animation: recipe.image_status === 'generating' ? 'nb2-pulse 1.8s ease-in-out infinite' : undefined,
-                  }}
-                >
-                  <span style={{ fontSize: '54px' }}>
-                    {recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️')}
-                  </span>
-                  <span style={{ fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>
-                    {recipe.image_status === 'generating' ? 'NB2 · rendering…' : recipe.image_status === 'failed' ? 'NB2 · failed' : 'NB2 · queued'}
-                  </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+                      opacity: (recipe.image_status === 'generating' || regenBusy) ? 0.6 : 0.35,
+                      animation: (recipe.image_status === 'generating' || regenBusy) ? 'nb2-pulse 1.8s ease-in-out infinite' : undefined,
+                    }}
+                  >
+                    <span style={{ fontSize: '54px' }}>
+                      {recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️')}
+                    </span>
+                    <span style={{ fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>
+                      {(recipe.image_status === 'generating' || regenBusy) ? 'rendering…' : recipe.image_status === 'failed' ? 'generation failed' : 'queued'}
+                    </span>
+                  </div>
+                  {/* Regenerate button — shown when failed, pending, or no prompt */}
+                  {recipe.image_status !== 'generating' && !regenBusy && recipe.nb2_prompt && (
+                    <button
+                      onClick={handleRegenImage}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '5px',
+                        background: 'rgba(0,0,0,0.18)', border: 'none',
+                        borderRadius: '8px', padding: '5px 10px',
+                        color: 'rgba(0,0,0,0.5)', fontSize: '11px', fontWeight: 500,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      <RefreshCw size={10} />
+                      Regenerate image
+                    </button>
+                  )}
                 </div>
               )}
             </div>

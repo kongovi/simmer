@@ -8,11 +8,6 @@ const CORS_HEADERS = {
 
 // Gemini models that support native image output (responseModalities: IMAGE).
 // Try in order — first success wins; Imagen 3 is the final fallback.
-//
-// Future-proofing: set the GEMINI_IMAGE_MODELS Supabase secret to a
-// comma-separated list of model names to override without redeploying.
-// e.g.  gemini-2.5-flash-exp,gemini-2.0-flash-exp
-// Models from the secret are tried first; hardcoded defaults follow as fallback.
 const _CODE_DEFAULT_MODELS = ['gemini-3.1-flash-image-preview', 'gemini-2.0-flash-exp', 'gemini-2.0-flash-preview']
 const _envModels = (Deno.env.get('GEMINI_IMAGE_MODELS') ?? '')
   .split(',').map(s => s.trim()).filter(Boolean)
@@ -23,6 +18,16 @@ const FLASH_MODELS = [..._envModels, ..._CODE_DEFAULT_MODELS]
 /** Ingredient image prompt template */
 function buildIngredientPrompt(name: string): string {
   return `A single ${name}, isometric 3/4 view, the subject filling 80% of the frame, 512x512 pixels, rendered in Retro-Pop art style. Thick clean black outlines. Vintage muted color palette: cream, teal, burnt orange, mustard yellow. Shadows rendered as halftone dot texture. Solid warm off-white background #F5F0E8. No text, no labels, no other objects, no plate or surface — just the ingredient itself.`
+}
+
+/** Safe chunked bytes → base64 (avoids stack overflow on large arrays) */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunkSize = 8192
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+  }
+  return btoa(binary)
 }
 
 /** Call a Gemini Flash image-gen model. Returns JPEG bytes or throws. */
@@ -44,7 +49,6 @@ async function callGeminiFlash(model: string, prompt: string, apiKey: string): P
   }
 
   const json = await res.json()
-  // Log the raw response shape to help diagnose unexpected formats
   console.log(`${model} response candidates:`, JSON.stringify(json?.candidates?.[0]?.content?.parts?.map((p: Record<string, unknown>) => Object.keys(p)) ?? []))
   const parts = json?.candidates?.[0]?.content?.parts ?? []
   const imagePart = parts.find((p: { inlineData?: { mimeType: string; data: string } }) => p.inlineData?.mimeType?.startsWith('image/'))
@@ -113,39 +117,76 @@ async function generateImageBytes(prompt: string, apiKey: string): Promise<Uint8
 }
 
 /**
- * Remove background from JPEG bytes using Remove.bg API (multipart form-data).
+ * Remove background using Replicate's 851-labs/background-remover model.
+ * Uses "Prefer: wait" for a synchronous response (falls back to polling).
  * Returns PNG bytes with transparent background, or throws.
  */
-async function removeBackground(jpegBytes: Uint8Array, removeBgKey: string): Promise<Uint8Array> {
-  const formData = new FormData()
-  formData.append('image_file', new Blob([jpegBytes], { type: 'image/jpeg' }), 'image.jpg')
-  formData.append('size', 'auto')
-  formData.append('format', 'png')
+async function removeBackground(imageBytes: Uint8Array, replicateKey: string): Promise<Uint8Array> {
+  const dataUri = `data:image/jpeg;base64,${bytesToBase64(imageBytes)}`
 
-  console.log(`Remove.bg: sending ${jpegBytes.length} bytes to API`)
+  console.log(`Replicate bg-remove: sending ${imageBytes.length} bytes`)
 
-  const res = await fetch('https://api.remove.bg/v1.0/removebg', {
-    method: 'POST',
-    headers: {
-      'X-Api-Key': removeBgKey,
-    },
-    body: formData,
-  })
+  // Create prediction — "Prefer: wait" requests synchronous response (≤60s)
+  const createRes = await fetch(
+    'https://api.replicate.com/v1/models/851-labs/background-remover/predictions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${replicateKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'wait=60',
+      },
+      body: JSON.stringify({ input: { image: dataUri } }),
+    }
+  )
 
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Remove.bg HTTP ${res.status}: ${body}`)
+  if (!createRes.ok) {
+    const body = await createRes.text()
+    throw new Error(`Replicate HTTP ${createRes.status}: ${body}`)
   }
 
-  const arrayBuf = await res.arrayBuffer()
-  console.log(`Remove.bg: received ${arrayBuf.byteLength} bytes PNG`)
-  return new Uint8Array(arrayBuf)
+  let prediction = await createRes.json() as {
+    id: string
+    status: string
+    output?: string
+    error?: string
+  }
+
+  // If "Prefer: wait" already resolved it, use the output directly
+  if (prediction.status !== 'succeeded' && prediction.status !== 'failed') {
+    // Poll until done (max 30 attempts × 2s = 60s)
+    for (let attempt = 0; attempt < 30; attempt++) {
+      await new Promise(r => setTimeout(r, 2000))
+
+      const pollRes = await fetch(
+        `https://api.replicate.com/v1/predictions/${prediction.id}`,
+        { headers: { Authorization: `Bearer ${replicateKey}` } }
+      )
+      if (pollRes.ok) {
+        prediction = await pollRes.json()
+        if (prediction.status === 'succeeded' || prediction.status === 'failed') break
+      }
+    }
+  }
+
+  if (prediction.status === 'failed' || !prediction.output) {
+    throw new Error(`Replicate bg-remove failed: ${prediction.error ?? 'no output'}`)
+  }
+
+  console.log(`Replicate bg-remove succeeded, downloading output`)
+
+  // Download the resulting PNG (transparent background)
+  const imgRes = await fetch(prediction.output)
+  if (!imgRes.ok) throw new Error(`Failed to download Replicate output: ${imgRes.status}`)
+  const buf = await imgRes.arrayBuffer()
+  console.log(`Replicate bg-remove: received ${buf.byteLength} bytes PNG`)
+  return new Uint8Array(buf)
 }
 
 /**
  * Resize image bytes so neither dimension exceeds maxDimension.
  * asJpeg=true → re-encodes as JPEG (for opaque fallback images)
- * asJpeg=false → re-encodes as PNG (preserves transparency from remove.bg)
+ * asJpeg=false → re-encodes as PNG (preserves transparency from bg-remove)
  */
 async function resizeImage(bytes: Uint8Array, maxDimension: number, asJpeg: boolean): Promise<Uint8Array> {
   const img = await Image.decode(bytes)
@@ -164,7 +205,6 @@ async function resizeImage(bytes: Uint8Array, maxDimension: number, asJpeg: bool
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
 
-  // Parse body first (only once)
   let body: {
     recipeId?: string
     prompt?: string
@@ -221,26 +261,26 @@ Deno.serve(async (req) => {
       const imgPrompt = buildIngredientPrompt(ingredientName)
       const jpegBytes = await generateImageBytes(imgPrompt, apiKey)
 
-      // Try Remove.bg background removal
+      // Try Replicate background removal
       let finalBytes = jpegBytes
       let fileName = `${ingredientId}.png`
       let contentType = 'image/png'
 
-      const removeBgKey = Deno.env.get('REMOVE_BG_API_KEY')
-      console.log(`REMOVE_BG_API_KEY present: ${!!removeBgKey}, length: ${removeBgKey?.length ?? 0}`)
-      if (removeBgKey) {
+      const replicateKey = Deno.env.get('REPLICATE_API_KEY')
+      console.log(`REPLICATE_API_KEY present: ${!!replicateKey}`)
+      if (replicateKey) {
         try {
-          finalBytes = await removeBackground(jpegBytes, removeBgKey)
-          console.log(`Remove.bg success for ingredient ${ingredientId}`)
+          finalBytes = await removeBackground(jpegBytes, replicateKey)
+          console.log(`Replicate bg-remove success for ingredient ${ingredientId}`)
         } catch (bgErr) {
-          console.error(`Remove.bg failed for ${ingredientId}:`, bgErr instanceof Error ? bgErr.message : String(bgErr))
+          console.error(`Replicate bg-remove failed for ${ingredientId}:`, bgErr instanceof Error ? bgErr.message : String(bgErr))
           // Fall back to original JPEG
           finalBytes = jpegBytes
           contentType = 'image/jpeg'
           fileName = `${ingredientId}.jpg`
         }
       } else {
-        console.error('REMOVE_BG_API_KEY not set — skipping background removal')
+        console.warn('REPLICATE_API_KEY not set — skipping background removal')
         contentType = 'image/jpeg'
         fileName = `${ingredientId}.jpg`
       }
@@ -294,9 +334,8 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── RECIPE MODE (original) ─────────────────────────────────────────────────
+  // ── RECIPE MODE ────────────────────────────────────────────────────────────
   try {
-    // Verify JWT
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'No authorization header' }), {
@@ -310,8 +349,6 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Prefer the server-side Supabase secret (set once in dashboard, never exposed to client).
-    // Fall back to the client-passed key so existing callers keep working.
     const apiKey = Deno.env.get('GOOGLE_AI_API_KEY') || clientApiKey
     if (!apiKey) {
       return new Response(JSON.stringify({ error: 'No Google API key — set GOOGLE_AI_API_KEY secret or pass apiKey in body' }), {
@@ -320,7 +357,6 @@ Deno.serve(async (req) => {
     }
     console.log('Using API key source:', Deno.env.get('GOOGLE_AI_API_KEY') ? 'server secret' : 'client-passed')
 
-    // Service-role admin client for Storage + DB writes
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -334,7 +370,7 @@ Deno.serve(async (req) => {
 
     // Generate image
     const rawBytes = await generateImageBytes(prompt, apiKey)
-    // Resize to 512×512 max (recipe hero images need more detail than ingredient thumbnails)
+    // Resize to 512×512 max
     const imageBytes = await resizeImage(rawBytes, 512, true)
 
     // Upload to recipe-images/{recipeId}.jpg
@@ -370,7 +406,6 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error('generate-image error:', err)
 
-    // Best-effort: mark recipe as failed
     if (recipeId) {
       try {
         const supabaseAdmin = createClient(
