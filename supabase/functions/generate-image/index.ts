@@ -141,7 +141,7 @@ async function replicatePost(
 }
 
 /**
- * Run a single Replicate prediction for lucataco/remove-bg given a known version hash.
+ * Run a single Replicate prediction for 851-labs/background-remover given a known version hash.
  * Handles polling if Prefer:wait doesn't resolve it in time.
  * Returns PNG bytes or throws.
  */
@@ -150,7 +150,7 @@ async function runReplicatePrediction(
   dataUri: string,
   replicateKey: string,
 ): Promise<Uint8Array> {
-  console.log(`Trying lucataco/remove-bg version: ${versionId.slice(0, 8)}`)
+  console.log(`Trying 851-labs/background-remover version: ${versionId.slice(0, 8)}`)
   const createRes = await replicatePost(
     JSON.stringify({ version: versionId, input: { image: dataUri } }),
     replicateKey,
@@ -193,13 +193,13 @@ async function runReplicatePrediction(
 }
 
 /**
- * Scrape https://replicate.com/lucataco/remove-bg/examples to find the current
+ * Scrape https://replicate.com/851-labs/background-remover/examples to find the current
  * version hash. Tries regex first; falls back to asking Claude if regex misses.
  * Returns the hash string or null if nothing could be found.
  */
 async function scrapeVersionFromReplicate(): Promise<string | null> {
   try {
-    const pageRes = await fetch('https://replicate.com/lucataco/remove-bg/examples')
+    const pageRes = await fetch('https://replicate.com/851-labs/background-remover/examples')
     if (!pageRes.ok) {
       console.warn(`Scrape fetch failed: ${pageRes.status}`)
       return null
@@ -260,7 +260,7 @@ async function scrapeVersionFromReplicate(): Promise<string | null> {
 }
 
 /**
- * Remove background via Replicate lucataco/remove-bg.
+ * Remove background via Replicate 851-labs/background-remover.
  * Attempt 1: resolve latest version via Replicate model API, run prediction.
  * Attempt 2 (on any failure): scrape the examples page (regex → Claude) for the
  *   version hash, then retry once more.
@@ -274,7 +274,7 @@ async function removeBackground(imageBytes: Uint8Array, replicateKey: string): P
   // ── Attempt 1: version from Replicate model API ────────────────────────────
   try {
     const modelInfoRes = await fetch(
-      'https://api.replicate.com/v1/models/lucataco/remove-bg',
+      'https://api.replicate.com/v1/models/851-labs/background-remover',
       { headers: { Authorization: `Bearer ${replicateKey}` } }
     )
     if (!modelInfoRes.ok) throw new Error(`Model info HTTP ${modelInfoRes.status}`)
