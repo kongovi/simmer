@@ -1,8 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { Image } from 'https://deno.land/x/imagescript@1.2.15/mod.ts'
 
-// EdgeRuntime is a Supabase/Deno global — declare for TypeScript
-declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -512,16 +510,33 @@ Deno.serve(async (req) => {
       .eq('id', recipeId)
   }
 
+  const mode = ingredient === true ? 'ingredient' : 'recipe'
+  const targetId = ingredient === true ? ingredientId : recipeId
+  console.log(`generate-image: ${mode} ${targetId} — kicking off background work`)
+
   // Kick off the real work in the background — survives client disconnect
   const workPromise = ingredient === true
     ? processIngredient(supabaseAdmin, ingredientId!, ingredientName!, apiKey, replicateKey, customPromptAddition)
     : processRecipe(supabaseAdmin, recipeId!, prompt!, apiKey, customPromptAddition)
 
-  EdgeRuntime.waitUntil(workPromise)
+  // EdgeRuntime.waitUntil keeps the isolate alive after the response is sent.
+  // Guard with typeof check: if not available (older runtime), run inline instead.
+  // deno-lint-ignore no-explicit-any
+  const runtime = (globalThis as any).EdgeRuntime
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(workPromise)
+    console.log(`generate-image: returning 202, work continues in background`)
+    return new Response(JSON.stringify({ queued: true }), {
+      status: 202,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    })
+  }
 
-  // Return immediately — client relies on Realtime for the final URL
-  return new Response(JSON.stringify({ queued: true }), {
-    status: 202,
+  // Fallback: runtime doesn't support waitUntil — process inline
+  console.log(`generate-image: EdgeRuntime.waitUntil unavailable, processing inline`)
+  await workPromise
+  return new Response(JSON.stringify({ done: true }), {
+    status: 200,
     headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
   })
 })

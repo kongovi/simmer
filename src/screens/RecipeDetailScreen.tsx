@@ -110,7 +110,17 @@ export function RecipeDetailScreen() {
               }}
             >
               {recipe.image_url ? (
-                <img src={recipe.image_url} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <>
+                  <img src={recipe.image_url} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {(recipe.image_status === 'generating' || regenBusy) && (
+                    <div style={{
+                      position: 'absolute', bottom: '10px', left: '10px',
+                      width: '9px', height: '9px', borderRadius: '50%',
+                      background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite',
+                      zIndex: 2,
+                    }} />
+                  )}
+                </>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <div

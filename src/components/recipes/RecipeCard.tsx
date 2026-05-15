@@ -103,6 +103,18 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           </div>
         )}
 
+        {/* Pulsing dot — visible on top of image OR placeholder while generating */}
+        {isGenerating && (
+          <div
+            style={{
+              position: 'absolute', bottom: '6px', left: '6px',
+              width: '8px', height: '8px', borderRadius: '50%',
+              background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite',
+              zIndex: 2,
+            }}
+          />
+        )}
+
         {/* NB2 badge — only when no real image */}
         {!hasImage && (
           <div
