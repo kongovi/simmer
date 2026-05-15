@@ -46,7 +46,7 @@ type IngredientRow = {
   unit: string | null
   prep_note: string | null
   serving_note: string | null
-  ingredient: { name: string; emoji: string | null; image_url?: string | null; image_status?: string | null } | null
+  ingredient: { id: string; name: string; emoji: string | null; image_url?: string | null; image_status?: string | null } | null
 }
 type StepRow = { id: string; step_number: number; instruction: string; ingredient_ids: string[] }
 
