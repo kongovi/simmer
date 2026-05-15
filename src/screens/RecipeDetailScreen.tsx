@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays, Pencil, RefreshCw, Trash2 } from 'lucide-react'
 import { useRecipe, useRecipeIngredients, useRecipeSteps, useRecipeImageRealtime, useDeleteRecipe } from '../hooks/useRecipes'
@@ -18,7 +18,6 @@ function formatTime(min: number | null) {
 function scale(qty: number | null, base: number, current: number): string {
   if (qty === null) return '—'
   const scaled = (qty / base) * current
-  // Show clean fractions for small numbers
   if (scaled < 0.25) return '¼'
   if (scaled <= 0.33) return '⅓'
   if (scaled <= 0.5) return '½'
@@ -28,27 +27,47 @@ function scale(qty: number | null, base: number, current: number): string {
   return rounded % 1 === 0 ? String(rounded) : rounded.toFixed(2).replace(/\.?0+$/, '')
 }
 
+function useIsWide() {
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 800px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 800px)')
+    const handler = (e: MediaQueryListEvent) => setWide(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return wide
+}
+
 type Tab = 'ingredients' | 'instructions'
+
+type IngredientRow = {
+  id: string
+  quantity: number | null
+  unit: string | null
+  prep_note: string | null
+  serving_note: string | null
+  ingredient: { name: string; emoji: string | null; image_url?: string | null; image_status?: string | null } | null
+}
+type StepRow = { id: string; step_number: number; instruction: string; ingredient_ids: string[] }
 
 export function RecipeDetailScreen() {
   const { id }    = useParams<{ id: string }>()
   const navigate  = useNavigate()
+  const isWide    = useIsWide()
 
   const { data: recipe,      isLoading: rLoading } = useRecipe(id)
   const { data: ingredients, isLoading: iLoading } = useRecipeIngredients(id)
   const { data: steps,       isLoading: sLoading }  = useRecipeSteps(id)
 
-  const [tab,           setTab]           = useState<Tab>('ingredients')
-  const [servings,      setServings]      = useState<number | null>(null)
-  const [cookingMode,   setCookingMode]   = useState(false)
-  const [regenBusy,     setRegenBusy]     = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [regenSheetOpen,   setRegenSheetOpen]   = useState(false)
-  const [regenCustomText,  setRegenCustomText]  = useState('')
+  const [tab,             setTab]             = useState<Tab>('ingredients')
+  const [servings,        setServings]        = useState<number | null>(null)
+  const [cookingMode,     setCookingMode]     = useState(false)
+  const [regenBusy,       setRegenBusy]       = useState(false)
+  const [confirmDelete,   setConfirmDelete]   = useState(false)
+  const [regenSheetOpen,  setRegenSheetOpen]  = useState(false)
+  const [regenCustomText, setRegenCustomText] = useState('')
 
   const deleteRecipe = useDeleteRecipe()
-
-  // Realtime: swap in generated image when ready
   useRecipeImageRealtime()
 
   function openRegenSheet() {
@@ -56,7 +75,6 @@ export function RecipeDetailScreen() {
     setRegenCustomText('')
     setRegenSheetOpen(true)
   }
-
   async function handleRegenImage() {
     if (!recipe?.nb2_prompt || regenBusy) return
     setRegenSheetOpen(false)
@@ -65,30 +83,280 @@ export function RecipeDetailScreen() {
       .finally(() => setRegenBusy(false))
   }
 
-  const isLoading = rLoading || iLoading || sLoading
-
-  if (isLoading) {
+  if (rLoading || iLoading || sLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--dk)' }}>
         <span style={{ fontSize: '15px', color: 'var(--ts)' }}>Loading…</span>
       </div>
     )
   }
-
   if (!recipe) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: 'var(--dk)', flexDirection: 'column', gap: '12px' }}>
         <span style={{ fontSize: '15px', color: 'var(--ts)' }}>Recipe not found</span>
-        <button onClick={() => navigate('/recipes')} style={{ fontSize: '14px', color: 'var(--am)', background: 'none', border: 'none', cursor: 'pointer' }}>
-          ← Back to recipes
-        </button>
+        <button onClick={() => navigate('/recipes')} style={{ fontSize: '14px', color: 'var(--am)', background: 'none', border: 'none', cursor: 'pointer' }}>← Back to recipes</button>
       </div>
     )
   }
 
-  const baseServings  = recipe.servings ?? 4
+  const baseServings    = recipe.servings ?? 4
   const currentServings = servings ?? baseServings
-  const bg = recipe.image_url ? undefined : cardColor(recipe.id)
+  const bg              = recipe.image_url ? undefined : cardColor(recipe.id)
+  const isGenerating    = recipe.image_status === 'generating' || regenBusy
+
+  // ── Shared sub-sections ───────────────────────────────────────────────────
+
+  const metaBadges = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+      {recipe.cook_time_minutes && (
+        <span style={{ fontSize: '14px', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+          <Clock size={12} /> {formatTime(recipe.cook_time_minutes)}
+        </span>
+      )}
+      <span style={{ fontSize: '14px', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+        <Users size={12} /> {baseServings} servings
+      </span>
+      {(recipe as { difficulty?: string }).difficulty && (
+        <span style={{ fontSize: '12px', color: 'var(--ts)', backgroundColor: 'var(--dk3)', borderRadius: '5px', padding: '2px 7px' }}>
+          {(recipe as { difficulty?: string }).difficulty}
+        </span>
+      )}
+      {recipe.meal_type && (
+        <span style={{ fontSize: '12px', color: 'var(--am)', backgroundColor: 'rgba(239,159,39,0.12)', borderRadius: '5px', padding: '2px 7px', textTransform: 'capitalize' }}>
+          {recipe.meal_type}
+        </span>
+      )}
+    </div>
+  )
+
+  const servingsScaler = (
+    <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>Servings</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <button onClick={() => setServings(Math.max(1, currentServings - 1))} style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--dk3)', border: '0.5px solid var(--br)', cursor: 'pointer', color: 'var(--tp)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Minus size={13} />
+        </button>
+        <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--tp)', minWidth: '20px', textAlign: 'center' }}>{currentServings}</span>
+        <button onClick={() => setServings(currentServings + 1)} style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--dk3)', border: '0.5px solid var(--br)', cursor: 'pointer', color: 'var(--tp)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Plus size={13} />
+        </button>
+      </div>
+    </div>
+  )
+
+  const ingredientsList = (
+    <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
+      {(ingredients ?? []).map((row: IngredientRow, idx: number) => (
+        <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: idx < (ingredients?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none' }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
+              <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', display: 'block' }} />
+            ) : (
+              <span style={{ fontSize: '20px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
+            )}
+            {row.ingredient?.image_status === 'generating' && (
+              <div style={{ position: 'absolute', bottom: 0, left: 0, width: '6px', height: '6px', borderRadius: '50%', background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite' }} />
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>{row.ingredient?.name ?? '—'}</div>
+            {row.prep_note && <div style={{ fontSize: '13px', color: 'var(--ts)' }}>{row.prep_note}</div>}
+            {row.serving_note && <div style={{ fontSize: '12px', color: 'var(--tm)', fontStyle: 'italic' }}>{row.serving_note}</div>}
+          </div>
+          <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500, flexShrink: 0 }}>
+            {scale(row.quantity, baseServings, currentServings)}{row.unit ? ` ${row.unit}` : ''}
+          </span>
+        </div>
+      ))}
+      {(ingredients ?? []).length === 0 && (
+        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No ingredients</div>
+      )}
+    </div>
+  )
+
+  const instructionsList = (
+    <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
+      {(steps ?? []).map((step: StepRow, idx: number) => (
+        <div key={step.id} style={{ padding: '13px 14px', borderBottom: idx < (steps?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--am)', letterSpacing: '1px', marginBottom: '5px' }}>STEP {step.step_number}</div>
+          <p style={{ fontSize: '15px', color: 'var(--tp)', margin: 0, lineHeight: 1.6 }}>{step.instruction}</p>
+        </div>
+      ))}
+      {(steps ?? []).length === 0 && (
+        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No steps</div>
+      )}
+      {(steps ?? []).length > 0 && (
+        <div style={{ padding: '12px 14px', borderTop: '0.5px solid var(--br)' }}>
+          <button
+            onClick={() => setCookingMode(true)}
+            style={{ width: '100%', padding: '12px', backgroundColor: 'var(--am)', color: '#1a1612', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+          >
+            <ChefHat size={16} /> Start cooking
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
+  const imageArea = (height: string | number) => (
+    <div style={{ width: '100%', height, backgroundColor: bg, overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {recipe.image_url ? (
+        <>
+          <img src={`${recipe.image_url}?t=${Date.parse(recipe.updated_at)}`} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {isGenerating && (
+            <div style={{ position: 'absolute', bottom: '10px', left: '10px', width: '9px', height: '9px', borderRadius: '50%', background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite', zIndex: 2 }} />
+          )}
+        </>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', opacity: isGenerating ? 0.6 : 0.35, animation: isGenerating ? 'nb2-pulse 1.8s ease-in-out infinite' : undefined }}>
+            <span style={{ fontSize: '54px' }}>{recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️')}</span>
+            <span style={{ fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>
+              {isGenerating ? 'rendering…' : recipe.image_status === 'failed' ? 'generation failed' : 'queued'}
+            </span>
+          </div>
+          {!isGenerating && recipe.nb2_prompt && (
+            <button onClick={openRegenSheet} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0,0,0,0.18)', border: 'none', borderRadius: '8px', padding: '5px 10px', color: 'rgba(0,0,0,0.5)', fontSize: '11px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <RefreshCw size={10} /> Regenerate image
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
+  const overlayButtons = (
+    <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '6px', zIndex: 2 }}>
+      {recipe.nb2_prompt && !regenBusy && recipe.image_status !== 'generating' && (
+        <button onClick={openRegenSheet} style={{ background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px', padding: '6px 10px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+          <RefreshCw size={12} />
+        </button>
+      )}
+      <button onClick={() => navigate(`/recipes/${recipe.id}/edit`)} style={{ background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px', padding: '6px 10px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+        <Pencil size={12} /> Edit
+      </button>
+    </div>
+  )
+
+  // ── Regen sheet + cooking mode (shared) ──────────────────────────────────
+
+  const regenSheet = regenSheetOpen && (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }} onClick={e => { if (e.target === e.currentTarget) setRegenSheetOpen(false) }}>
+      <div style={{ background: 'var(--dk2)', borderRadius: '20px 20px 0 0', padding: '20px 16px 32px', width: '100%', borderTop: '0.5px solid var(--brh)' }}>
+        <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '4px' }}>Regenerate image</div>
+        <div style={{ fontSize: '13px', color: 'var(--ts)', marginBottom: '16px' }}>Base style: retro-pop plated dish illustration. Add custom instructions below to adjust the result.</div>
+        <textarea autoFocus value={regenCustomText} onChange={e => setRegenCustomText(e.target.value)} placeholder={'e.g. "make the sauce more vibrant", "add fresh herb garnish", "warmer lighting"'} rows={3}
+          style={{ width: '100%', boxSizing: 'border-box', background: 'var(--dk3)', border: '0.5px solid var(--brh)', borderRadius: '10px', padding: '10px 12px', color: 'var(--tp)', fontSize: '15px', fontFamily: 'inherit', outline: 'none', resize: 'none', marginBottom: '14px' }}
+        />
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={() => setRegenSheetOpen(false)} style={{ flex: 1, padding: '13px', background: 'var(--dk3)', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={handleRegenImage} style={{ flex: 2, padding: '13px', background: 'var(--am)', border: 'none', borderRadius: '12px', color: '#141820', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <RefreshCw size={14} /> Generate
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  const cookingModeOverlay = cookingMode && steps && (
+    <CookingMode
+      recipeName={recipe.name}
+      steps={steps.map((s: StepRow) => ({ id: s.id, step_number: s.step_number, instruction: s.instruction, ingredient_ids: s.ingredient_ids ?? [] }))}
+      ingredients={(ingredients ?? []).map((r: IngredientRow) => ({
+        id: r.ingredient?.id ?? r.id,
+        emoji: r.ingredient?.emoji ?? '🥄',
+        name: r.ingredient?.name ?? '—',
+        quantity: scale(r.quantity, baseServings, currentServings),
+        unit: r.unit,
+      }))}
+      onDone={() => setCookingMode(false)}
+    />
+  )
+
+  // ── DESKTOP LAYOUT ────────────────────────────────────────────────────────
+
+  if (isWide) {
+    return (
+      <>
+        <div style={{ backgroundColor: 'var(--dk)', minHeight: '100%' }}>
+
+          {/* ── Top: info (left) + image (right) ── */}
+          <div style={{ display: 'flex', minHeight: '420px' }}>
+
+            {/* Left panel */}
+            <div style={{ width: '50%', padding: '36px 48px', display: 'flex', flexDirection: 'column', gap: '20px', boxSizing: 'border-box' }}>
+
+              {/* Nav row */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button onClick={() => navigate('/recipes')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px', padding: 0 }}>
+                  <ArrowLeft size={14} /> Recipes
+                </button>
+              </div>
+
+              {/* Title */}
+              <h1 style={{ fontSize: '30px', fontWeight: 700, color: 'var(--tp)', margin: 0, lineHeight: 1.2 }}>
+                {recipe.name}
+              </h1>
+
+              {/* Meta */}
+              {metaBadges}
+
+              {/* Servings */}
+              {servingsScaler}
+
+              {/* Spacer pushes actions to bottom */}
+              <div style={{ flex: 1 }} />
+
+              {/* Action buttons */}
+              {confirmDelete ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: '13px', background: 'var(--dk3)', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                  <button onClick={async () => { await deleteRecipe.mutateAsync(recipe.id); navigate('/recipes') }} disabled={deleteRecipe.isPending} style={{ flex: 2, padding: '13px', background: 'rgba(208,90,48,0.15)', border: '0.5px solid var(--rd)', borderRadius: '12px', color: 'var(--rd)', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {deleteRecipe.isPending ? 'Deleting…' : 'Delete recipe'}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setConfirmDelete(true)} style={{ padding: '13px 14px', background: 'none', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', cursor: 'pointer', lineHeight: 0 }}>
+                    <Trash2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => navigate('/planner/add', { state: { recipeId: recipe.id, recipeName: recipe.name, recipeEmoji: recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️') } })}
+                    style={{ flex: 1, padding: '13px', backgroundColor: 'var(--dk3)', color: 'var(--tp)', border: '0.5px solid var(--brh)', borderRadius: '12px', fontSize: '16px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    <CalendarDays size={16} /> Add to meal plan
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Right panel: image */}
+            <div style={{ width: '50%', position: 'relative' }}>
+              {imageArea('100%')}
+              {overlayButtons}
+            </div>
+          </div>
+
+          {/* ── Bottom: ingredients (left) + instructions (right) ── */}
+          <div style={{ display: 'flex', gap: '32px', padding: '36px 48px', alignItems: 'flex-start' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ts)', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 12px' }}>Ingredients</h2>
+              {ingredientsList}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ts)', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 12px' }}>Instructions</h2>
+              {instructionsList}
+            </div>
+          </div>
+        </div>
+
+        {regenSheet}
+        {cookingModeOverlay}
+      </>
+    )
+  }
+
+  // ── MOBILE LAYOUT ─────────────────────────────────────────────────────────
 
   return (
     <>
@@ -98,172 +366,29 @@ export function RecipeDetailScreen() {
 
           {/* Hero image area */}
           <div style={{ position: 'relative' }}>
-            <div
-              style={{
-                width: '100%',
-                height: '220px',
-                backgroundColor: bg,
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {recipe.image_url ? (
-                <>
-                  <img src={`${recipe.image_url}?t=${Date.parse(recipe.updated_at)}`} alt={recipe.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  {(recipe.image_status === 'generating' || regenBusy) && (
-                    <div style={{
-                      position: 'absolute', bottom: '10px', left: '10px',
-                      width: '9px', height: '9px', borderRadius: '50%',
-                      background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite',
-                      zIndex: 2,
-                    }} />
-                  )}
-                </>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                  <div
-                    style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-                      opacity: (recipe.image_status === 'generating' || regenBusy) ? 0.6 : 0.35,
-                      animation: (recipe.image_status === 'generating' || regenBusy) ? 'nb2-pulse 1.8s ease-in-out infinite' : undefined,
-                    }}
-                  >
-                    <span style={{ fontSize: '54px' }}>
-                      {recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️')}
-                    </span>
-                    <span style={{ fontSize: '11px', letterSpacing: '0.5px', textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>
-                      {(recipe.image_status === 'generating' || regenBusy) ? 'rendering…' : recipe.image_status === 'failed' ? 'generation failed' : 'queued'}
-                    </span>
-                  </div>
-                  {/* Regenerate button — shown when failed, pending, or no prompt */}
-                  {recipe.image_status !== 'generating' && !regenBusy && recipe.nb2_prompt && (
-                    <button
-                      onClick={openRegenSheet}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '5px',
-                        background: 'rgba(0,0,0,0.18)', border: 'none',
-                        borderRadius: '8px', padding: '5px 10px',
-                        color: 'rgba(0,0,0,0.5)', fontSize: '11px', fontWeight: 500,
-                        cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      <RefreshCw size={10} />
-                      Regenerate image
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            {imageArea('220px')}
 
             {/* Back button overlay */}
-            <button
-              onClick={() => navigate('/recipes')}
-              style={{
-                position: 'absolute', top: '12px', left: '12px',
-                background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
-                padding: '6px 10px', cursor: 'pointer', color: '#fff',
-                display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px',
-              }}
-            >
-              <ArrowLeft size={13} />
-              Recipes
+            <button onClick={() => navigate('/recipes')} style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px', padding: '6px 10px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+              <ArrowLeft size={13} /> Recipes
             </button>
 
-            {/* Edit + Regen buttons overlay */}
-            <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '6px' }}>
-              {recipe.nb2_prompt && !regenBusy && recipe.image_status !== 'generating' && (
-                <button
-                  onClick={openRegenSheet}
-                  style={{
-                    background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
-                    padding: '6px 10px', cursor: 'pointer', color: '#fff',
-                    display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px',
-                  }}
-                >
-                  <RefreshCw size={12} />
-                </button>
-              )}
-              <button
-                onClick={() => navigate(`/recipes/${recipe.id}/edit`)}
-                style={{
-                  background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px',
-                  padding: '6px 10px', cursor: 'pointer', color: '#fff',
-                  display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px',
-                }}
-              >
-                <Pencil size={12} />
-                Edit
-              </button>
-            </div>
+            {overlayButtons}
           </div>
 
           {/* Recipe header */}
           <div style={{ padding: '16px 16px 0' }}>
-            <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px', lineHeight: 1.2 }}>
-              {recipe.name}
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              {recipe.cook_time_minutes && (
-                <span style={{ fontSize: '14px', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <Clock size={12} /> {formatTime(recipe.cook_time_minutes)}
-                </span>
-              )}
-              <span style={{ fontSize: '14px', color: 'var(--ts)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                <Users size={12} /> {baseServings} servings
-              </span>
-              {(recipe as { difficulty?: string }).difficulty && (
-                <span style={{ fontSize: '12px', color: 'var(--ts)', backgroundColor: 'var(--dk3)', borderRadius: '5px', padding: '2px 7px' }}>
-                  {(recipe as { difficulty?: string }).difficulty}
-                </span>
-              )}
-              {recipe.meal_type && (
-                <span style={{ fontSize: '12px', color: 'var(--am)', backgroundColor: 'rgba(239,159,39,0.12)', borderRadius: '5px', padding: '2px 7px', textTransform: 'capitalize' }}>
-                  {recipe.meal_type}
-                </span>
-              )}
-            </div>
+            <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--tp)', margin: '0 0 8px', lineHeight: 1.2 }}>{recipe.name}</h1>
+            {metaBadges}
           </div>
 
           {/* Servings scaler */}
-          <div style={{ margin: '16px 16px 0', backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>Servings</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <button
-                onClick={() => setServings(Math.max(1, currentServings - 1))}
-                style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--dk3)', border: '0.5px solid var(--br)', cursor: 'pointer', color: 'var(--tp)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Minus size={13} />
-              </button>
-              <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--tp)', minWidth: '20px', textAlign: 'center' }}>
-                {currentServings}
-              </span>
-              <button
-                onClick={() => setServings(currentServings + 1)}
-                style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'var(--dk3)', border: '0.5px solid var(--br)', cursor: 'pointer', color: 'var(--tp)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Plus size={13} />
-              </button>
-            </div>
-          </div>
+          <div style={{ margin: '16px 16px 0' }}>{servingsScaler}</div>
 
           {/* Tab switcher */}
           <div style={{ margin: '16px 16px 0', display: 'flex', gap: '0', backgroundColor: 'var(--dk3)', borderRadius: '10px', padding: '3px' }}>
             {(['ingredients', 'instructions'] as Tab[]).map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                style={{
-                  flex: 1, padding: '8px', borderRadius: '8px',
-                  backgroundColor: tab === t ? 'var(--dkc)' : 'transparent',
-                  border: tab === t ? '0.5px solid var(--br)' : 'none',
-                  color: tab === t ? 'var(--tp)' : 'var(--ts)',
-                  fontSize: '15px', fontWeight: tab === t ? 600 : 400,
-                  cursor: 'pointer', textTransform: 'capitalize',
-                  transition: 'all 0.15s',
-                }}
-              >
+              <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px', borderRadius: '8px', backgroundColor: tab === t ? 'var(--dkc)' : 'transparent', border: tab === t ? '0.5px solid var(--br)' : 'none', color: tab === t ? 'var(--tp)' : 'var(--ts)', fontSize: '15px', fontWeight: tab === t ? 600 : 400, cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s' }}>
                 {t}
               </button>
             ))}
@@ -271,156 +396,27 @@ export function RecipeDetailScreen() {
 
           {/* Tab content */}
           <div style={{ padding: '12px 16px 0' }}>
-            {tab === 'ingredients' ? (
-              <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
-                {(ingredients ?? []).map((row: { id: string; quantity: number | null; unit: string | null; prep_note: string | null; serving_note: string | null; ingredient: { name: string; emoji: string | null; image_url?: string | null; image_status?: string | null } | null }, idx: number) => (
-                  <div
-                    key={row.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '10px 14px',
-                      borderBottom: idx < (ingredients?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none',
-                    }}
-                  >
-                    <div style={{ position: 'relative', flexShrink: 0 }}>
-                      {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
-                        <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', display: 'block' }} />
-                      ) : (
-                        <span style={{ fontSize: '20px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
-                      )}
-                      {row.ingredient?.image_status === 'generating' && (
-                        <div style={{
-                          position: 'absolute', bottom: 0, left: 0,
-                          width: '6px', height: '6px', borderRadius: '50%',
-                          background: 'var(--am)',
-                          animation: 'nb2-pulse 1.2s ease-in-out infinite',
-                        }} />
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>
-                        {row.ingredient?.name ?? '—'}
-                      </div>
-                      {row.prep_note && (
-                        <div style={{ fontSize: '13px', color: 'var(--ts)' }}>{row.prep_note}</div>
-                      )}
-                      {row.serving_note && (
-                        <div style={{ fontSize: '12px', color: 'var(--tm)', fontStyle: 'italic' }}>{row.serving_note}</div>
-                      )}
-                    </div>
-                    <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500, flexShrink: 0 }}>
-                      {scale(row.quantity, baseServings, currentServings)}
-                      {row.unit ? ` ${row.unit}` : ''}
-                    </span>
-                  </div>
-                ))}
-                {(ingredients ?? []).length === 0 && (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No ingredients</div>
-                )}
-              </div>
-            ) : (
-              <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
-                {(steps ?? []).map((step: { id: string; step_number: number; instruction: string }, idx: number) => (
-                  <div
-                    key={step.id}
-                    style={{
-                      padding: '13px 14px',
-                      borderBottom: idx < (steps?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none',
-                    }}
-                  >
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--am)', letterSpacing: '1px', marginBottom: '5px' }}>
-                      STEP {step.step_number}
-                    </div>
-                    <p style={{ fontSize: '15px', color: 'var(--tp)', margin: 0, lineHeight: 1.6 }}>
-                      {step.instruction}
-                    </p>
-                  </div>
-                ))}
-                {(steps ?? []).length === 0 && (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No steps</div>
-                )}
-
-                {/* Start cooking button */}
-                {(steps ?? []).length > 0 && (
-                  <div style={{ padding: '12px 14px', borderTop: '0.5px solid var(--br)' }}>
-                    <button
-                      onClick={() => setCookingMode(true)}
-                      style={{
-                        width: '100%', padding: '12px',
-                        backgroundColor: 'var(--am)', color: '#1a1612',
-                        border: 'none', borderRadius: '10px',
-                        fontSize: '16px', fontWeight: 600, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                      }}
-                    >
-                      <ChefHat size={16} /> Start cooking
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            {tab === 'ingredients' ? ingredientsList : instructionsList}
           </div>
         </div>
 
-        {/* Pinned bottom: Add to meal plan + Delete */}
+        {/* Pinned bottom bar */}
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: 'var(--dk2)', borderTop: '0.5px solid var(--br)', padding: '12px 16px' }}>
           {confirmDelete ? (
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                style={{
-                  flex: 1, padding: '13px', background: 'var(--dk3)',
-                  border: '0.5px solid var(--br)', borderRadius: '12px',
-                  color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  await deleteRecipe.mutateAsync(recipe.id)
-                  navigate('/recipes')
-                }}
-                disabled={deleteRecipe.isPending}
-                style={{
-                  flex: 2, padding: '13px', background: 'rgba(208,90,48,0.15)',
-                  border: '0.5px solid var(--rd)', borderRadius: '12px',
-                  color: 'var(--rd)', fontSize: '15px', fontWeight: 600,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
+              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: '13px', background: 'var(--dk3)', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+              <button onClick={async () => { await deleteRecipe.mutateAsync(recipe.id); navigate('/recipes') }} disabled={deleteRecipe.isPending} style={{ flex: 2, padding: '13px', background: 'rgba(208,90,48,0.15)', border: '0.5px solid var(--rd)', borderRadius: '12px', color: 'var(--rd)', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 {deleteRecipe.isPending ? 'Deleting…' : 'Delete recipe'}
               </button>
             </div>
           ) : (
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setConfirmDelete(true)}
-                style={{
-                  padding: '13px 14px', background: 'none',
-                  border: '0.5px solid var(--br)', borderRadius: '12px',
-                  color: 'var(--ts)', cursor: 'pointer', lineHeight: 0,
-                }}
-              >
+              <button onClick={() => setConfirmDelete(true)} style={{ padding: '13px 14px', background: 'none', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', cursor: 'pointer', lineHeight: 0 }}>
                 <Trash2 size={16} />
               </button>
               <button
-                onClick={() => navigate('/planner/add', {
-                  state: {
-                    recipeId:    recipe.id,
-                    recipeName:  recipe.name,
-                    recipeEmoji: recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️'),
-                  },
-                })}
-                style={{
-                  flex: 1, padding: '13px',
-                  backgroundColor: 'var(--dk3)', color: 'var(--tp)',
-                  border: '0.5px solid var(--brh)', borderRadius: '12px',
-                  fontSize: '16px', fontWeight: 500, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                }}
+                onClick={() => navigate('/planner/add', { state: { recipeId: recipe.id, recipeName: recipe.name, recipeEmoji: recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️') } })}
+                style={{ flex: 1, padding: '13px', backgroundColor: 'var(--dk3)', color: 'var(--tp)', border: '0.5px solid var(--brh)', borderRadius: '12px', fontSize: '16px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               >
                 <CalendarDays size={16} /> Add to meal plan
               </button>
@@ -429,88 +425,8 @@ export function RecipeDetailScreen() {
         </div>
       </div>
 
-      {/* Regen prompt sheet */}
-      {regenSheetOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}
-          onClick={e => { if (e.target === e.currentTarget) setRegenSheetOpen(false) }}
-        >
-          <div style={{
-            background: 'var(--dk2)', borderRadius: '20px 20px 0 0',
-            padding: '20px 16px 32px', width: '100%',
-            borderTop: '0.5px solid var(--brh)',
-          }}>
-            <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '4px' }}>
-              Regenerate image
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--ts)', marginBottom: '16px' }}>
-              Base style: retro-pop plated dish illustration. Add custom instructions below to adjust the result.
-            </div>
-            <textarea
-              autoFocus
-              value={regenCustomText}
-              onChange={e => setRegenCustomText(e.target.value)}
-              placeholder={'e.g. "make the sauce more vibrant", "add fresh herb garnish", "warmer lighting"'}
-              rows={3}
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                background: 'var(--dk3)', border: '0.5px solid var(--brh)',
-                borderRadius: '10px', padding: '10px 12px',
-                color: 'var(--tp)', fontSize: '15px',
-                fontFamily: 'inherit', outline: 'none', resize: 'none',
-                marginBottom: '14px',
-              }}
-            />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setRegenSheetOpen(false)}
-                style={{
-                  flex: 1, padding: '13px', background: 'var(--dk3)',
-                  border: '0.5px solid var(--br)', borderRadius: '12px',
-                  color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRegenImage}
-                style={{
-                  flex: 2, padding: '13px', background: 'var(--am)',
-                  border: 'none', borderRadius: '12px',
-                  color: '#141820', fontSize: '15px', fontWeight: 600,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                }}
-              >
-                <RefreshCw size={14} /> Generate
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cooking mode overlay */}
-      {cookingMode && steps && (
-        <CookingMode
-          recipeName={recipe.name}
-          steps={steps.map((s: { id: string; step_number: number; instruction: string; ingredient_ids: string[] }) => ({
-            id: s.id,
-            step_number: s.step_number,
-            instruction: s.instruction,
-            ingredient_ids: s.ingredient_ids ?? [],
-          }))}
-          ingredients={(ingredients ?? []).map((r: { id: string; quantity: number | null; unit: string | null; ingredient: { id: string; name: string; emoji: string | null } | null }) => ({
-            id: r.ingredient?.id ?? r.id,
-            emoji: r.ingredient?.emoji ?? '🥄',
-            name: r.ingredient?.name ?? '—',
-            quantity: scale(r.quantity, baseServings, currentServings),
-            unit: r.unit,
-          }))}
-          onDone={() => setCookingMode(false)}
-        />
-      )}
-
+      {regenSheet}
+      {cookingModeOverlay}
     </>
   )
 }
-
