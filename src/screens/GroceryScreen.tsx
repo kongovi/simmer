@@ -43,11 +43,14 @@ export function GroceryScreen() {
   const [newStoreName,      setNewStoreName]       = useState('')
   const storeInputRef = useRef<HTMLInputElement>(null)
 
-  // Derive store list: known catalog stores + any locally added
+  // Derive store list ordered by family_stores sort_order, then any catalog
+  // stores not in family_stores, then locally-added extras
   const allStores = useMemo(() => {
-    const combined = [...new Set([...knownStores, ...extraStores])]
-    return combined.sort()
-  }, [knownStores, extraStores])
+    const familyNames = familyStores.map(s => s.name)  // already sorted by sort_order
+    const catalogExtra = knownStores.filter(s => !familyNames.includes(s)).sort()
+    const localExtra   = extraStores.filter(s => !familyNames.includes(s) && !catalogExtra.includes(s))
+    return [...familyNames, ...catalogExtra, ...localExtra]
+  }, [familyStores, knownStores, extraStores])
 
   useEffect(() => {
     if (showStoreInput) storeInputRef.current?.focus()
