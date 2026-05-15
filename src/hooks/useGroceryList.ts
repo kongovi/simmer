@@ -362,14 +362,22 @@ export function useAddManualItem() {
           .single()
 
         if (insertErr) {
-          // Unique violation — look up the existing row
-          const { data: existing } = await supabase
+          // Could be a unique violation (duplicate name) — look up the existing row.
+          // Log non-duplicate errors so they're visible during debugging.
+          const isUniqueViolation = insertErr.code === '23505' || insertErr.message?.includes('unique')
+          if (!isUniqueViolation) {
+            console.error(`useAddManualItem: catalog insert failed for "${name}":`, insertErr.code, insertErr.message)
+          }
+          const { data: existing, error: lookupErr } = await supabase
             .from('ingredients_catalog')
             .select('id, image_url')
             .eq('family_id', familyId)
             .ilike('name', name)
             .limit(1)
             .maybeSingle()
+          if (lookupErr) {
+            console.error(`useAddManualItem: catalog lookup failed for "${name}":`, lookupErr.code, lookupErr.message)
+          }
           if (existing?.id) {
             resolvedIngredientId = existing.id as string
             needsImage = !existing.image_url
@@ -377,7 +385,12 @@ export function useAddManualItem() {
         } else if (inserted?.id) {
           resolvedIngredientId = inserted.id as string
           needsImage = true // brand-new entry always needs an image
+        } else {
+          // Insert succeeded but returned no data — shouldn't happen, log it
+          console.error(`useAddManualItem: catalog insert returned no data for "${name}"`)
         }
+      } else if (!familyId) {
+        console.error(`useAddManualItem: familyId is null — cannot create catalog entry for "${name}"`)
       }
 
       const { error } = await supabase
