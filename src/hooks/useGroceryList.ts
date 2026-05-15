@@ -458,7 +458,7 @@ export function useUpdateGroceryItem() {
 
   return useMutation({
     mutationFn: async ({
-      itemId, listId,
+      itemId, listId: _listId,
       quantity, unit, aisleOrder, assignedStore,
       ingredientId, name, notes, defaultAisleOrder,
     }: {
