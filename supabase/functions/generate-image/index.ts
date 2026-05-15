@@ -141,16 +141,17 @@ async function replicatePost(
 }
 
 /**
- * Run a single Replicate prediction for 851-labs/background-remover given a known version hash.
+ * Run a single Replicate prediction given a known version hash and image data URI.
  * Handles polling if Prefer:wait doesn't resolve it in time.
  * Returns PNG bytes or throws.
  */
 async function runReplicatePrediction(
+  modelSlug: string,
   versionId: string,
   dataUri: string,
   replicateKey: string,
 ): Promise<Uint8Array> {
-  console.log(`Trying 851-labs/background-remover version: ${versionId.slice(0, 8)}`)
+  console.log(`Trying ${modelSlug} version: ${versionId.slice(0, 8)}`)
   const createRes = await replicatePost(
     JSON.stringify({ version: versionId, input: { image: dataUri } }),
     replicateKey,
@@ -188,20 +189,20 @@ async function runReplicatePrediction(
   const imgRes = await fetch(outputUrl)
   if (!imgRes.ok) throw new Error(`Failed to download Replicate output: ${imgRes.status}`)
   const buf = await imgRes.arrayBuffer()
-  console.log(`Replicate bg-remove succeeded: ${buf.byteLength} bytes PNG`)
+  console.log(`${modelSlug} bg-remove succeeded: ${buf.byteLength} bytes PNG`)
   return new Uint8Array(buf)
 }
 
 /**
- * Scrape https://replicate.com/851-labs/background-remover/examples to find the current
- * version hash. Tries regex first; falls back to asking Claude if regex misses.
+ * Scrape a Replicate model examples page to find the current version hash.
+ * Tries regex first; falls back to asking Claude if regex misses.
  * Returns the hash string or null if nothing could be found.
  */
-async function scrapeVersionFromReplicate(): Promise<string | null> {
+async function scrapeVersionFromReplicate(scrapeUrl: string): Promise<string | null> {
   try {
-    const pageRes = await fetch('https://replicate.com/851-labs/background-remover/examples')
+    const pageRes = await fetch(scrapeUrl)
     if (!pageRes.ok) {
-      console.warn(`Scrape fetch failed: ${pageRes.status}`)
+      console.warn(`Scrape fetch failed (${scrapeUrl}): ${pageRes.status}`)
       return null
     }
     const html = await pageRes.text()
@@ -209,7 +210,7 @@ async function scrapeVersionFromReplicate(): Promise<string | null> {
     // Try regex first — version hashes are embedded as JSON in the page
     const regexMatch = html.match(/"version":\s*"([a-f0-9]{40,64})"/)
     if (regexMatch) {
-      console.log(`Scraped version via regex: ${regexMatch[1].slice(0, 8)}`)
+      console.log(`Scraped version via regex from ${scrapeUrl}: ${regexMatch[1].slice(0, 8)}`)
       return regexMatch[1]
     }
 
@@ -220,8 +221,8 @@ async function scrapeVersionFromReplicate(): Promise<string | null> {
       return null
     }
 
-    console.log('Regex found no version — asking Claude to scrape the page')
-    const snippet = html.slice(0, 30000) // first 30k chars covers most embedded JSON
+    console.log(`Regex found no version at ${scrapeUrl} — asking Claude`)
+    const snippet = html.slice(0, 30000)
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -260,41 +261,76 @@ async function scrapeVersionFromReplicate(): Promise<string | null> {
 }
 
 /**
- * Remove background via Replicate 851-labs/background-remover.
- * Attempt 1: resolve latest version via Replicate model API, run prediction.
- * Attempt 2 (on any failure): scrape the examples page (regex → Claude) for the
- *   version hash, then retry once more.
- * If both attempts fail, throws — caller falls back to the original JPEG silently.
+ * Try background removal with a specific Replicate model.
+ * Attempt 1: resolve latest version via Replicate model API.
+ * Attempt 2: scrape the examples page (regex → Claude) for the version hash.
+ * Throws if both attempts fail.
  */
-async function removeBackground(imageBytes: Uint8Array, replicateKey: string): Promise<Uint8Array> {
-  const smallBytes = await resizeImage(imageBytes, 1024, true)
-  const dataUri = `data:image/jpeg;base64,${bytesToBase64(smallBytes)}`
-  console.log(`Replicate bg-remove: ${smallBytes.length} bytes (resized from ${imageBytes.length})`)
-
-  // ── Attempt 1: version from Replicate model API ────────────────────────────
+async function tryBgRemoveModel(
+  modelSlug: string,
+  scrapeUrl: string,
+  dataUri: string,
+  replicateKey: string,
+): Promise<Uint8Array> {
+  // Attempt 1: version from Replicate model API
   try {
     const modelInfoRes = await fetch(
-      'https://api.replicate.com/v1/models/851-labs/background-remover',
+      `https://api.replicate.com/v1/models/${modelSlug}`,
       { headers: { Authorization: `Bearer ${replicateKey}` } }
     )
     if (!modelInfoRes.ok) throw new Error(`Model info HTTP ${modelInfoRes.status}`)
     const modelInfo = await modelInfoRes.json() as { latest_version?: { id: string } }
     const versionId = modelInfo.latest_version?.id
     if (!versionId) throw new Error('No latest_version in model info')
-    return await runReplicatePrediction(versionId, dataUri, replicateKey)
+    return await runReplicatePrediction(modelSlug, versionId, dataUri, replicateKey)
   } catch (e1) {
-    console.warn(`bg-remove attempt 1 failed: ${e1 instanceof Error ? e1.message : e1}`)
+    console.warn(`${modelSlug} attempt 1 failed: ${e1 instanceof Error ? e1.message : e1}`)
   }
 
-  // ── Attempt 2: scrape version from examples page (regex → Claude) ──────────
-  console.log('Falling back to scraping replicate.com for version hash')
-  const scrapedVersion = await scrapeVersionFromReplicate()
+  // Attempt 2: scrape examples page for version hash
+  console.log(`${modelSlug}: falling back to scraping ${scrapeUrl}`)
+  const scrapedVersion = await scrapeVersionFromReplicate(scrapeUrl)
   if (!scrapedVersion) {
-    throw new Error('Could not determine Replicate version hash from API or scrape')
+    throw new Error(`${modelSlug}: could not determine version hash from API or scrape`)
   }
-  return await runReplicatePrediction(scrapedVersion, dataUri, replicateKey)
-  // If this also throws, it propagates up — processIngredient catches it and
-  // silently falls back to the original JPEG
+  return await runReplicatePrediction(modelSlug, scrapedVersion, dataUri, replicateKey)
+}
+
+// Background removal model chain — tried in order, first success wins.
+const BG_REMOVE_MODELS = [
+  {
+    slug:      'bria/remove-background',
+    scrapeUrl: 'https://replicate.com/bria/remove-background/examples',
+  },
+  {
+    slug:      '851-labs/background-remover',
+    scrapeUrl: 'https://replicate.com/851-labs/background-remover/examples',
+  },
+]
+
+/**
+ * Remove background via Replicate.
+ * Tries bria/remove-background first, falls back to 851-labs/background-remover.
+ * Each model gets two attempts (model API version → scraped version).
+ * If all models fail, throws — caller silently falls back to the original JPEG.
+ */
+async function removeBackground(imageBytes: Uint8Array, replicateKey: string): Promise<Uint8Array> {
+  const smallBytes = await resizeImage(imageBytes, 1024, true)
+  const dataUri = `data:image/jpeg;base64,${bytesToBase64(smallBytes)}`
+  console.log(`Replicate bg-remove: ${smallBytes.length} bytes (resized from ${imageBytes.length})`)
+
+  const errors: string[] = []
+  for (const model of BG_REMOVE_MODELS) {
+    try {
+      return await tryBgRemoveModel(model.slug, model.scrapeUrl, dataUri, replicateKey)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      errors.push(`${model.slug}: ${msg}`)
+      console.warn(`${model.slug} all attempts failed: ${msg}`)
+    }
+  }
+
+  throw new Error(`All bg-remove models failed: ${errors.join(' | ')}`)
 }
 
 /**
