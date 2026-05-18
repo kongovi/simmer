@@ -123,22 +123,35 @@ export function parseOrderCSV(text: string): ParsedOrderRow[] {
 /** Simple normalise + substring match. Returns best catalog id or null. */
 export function fuzzyMatchIngredient(
   name: string,
-  catalog: { id: string; name: string }[]
+  catalog: { id: string; name: string; aliases?: string[] }[]
 ): string | null {
   const needle = name.toLowerCase().trim()
 
-  // Exact match first
+  // Tier 0: alias exact match — learned from prior merges, highest confidence
+  for (const c of catalog) {
+    if (c.aliases?.some(a => a.toLowerCase() === needle)) return c.id
+  }
+
+  // Tier 1: exact name match
   const exact = catalog.find(c => c.name.toLowerCase() === needle)
   if (exact) return exact.id
 
-  // Contains match (needle in catalog name or vice-versa)
+  // Tier 2: alias contains match (needle in alias or alias in needle)
+  for (const c of catalog) {
+    if (c.aliases?.some(a => {
+      const al = a.toLowerCase()
+      return al.includes(needle) || needle.includes(al)
+    })) return c.id
+  }
+
+  // Tier 3: name contains match (needle in catalog name or vice-versa)
   const contains = catalog.find(c => {
     const hay = c.name.toLowerCase()
     return hay.includes(needle) || needle.includes(hay)
   })
   if (contains) return contains.id
 
-  // Word-overlap: count shared words, require ≥2 or ≥50% overlap
+  // Tier 4: word-overlap — count shared words, require ≥50% overlap
   const needleWords = new Set(needle.split(/\s+/).filter(w => w.length > 2))
   let bestId: string | null = null
   let bestScore = 0

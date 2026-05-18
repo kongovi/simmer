@@ -24,7 +24,7 @@ export function useOrderImport() {
       // 2. Fetch existing catalog
       const { data: catalog, error: catErr } = await supabase
         .from('ingredients_catalog')
-        .select('id, name')
+        .select('id, name, aliases')
         .eq('family_id', familyId)
       if (catErr) throw catErr
 
@@ -50,7 +50,7 @@ export function useOrderImport() {
 
           if (ingErr) { skipped++; continue }
           ingredientId = newIng.id
-          currentCatalog.push({ id: newIng.id, name: newIng.name })
+          currentCatalog.push({ id: newIng.id, name: newIng.name, aliases: [] })
           newIngredients.push({ id: newIng.id, name: newIng.name })
           newToCatalog++
         }

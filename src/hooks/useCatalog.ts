@@ -115,7 +115,23 @@ export function useMergeIngredients() {
       mergeIds:    string[]
       overrides?:  MergeOverrides
     }) => {
+      // Collect names + aliases from every ingredient being merged away,
+      // so future CSV imports can route those names to this canonical entry.
+      const newAliases: string[] = []
+
       for (const mid of mergeIds) {
+        // Fetch the name and existing aliases before deleting
+        const { data: dying } = await supabase
+          .from('ingredients_catalog')
+          .select('name, aliases')
+          .eq('id', mid)
+          .single()
+
+        if (dying) {
+          newAliases.push(dying.name)
+          if (Array.isArray(dying.aliases)) newAliases.push(...dying.aliases)
+        }
+
         // Re-point all FK references
         await supabase.from('recipe_ingredients').update({ ingredient_id: canonicalId }).eq('ingredient_id', mid)
         await supabase.from('grocery_list_items').update({ ingredient_id: canonicalId }).eq('ingredient_id', mid)
@@ -125,6 +141,28 @@ export function useMergeIngredients() {
         const { error } = await supabase.from('ingredients_catalog').delete().eq('id', mid)
         if (error) throw error
       }
+
+      // Merge the collected aliases into the canonical row (dedup, case-insensitive)
+      if (newAliases.length > 0) {
+        const { data: canonical } = await supabase
+          .from('ingredients_catalog')
+          .select('name, aliases')
+          .eq('id', canonicalId)
+          .single()
+
+        const existing = new Set(
+          [canonical?.name, ...(canonical?.aliases ?? [])].map(s => s?.toLowerCase())
+        )
+        const toAdd = newAliases.filter(a => a && !existing.has(a.toLowerCase()))
+
+        if (toAdd.length > 0) {
+          await supabase
+            .from('ingredients_catalog')
+            .update({ aliases: [...(canonical?.aliases ?? []), ...toAdd] })
+            .eq('id', canonicalId)
+        }
+      }
+
       // Apply any chosen field overrides to the surviving canonical row
       if (overrides && Object.keys(overrides).length > 0) {
         await supabase.from('ingredients_catalog').update(overrides).eq('id', canonicalId)
