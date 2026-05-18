@@ -423,15 +423,11 @@ function DishTile({ dish, onClick }: { dish: SlotDish; onClick: () => void }) {
         </div>
       )}
 
-      {/* Name label */}
+      {/* Name label — expands to fit all text */}
       <div style={{
         padding: '5px 7px 7px',
         fontSize: '12px', fontWeight: 500, color: 'var(--tp)',
         lineHeight: 1.3,
-        overflow: 'hidden',
-        display: '-webkit-box',
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: 'vertical',
       }}>
         {name}
       </div>
