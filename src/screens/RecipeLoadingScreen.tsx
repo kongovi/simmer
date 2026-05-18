@@ -14,11 +14,10 @@ interface LoadStep {
 }
 
 const BASE_STEPS: LoadStep[] = [
-  { id: 'parse',      label: 'Parsing recipe text' },
-  { id: 'extract',    label: 'Extracting ingredients' },
-  { id: 'catalog',    label: 'Matching to items catalog…' },
-  { id: 'steps',      label: 'Structuring cooking steps' },
-  { id: 'image',      label: 'Generating NB2 illustration' },
+  { id: 'parse',   label: 'Parsing recipe text' },
+  { id: 'extract', label: 'Extracting ingredients' },
+  { id: 'catalog', label: 'Matching to items catalog…' },
+  { id: 'steps',   label: 'Structuring cooking steps' },
 ]
 
 export function RecipeLoadingScreen() {
@@ -28,7 +27,7 @@ export function RecipeLoadingScreen() {
   const aiLabel   = useAIModelLabel()
 
   const [stepStates, setStepStates] = useState<Record<string, StepState>>({
-    parse: 'pending', extract: 'pending', catalog: 'pending', steps: 'pending', image: 'pending',
+    parse: 'pending', extract: 'pending', catalog: 'pending', steps: 'pending',
   })
   const [stepLabels, setStepLabels] = useState<Record<string, string>>({})
   const [error, setError]           = useState<string | null>(null)
@@ -92,10 +91,7 @@ export function RecipeLoadingScreen() {
         await delay(300)
         setStep('steps', 'done', `Structured ${parsed.steps.length} step${parsed.steps.length !== 1 ? 's' : ''}`)
 
-        // Image generation is non-blocking (Session 3) — show as queued
-        setStep('image', 'done', 'NB2 · queued')
-
-        await delay(400)
+        await delay(300)
         navigate('/recipes/review', { state: { parsed, rawText, sourceUrl: state!.sourceUrl }, replace: true })
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Something went wrong'

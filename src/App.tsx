@@ -110,15 +110,24 @@ function ProtectedLayout() {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Show nav on all pages except auth/onboarding/join flows
+  // Show nav on main tabs; hide on focused single-screen flows
   const p = location.pathname
-  const showNav =
+  const isFocusedFlow =
+    p === '/recipes/new'      ||
+    p === '/recipes/import'   ||
+    p === '/recipes/loading'  ||
+    p === '/recipes/review'   ||
+    p.endsWith('/edit')       ||
+    p === '/planner/claude'   ||
+    p === '/planner/add'
+  const showNav = !isFocusedFlow && (
     p.startsWith('/grocery')  ||
     p.startsWith('/recipes')  ||
     p.startsWith('/planner')  ||
     p.startsWith('/prep')     ||
     p.startsWith('/settings') ||
     p.startsWith('/staging')
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
