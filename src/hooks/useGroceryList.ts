@@ -21,6 +21,7 @@ export interface GroceryItem {
   custom_name:     string | null
   quantity:        number | null
   unit:            string | null
+  notes:           string | null
   source:          'meal_plan' | 'staple' | 'manual'
   recipe_ids:      string[]
   assigned_store:  string | null
@@ -106,7 +107,7 @@ export function useGroceryListItems(listId: string | null) {
         .from('grocery_list_items')
         .select(`
           id, grocery_list_id, ingredient_id, custom_name,
-          quantity, unit, source, recipe_ids, assigned_store,
+          quantity, unit, notes, source, recipe_ids, assigned_store,
           aisle_order, is_checked, checked_at, checked_by,
           ingredient:ingredients_catalog(id, name, emoji, brand_note, default_store, image_url, image_status)
         `)
@@ -339,12 +340,13 @@ export function useAddManualItem() {
 
   return useMutation({
     mutationFn: async ({
-      listId, name, quantity, unit, ingredientId, emoji,
+      listId, name, quantity, unit, notes, ingredientId, emoji,
     }: {
       listId:        string
       name:          string
       quantity?:     number | null
       unit?:         string | null
+      notes?:        string | null
       ingredientId?: string | null
       emoji?:        string | null
     }): Promise<{ ingredientId: string | null; needsImage: boolean }> => {
@@ -401,6 +403,7 @@ export function useAddManualItem() {
           custom_name:     resolvedIngredientId ? null : name,
           quantity:        quantity ?? null,
           unit:            unit ?? null,
+          notes:           notes ?? null,
           source:          'manual',
           recipe_ids:      [],
           aisle_order:     detectAisleOrder(name, emoji ?? null),
@@ -473,23 +476,25 @@ export function useUpdateGroceryItem() {
       notes?:            string | null
       defaultAisleOrder?: number | null
     }) => {
+      const itemUpdate: Record<string, unknown> = {
+        quantity:       quantity ?? null,
+        unit:           unit     || null,
+        aisle_order:    aisleOrder ?? null,
+        assigned_store: assignedStore || null,
+      }
+      if (notes !== undefined) itemUpdate.notes = notes ?? null
+
       const { error: itemErr } = await supabase
         .from('grocery_list_items')
-        .update({
-          quantity:       quantity ?? null,
-          unit:           unit     || null,
-          aisle_order:    aisleOrder ?? null,
-          assigned_store: assignedStore || null,
-        })
+        .update(itemUpdate)
         .eq('id', itemId)
       if (itemErr) throw itemErr
 
       if (ingredientId) {
         const catUpdate: Record<string, unknown> = {}
-        if (name             !== undefined) catUpdate.name               = name.trim()
-        if (notes            !== undefined) catUpdate.brand_note         = notes || null
+        if (name              !== undefined) catUpdate.name                = name.trim()
         if (defaultAisleOrder !== undefined) catUpdate.default_aisle_order = defaultAisleOrder
-        if (assignedStore    !== undefined) catUpdate.default_store      = assignedStore || null
+        if (assignedStore     !== undefined) catUpdate.default_store       = assignedStore || null
         if (Object.keys(catUpdate).length > 0) {
           await supabase.from('ingredients_catalog').update(catUpdate).eq('id', ingredientId)
         }

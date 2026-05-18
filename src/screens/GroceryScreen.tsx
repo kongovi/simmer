@@ -102,15 +102,16 @@ export function GroceryScreen() {
   const [kbSearch, setKbSearch] = useState('')
   const [kbQty,    setKbQty]    = useState('')
   const [kbUnit,   setKbUnit]   = useState('')
+  const [kbNotes,  setKbNotes]  = useState('')
   const kbInputRef = useRef<HTMLInputElement>(null)
 
   const { data: suggestions = [] } = useIngredientSuggestions(kbSearch)
 
   function openKb() {
-    setShowKb(true); setKbSearch(''); setKbQty(''); setKbUnit('')
+    setShowKb(true); setKbSearch(''); setKbQty(''); setKbUnit(''); setKbNotes('')
     setTimeout(() => kbInputRef.current?.focus(), 50)
   }
-  function closeKb() { setShowKb(false); setKbSearch(''); setKbQty(''); setKbUnit('') }
+  function closeKb() { setShowKb(false); setKbSearch(''); setKbQty(''); setKbUnit(''); setKbNotes('') }
 
   function handleAddSuggestion(sug: { id: string; name: string; emoji: string | null; image_url?: string | null; image_status?: string | null }) {
     if (!list) return
@@ -120,6 +121,7 @@ export function GroceryScreen() {
         listId: list.id, name: sug.name, ingredientId: sug.id, emoji: sug.emoji,
         quantity: !isNaN(qty as number) && qty !== null ? qty : null,
         unit: kbUnit.trim() || null,
+        notes: kbNotes.trim() || null,
       },
       {
         onSuccess: () => {
@@ -130,19 +132,20 @@ export function GroceryScreen() {
       }
     )
     // Keep pane open so user can add the same item again with different amounts
-    setKbQty(''); setKbUnit('')
+    setKbQty(''); setKbUnit(''); setKbNotes('')
   }
 
   function handleAddCustom() {
     if (!list || !kbSearch.trim()) return
     const name = kbSearch.trim()
     const qty = kbQty.trim() ? parseFloat(kbQty.trim()) : null
-    setKbSearch(''); setKbQty(''); setKbUnit('')
+    setKbSearch(''); setKbQty(''); setKbUnit(''); setKbNotes('')
     addItem.mutate(
       {
         listId: list.id, name,
         quantity: !isNaN(qty as number) && qty !== null ? qty : null,
         unit: kbUnit.trim() || null,
+        notes: kbNotes.trim() || null,
       },
       {
         onSuccess: (result) => {
@@ -169,7 +172,7 @@ export function GroceryScreen() {
     setEditName(itemDisplayName(item))
     setEditQty(item.quantity != null ? String(item.quantity) : '')
     setEditUnit(item.unit ?? '')
-    setEditNotes(item.ingredient?.brand_note ?? '')
+    setEditNotes(item.notes ?? item.ingredient?.brand_note ?? '')
     setEditAisle(item.aisle_order ?? detectAisleOrder(itemDisplayName(item), item.ingredient?.emoji ?? null))
     setEditStore(item.assigned_store ?? item.ingredient?.default_store ?? null)
     setEditNewStore('')
@@ -442,7 +445,7 @@ export function GroceryScreen() {
                 </button>
               </div>
 
-              {/* Qty + unit row */}
+              {/* Qty + unit + notes row */}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
                 <input
                   type="number"
@@ -451,7 +454,7 @@ export function GroceryScreen() {
                   onChange={e => setKbQty(e.target.value)}
                   placeholder="Qty"
                   style={{
-                    width: '72px', background: 'var(--dk3)',
+                    width: '64px', background: 'var(--dk3)',
                     border: '0.5px solid var(--brh)', borderRadius: '8px',
                     padding: '6px 8px', color: 'var(--tp)',
                     fontSize: '13px', fontFamily: 'inherit', outline: 'none',
@@ -460,7 +463,18 @@ export function GroceryScreen() {
                 <input
                   value={kbUnit}
                   onChange={e => setKbUnit(e.target.value)}
-                  placeholder="unit (lbs, oz, cup…)"
+                  placeholder="unit"
+                  style={{
+                    width: '72px', background: 'var(--dk3)',
+                    border: '0.5px solid var(--brh)', borderRadius: '8px',
+                    padding: '6px 8px', color: 'var(--tp)',
+                    fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+                <input
+                  value={kbNotes}
+                  onChange={e => setKbNotes(e.target.value)}
+                  placeholder="notes (organic, TJ's…)"
                   style={{
                     flex: 1, background: 'var(--dk3)',
                     border: '0.5px solid var(--brh)', borderRadius: '8px',
@@ -825,7 +839,7 @@ function GroceryBox({
   const name       = itemDisplayName(item)
   const emoji      = itemEmoji(item)
   const qty        = itemQtyLabel(item)
-  const brandNote  = item.ingredient?.brand_note ?? null
+  const noteText   = item.notes ?? item.ingredient?.brand_note ?? null
   const imgUrl     = item.ingredient?.image_status === 'done' ? item.ingredient.image_url : null
   const storeName  = item.assigned_store ?? item.ingredient?.default_store ?? null
 
@@ -901,12 +915,12 @@ function GroceryBox({
           {qty}
         </span>
       )}
-      {brandNote && (
+      {noteText && (
         <span style={{
           fontSize: '10px', color: 'var(--tm)',
           fontStyle: 'italic', textAlign: 'center', lineHeight: 1.2,
         }}>
-          {brandNote}
+          {noteText}
         </span>
       )}
     </div>
