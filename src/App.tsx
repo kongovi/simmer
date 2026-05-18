@@ -119,14 +119,14 @@ function ProtectedLayout() {
     p === '/recipes/review'   ||
     p.endsWith('/edit')       ||
     p === '/planner/claude'   ||
-    p === '/planner/add'
+    p === '/planner/add'      ||
+    p.startsWith('/staging')       // staging is a focused review flow — has its own back btn
   const showNav = !isFocusedFlow && (
     p.startsWith('/grocery')  ||
     p.startsWith('/recipes')  ||
     p.startsWith('/planner')  ||
     p.startsWith('/prep')     ||
-    p.startsWith('/settings') ||
-    p.startsWith('/staging')
+    p.startsWith('/settings')
   )
 
   return (

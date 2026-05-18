@@ -36,8 +36,8 @@ export function StagingScreen() {
   // ── Selections ──
   // Zone 1: ingredient_ids the user chose "Skip" — default: none (all Need it)
   const [zone1Skip, setZone1Skip]     = useState<Set<string>>(new Set())
-  // Zone 2: ingredient_ids the user chose "Skip" — default: none (all Need it)
-  const [zone2Skip, setZone2Skip]     = useState<Set<string>>(new Set())
+  // Zone 2: ingredient_ids the user chose "Need it" — default: none (all Skip)
+  const [zone2NeedIt, setZone2NeedIt] = useState<Set<string>>(new Set())
   // Zone 3: ingredient_ids the user chose "No" — default: none (all Yes)
   const [zone3No, setZone3No]         = useState<Set<string>>(new Set())
   // Zone 4: ingredient_ids the user chose "Add"
@@ -116,7 +116,7 @@ export function StagingScreen() {
             const ov = zone1Overrides.get(i.ingredient_id)
             return ov ? { ...i, ...ov } : i
           }),
-        zone2Selected:  zone2Items.filter(i => !zone2Skip.has(i.ingredient_id)),
+        zone2Selected:  zone2Items.filter(i => zone2NeedIt.has(i.ingredient_id)),
         zone3Selected:  zone3Items.filter(i => !zone3No.has(i.ingredient_id)),
         zone4Selected:  zone4Items.filter(i => zone4Added.has(i.ingredient_id)),
         existingListId: from === 'grocery' ? (activeList?.id ?? null) : null,
@@ -186,7 +186,7 @@ export function StagingScreen() {
       </div>
 
       {/* Scrollable zones */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 120px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px calc(120px + env(safe-area-inset-bottom))' }}>
 
         {/* No week selected (came from grocery with no active list) */}
         {noWeekStart && (
@@ -263,12 +263,12 @@ export function StagingScreen() {
                 <EmptyZone>No pantry items needed from this week's recipes.</EmptyZone>
               )}
               {zone2Items.map(item => {
-                const skip = zone2Skip.has(item.ingredient_id)
+                const needIt = zone2NeedIt.has(item.ingredient_id)
                 return (
                   <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name} imageUrl={item.image_url} imageStatus={item.image_status}>
                     <YNButtons
-                      leftLabel="Need it" leftSelected={!skip}  onLeft={() => setZone2Skip(s => toggle(s, item.ingredient_id))}
-                      rightLabel="Skip"   rightSelected={skip}  onRight={() => setZone2Skip(s => toggle(s, item.ingredient_id))}
+                      leftLabel="Need it" leftSelected={needIt}   onLeft={() => setZone2NeedIt(s => toggle(s, item.ingredient_id))}
+                      rightLabel="Skip"   rightSelected={!needIt} onRight={() => setZone2NeedIt(s => toggle(s, item.ingredient_id))}
                       leftIsGreen
                     />
                   </ZoneItem>
@@ -374,7 +374,8 @@ export function StagingScreen() {
       {!noWeekStart && (
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0,
-          padding: '10px 16px 20px',
+          padding: '10px 16px',
+          paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
           background: 'var(--dk)',
           borderTop: '0.5px solid var(--br)',
           zIndex: 5,
