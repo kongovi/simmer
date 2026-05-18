@@ -191,8 +191,11 @@ export function useStagingIngredients(weekStart: string | null) {
 
 // ── useStaplePredictions ──────────────────────────────────────────────────────
 
-/** Fetches the family's active staples, computes purchase frequency from history,
- *  and splits them into Zone 3 (due soon) and Zone 4 (everything else). */
+/** Fetches all ingredients flagged as pantry staples (is_pantry_staple = true),
+ *  computes purchase frequency from history, and splits them into:
+ *  - zone3Predicted: due for purchase based on history (≥2 purchases, ≥80% of avg freq elapsed)
+ *  - zone3Other:     all other pantry staples (less history or not yet due)
+ */
 export function useStaplePredictions() {
   const familyId = useAppStore(s => s.familyId)
 
@@ -201,22 +204,20 @@ export function useStaplePredictions() {
     enabled:  !!familyId,
     staleTime: 1000 * 60 * 5,
     queryFn:  async () => {
-      // 1. Fetch active staples with ingredient data
-      const { data: staples, error: staplesErr } = await supabase
-        .from('staples')
-        .select(`
-          id, ingredient_id,
-          ingredient:ingredients_catalog(id, name, emoji, default_store, image_url, image_status)
-        `)
+      // 1. Fetch all pantry staples from ingredient catalog
+      const { data: catalogItems, error: catErr } = await supabase
+        .from('ingredients_catalog')
+        .select('id, name, emoji, default_store, image_url, image_status')
         .eq('family_id', familyId!)
-        .eq('is_active', true)
-      if (staplesErr) throw staplesErr
+        .eq('is_pantry_staple', true)
+        .order('name', { ascending: true })
+      if (catErr) throw catErr
 
-      if (!staples?.length) return { zone3: [] as StapleWithHistory[], zone4: [] as StapleWithHistory[] }
+      if (!catalogItems?.length) {
+        return { zone3Predicted: [] as StapleWithHistory[], zone3Other: [] as StapleWithHistory[] }
+      }
 
-      const ingredientIds = (staples ?? [])
-        .map(s => s.ingredient_id)
-        .filter(Boolean) as string[]
+      const ingredientIds = catalogItems.map(c => c.id as string)
 
       // 2. Fetch all purchase history for these ingredients (chronological)
       const { data: history, error: histErr } = await supabase
@@ -237,17 +238,11 @@ export function useStaplePredictions() {
       }
 
       const today = new Date()
-      const zone3: StapleWithHistory[] = []
-      const zone4: StapleWithHistory[] = []
+      const zone3Predicted: StapleWithHistory[] = []
+      const zone3Other:     StapleWithHistory[] = []
 
-      for (const staple of staples) {
-        if (!staple.ingredient_id) continue
-        const ingData = staple.ingredient as unknown as {
-          id: string; name: string; emoji: string | null; default_store: string | null
-          image_url: string | null; image_status: string | null
-        } | null
-
-        const dates = histByIngredient.get(staple.ingredient_id as string) ?? []
+      for (const cat of catalogItems) {
+        const dates = histByIngredient.get(cat.id as string) ?? []
         const count = dates.length
         const lastDate = count > 0 ? dates[dates.length - 1] : null
         const daysSince = lastDate
@@ -265,28 +260,28 @@ export function useStaplePredictions() {
         }
 
         const item: StapleWithHistory = {
-          staple_id:           staple.id as string,
-          ingredient_id:       staple.ingredient_id as string,
-          name:                ingData?.name ?? '—',
-          emoji:               ingData?.emoji ?? null,
-          image_url:           ingData?.image_url ?? null,
-          image_status:        ingData?.image_status ?? null,
+          staple_id:           cat.id as string,  // use ingredient_id; no separate staples row
+          ingredient_id:       cat.id as string,
+          name:                cat.name as string,
+          emoji:               cat.emoji as string | null,
+          image_url:           cat.image_url as string | null,
+          image_status:        cat.image_status as string | null,
           last_purchased_at:   lastDate?.toISOString() ?? null,
           days_since_purchase: daysSince,
           avg_frequency_days:  avgFreq,
           purchase_count:      count,
-          default_store:       ingData?.default_store ?? null,
+          default_store:       cat.default_store as string | null,
         }
 
-        // Zone 3: at least 2 purchases AND days-since ≥ 80% of average frequency
+        // Predicted: at least 2 purchases AND days-since ≥ 80% of average frequency
         if (count >= 2 && daysSince !== null && avgFreq !== null && daysSince >= avgFreq * 0.8) {
-          zone3.push(item)
+          zone3Predicted.push(item)
         } else {
-          zone4.push(item)
+          zone3Other.push(item)
         }
       }
 
-      return { zone3, zone4 }
+      return { zone3Predicted, zone3Other }
     },
   })
 }
@@ -298,9 +293,8 @@ export interface ConfirmStagingPayload {
   from:            'planner' | 'grocery'
   zone1Items:      StagingIngredient[]
   zone2Selected:   StagingIngredient[]
-  zone3Selected:   StapleWithHistory[]
-  zone4Selected:   StapleWithHistory[]
-  existingListId?: string | null       // required when from === 'grocery'
+  zone3Selected:   StapleWithHistory[]   // all selected staples (both predicted + other)
+  existingListId?: string | null          // required when from === 'grocery'
 }
 
 /**
@@ -314,7 +308,7 @@ export function useConfirmStagingList() {
   return useMutation({
     mutationFn: async (payload: ConfirmStagingPayload): Promise<string> => {
       if (!familyId) throw new Error('No family ID')
-      const { weekStart, from, zone1Items, zone2Selected, zone3Selected, zone4Selected, existingListId } = payload
+      const { weekStart, from, zone1Items, zone2Selected, zone3Selected, existingListId } = payload
 
       let listId: string
 
@@ -353,8 +347,8 @@ export function useConfirmStagingList() {
           if (error) throw error
         }
 
-        // Insert Zone 3 + Zone 4 selected as staples
-        const stapleItems = [...zone3Selected, ...zone4Selected]
+        // Insert Zone 3 selected (both predicted + other)
+        const stapleItems = zone3Selected
         if (stapleItems.length > 0) {
           const stapleRows = stapleItems.map(item => ({
             grocery_list_id: listId,
@@ -401,8 +395,8 @@ export function useConfirmStagingList() {
           if (error) throw error
         }
 
-        // Append Zone 3 "Yes" + Zone 4 "Add" items not already in list
-        const newStaples = [...zone3Selected, ...zone4Selected].filter(
+        // Append Zone 3 selected items not already in list
+        const newStaples = zone3Selected.filter(
           i => !existingIds.has(i.ingredient_id),
         )
         if (newStaples.length > 0) {
@@ -426,7 +420,6 @@ export function useConfirmStagingList() {
         ...zone1Items.map(i => i.ingredient_id),
         ...zone2Selected.map(i => i.ingredient_id),
         ...zone3Selected.map(i => i.ingredient_id),
-        ...zone4Selected.map(i => i.ingredient_id),
       ].filter((id, idx, arr) => id && arr.indexOf(id) === idx)
 
       if (allIds.length > 0) {

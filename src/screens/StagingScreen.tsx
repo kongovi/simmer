@@ -28,22 +28,20 @@ export function StagingScreen() {
   const { data: staplePreds, isLoading: staplesLoading } = useStaplePredictions()
   const { data: hasActiveList = false } = useHasActiveList(weekStart ?? '')
 
-  const zone1Items = stagingIng?.zone1 ?? []
-  const zone2Items = stagingIng?.zone2 ?? []
-  const zone3Items = staplePreds?.zone3 ?? []
-  const zone4Items = staplePreds?.zone4 ?? []
+  const zone1Items          = stagingIng?.zone1 ?? []
+  const zone2Items          = stagingIng?.zone2 ?? []
+  const zone3PredictedItems = staplePreds?.zone3Predicted ?? []
+  const zone3OtherItems     = staplePreds?.zone3Other ?? []
 
   // ── Selections ──
   // Zone 1: ingredient_ids the user chose "Skip" — default: none (all Need it)
-  const [zone1Skip, setZone1Skip]     = useState<Set<string>>(new Set())
+  const [zone1Skip,          setZone1Skip]          = useState<Set<string>>(new Set())
   // Zone 2: ingredient_ids the user chose "Need it" — default: none (all Skip)
-  const [zone2NeedIt, setZone2NeedIt] = useState<Set<string>>(new Set())
-  // Zone 3: ingredient_ids the user chose "No" — default: none (all Yes)
-  const [zone3No, setZone3No]         = useState<Set<string>>(new Set())
-  // Zone 4: ingredient_ids the user chose "Add"
-  const [zone4Added, setZone4Added]   = useState<Set<string>>(new Set())
-  // Zone 4 expanded
-  const [zone4Open, setZone4Open]     = useState(false)
+  const [zone2NeedIt,        setZone2NeedIt]        = useState<Set<string>>(new Set())
+  // Zone 3 Predicted: ingredient_ids the user chose "Skip" — default: none (all Need it)
+  const [zone3PredictedSkip, setZone3PredictedSkip] = useState<Set<string>>(new Set())
+  // Zone 3 Other: ingredient_ids the user chose "Need it" — default: none (all Skip)
+  const [zone3OtherNeedIt,   setZone3OtherNeedIt]   = useState<Set<string>>(new Set())
 
   // ── Zone 1 item swap ──
   // Maps original ingredient_id → replacement catalog item
@@ -117,8 +115,10 @@ export function StagingScreen() {
             return ov ? { ...i, ...ov } : i
           }),
         zone2Selected:  zone2Items.filter(i => zone2NeedIt.has(i.ingredient_id)),
-        zone3Selected:  zone3Items.filter(i => !zone3No.has(i.ingredient_id)),
-        zone4Selected:  zone4Items.filter(i => zone4Added.has(i.ingredient_id)),
+        zone3Selected: [
+          ...zone3PredictedItems.filter(i => !zone3PredictedSkip.has(i.ingredient_id)),
+          ...zone3OtherItems.filter(i => zone3OtherNeedIt.has(i.ingredient_id)),
+        ],
         existingListId: from === 'grocery' ? (activeList?.id ?? null) : null,
       },
       { onSuccess: () => navigate('/grocery') },
@@ -276,95 +276,83 @@ export function StagingScreen() {
               })}
             </Zone>
 
-            {/* ── Zone 3 — Staples prediction ── */}
+            {/* ── Zone 3 — Staples ── */}
             <Zone
               variant="staples"
-              title="Zone 3 — Staples prediction"
-              subtitle="Regular buys — Claude's guess based on your history"
+              title="Zone 3 — Staples"
+              subtitle="Items flagged as pantry staples in your catalog"
               isLoading={staplesLoading}
             >
-              {zone3Items.length === 0 && !staplesLoading && (
-                <EmptyZone>No staples predicted this week. Check Zone 4 to add items manually.</EmptyZone>
+              {zone3PredictedItems.length === 0 && zone3OtherItems.length === 0 && !staplesLoading && (
+                <EmptyZone>
+                  No staples set up yet. Go to Settings → Ingredient Catalog and toggle "Pantry staple" on any items you buy regularly.
+                </EmptyZone>
               )}
-              {zone3Items.map(item => {
-                const isNo = zone3No.has(item.ingredient_id)
-                return (
-                  <ZoneItem
-                    key={item.ingredient_id}
-                    emoji={item.emoji}
-                    name={item.name}
-                    note={formatLastBought(item)}
-                    imageUrl={item.image_url}
-                    imageStatus={item.image_status}
-                  >
-                    <YNButtons
-                      leftLabel="Yes"  leftSelected={!isNo}  onLeft={() => setZone3No(s => toggle(s, item.ingredient_id))}
-                      rightLabel="No"  rightSelected={isNo}  onRight={() => setZone3No(s => toggle(s, item.ingredient_id))}
-                      leftIsGreen
-                    />
-                  </ZoneItem>
-                )
-              })}
-            </Zone>
 
-            {/* ── Zone 4 — All other staples (collapsed) ── */}
-            <Zone variant="all" isLoading={staplesLoading}>
-              {/* Header row — always visible */}
-              <div
-                onClick={() => setZone4Open(o => !o)}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-              >
-                <div style={{
-                  fontSize: '13px', fontWeight: 500, color: 'var(--ts)',
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                }}>
-                  <span style={{
-                    display: 'inline-block',
-                    transform: zone4Open ? 'rotate(90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s',
-                    fontSize: '14px',
-                  }}>▶</span>
-                  All other staples
-                </div>
-                <span style={{
-                  background: 'rgba(255,255,255,0.08)', borderRadius: '9px',
-                  padding: '2px 8px', fontSize: '12px', color: 'var(--ts)',
-                }}>
-                  {zone4Items.length} item{zone4Items.length !== 1 ? 's' : ''}
-                </span>
-              </div>
+              {/* ── Recommended this week ── */}
+              {zone3PredictedItems.length > 0 && (
+                <>
+                  <div style={{
+                    fontSize: '11px', fontWeight: 600, color: 'var(--gl)',
+                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                    marginBottom: '6px', marginTop: '2px',
+                  }}>
+                    ✦ Recommended this week
+                  </div>
+                  {zone3PredictedItems.map(item => {
+                    const skip = zone3PredictedSkip.has(item.ingredient_id)
+                    return (
+                      <ZoneItem
+                        key={item.ingredient_id}
+                        emoji={item.emoji}
+                        name={item.name}
+                        note={formatLastBought(item)}
+                        imageUrl={item.image_url}
+                        imageStatus={item.image_status}
+                      >
+                        <YNButtons
+                          leftLabel="Need it" leftSelected={!skip}  onLeft={() => setZone3PredictedSkip(s => toggle(s, item.ingredient_id))}
+                          rightLabel="Skip"   rightSelected={skip}  onRight={() => setZone3PredictedSkip(s => toggle(s, item.ingredient_id))}
+                          leftIsGreen
+                        />
+                      </ZoneItem>
+                    )
+                  })}
+                </>
+              )}
 
-              <div style={{ fontSize: '12px', color: 'var(--tm)', marginTop: '4px', marginBottom: zone4Open ? '8px' : 0 }}>
-                Not predicted this week — add any you need
-              </div>
-
-              {zone4Open && zone4Items.map(item => {
-                const added = zone4Added.has(item.ingredient_id)
-                return (
-                  <ZoneItem
-                    key={item.ingredient_id}
-                    emoji={item.emoji}
-                    name={item.name}
-                    note={formatLastBought(item)}
-                    imageUrl={item.image_url}
-                    imageStatus={item.image_status}
-                  >
-                    <button
-                      onClick={() => setZone4Added(s => toggle(s, item.ingredient_id))}
-                      style={{
-                        background: added ? 'rgba(99,153,34,0.35)' : 'rgba(99,153,34,0.2)',
-                        border: `0.5px solid ${added ? 'var(--gl)' : 'rgba(99,153,34,0.4)'}`,
-                        borderRadius: '7px', padding: '4px 9px',
-                        fontSize: '12px', fontWeight: 500, color: 'var(--gl)',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {added ? '✓ Added' : 'Add'}
-                    </button>
-                  </ZoneItem>
-                )
-              })}
+              {/* ── Other staples ── */}
+              {zone3OtherItems.length > 0 && (
+                <>
+                  <div style={{
+                    fontSize: '11px', fontWeight: 600, color: 'var(--ts)',
+                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                    marginBottom: '6px',
+                    marginTop: zone3PredictedItems.length > 0 ? '14px' : '2px',
+                  }}>
+                    Other staples
+                  </div>
+                  {zone3OtherItems.map(item => {
+                    const needIt = zone3OtherNeedIt.has(item.ingredient_id)
+                    return (
+                      <ZoneItem
+                        key={item.ingredient_id}
+                        emoji={item.emoji}
+                        name={item.name}
+                        note={formatLastBought(item)}
+                        imageUrl={item.image_url}
+                        imageStatus={item.image_status}
+                      >
+                        <YNButtons
+                          leftLabel="Need it" leftSelected={needIt}   onLeft={() => setZone3OtherNeedIt(s => toggle(s, item.ingredient_id))}
+                          rightLabel="Skip"   rightSelected={!needIt} onRight={() => setZone3OtherNeedIt(s => toggle(s, item.ingredient_id))}
+                          leftIsGreen
+                        />
+                      </ZoneItem>
+                    )
+                  })}
+                </>
+              )}
             </Zone>
           </>
         )}

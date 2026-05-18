@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Search, Store, RefreshCw, Trash2, GitMerge, Check, X } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
-import { useCatalogItems, useUpdateCatalogItem, useDeleteCatalogItem, useMergeIngredients } from '../hooks/useCatalog'
+import { useCatalogItems, useUpdateCatalogItem, useDeleteCatalogItem, useMergeIngredients, useBulkUpdateCatalogItems } from '../hooks/useCatalog'
 import { useFamilyStores } from '../hooks/useFamilyStores'
 import { useIsAdmin } from '../hooks/useFamilyMembers'
 import { useEscapeKey } from '../lib/useEscapeKey'
@@ -704,6 +704,232 @@ function MergeSheet({
   )
 }
 
+// ── Bulk edit sheet ───────────────────────────────────────────────────────────
+
+function BulkEditSheet({
+  ids,
+  stores,
+  onClose,
+  onDone,
+}: {
+  ids:     string[]
+  stores:  string[]
+  onClose: () => void
+  onDone:  () => void
+}) {
+  const bulkUpdate = useBulkUpdateCatalogItems()
+  const count = ids.length
+
+  // tri-state: null = "don't change"
+  const [isPantry, setIsPantry] = useState<boolean | null>(null)
+  const [store,    setStore]    = useState<string | null | 'keep'>('keep')
+  const [aisle,    setAisle]    = useState<number | null>(null)
+
+  useEscapeKey(useCallback(() => onClose(), [onClose]))
+
+  async function handleApply() {
+    const update: Record<string, unknown> = {}
+    if (isPantry !== null)  update.is_pantry_staple   = isPantry
+    if (store !== 'keep')   update.default_store       = store
+    if (aisle !== null)     update.default_aisle_order = aisle
+
+    if (Object.keys(update).length === 0) { onClose(); return }
+    await bulkUpdate.mutateAsync({ ids, update })
+    onDone()
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'flex-end',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background: 'var(--dk2)', borderRadius: '20px 20px 0 0',
+        padding: '20px 16px 32px', width: '100%',
+        borderTop: '0.5px solid var(--brh)',
+        maxHeight: '88vh', overflowY: 'auto',
+      }}>
+        <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '4px' }}>
+          Bulk edit {count} ingredient{count !== 1 ? 's' : ''}
+        </div>
+        <div style={{ fontSize: '13px', color: 'var(--ts)', marginBottom: '20px' }}>
+          Only the fields you change will be updated. Leave fields blank to keep existing values.
+        </div>
+
+        {/* Pantry staple */}
+        <div style={{ marginBottom: '18px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Pantry staple
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {([
+              { val: null,  label: 'Keep as-is' },
+              { val: true,  label: '✓ Yes — staple' },
+              { val: false, label: '✗ No — remove' },
+            ] as { val: boolean | null; label: string }[]).map(opt => (
+              <button
+                key={String(opt.val)}
+                onClick={() => setIsPantry(opt.val)}
+                style={{
+                  flex: 1, padding: '8px 6px',
+                  background: isPantry === opt.val
+                    ? (opt.val === true  ? 'rgba(123,175,138,0.2)'
+                     : opt.val === false ? 'rgba(208,90,48,0.15)'
+                     : 'rgba(255,255,255,0.1)')
+                    : 'var(--dk3)',
+                  border: `0.5px solid ${isPantry === opt.val
+                    ? (opt.val === true  ? 'var(--am)'
+                     : opt.val === false ? 'var(--rd)'
+                     : 'var(--brh)')
+                    : 'var(--br)'}`,
+                  borderRadius: '8px',
+                  color: isPantry === opt.val
+                    ? (opt.val === true  ? 'var(--am)'
+                     : opt.val === false ? 'var(--rd)'
+                     : 'var(--tp)')
+                    : 'var(--ts)',
+                  fontSize: '12px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Store */}
+        <div style={{ marginBottom: '18px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Default store
+          </div>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setStore('keep')}
+              style={{
+                padding: '6px 12px', borderRadius: '18px',
+                border: `0.5px solid ${store === 'keep' ? 'var(--am)' : 'var(--br)'}`,
+                background: store === 'keep' ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                color: store === 'keep' ? 'var(--am)' : 'var(--ts)',
+                fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Keep as-is
+            </button>
+            {stores.map(s => (
+              <button
+                key={s}
+                onClick={() => setStore(store === s ? 'keep' : s)}
+                style={{
+                  padding: '6px 12px', borderRadius: '18px',
+                  border: `0.5px solid ${store === s ? 'var(--am)' : 'var(--br)'}`,
+                  background: store === s ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                  color: store === s ? 'var(--am)' : 'var(--tp)',
+                  fontSize: '13px', fontWeight: store === s ? 500 : 400,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {s}
+              </button>
+            ))}
+            <button
+              onClick={() => setStore(store === null ? 'keep' : null)}
+              style={{
+                padding: '6px 12px', borderRadius: '18px',
+                border: `0.5px solid ${store === null ? 'var(--am)' : 'var(--br)'}`,
+                background: store === null ? 'rgba(208,90,48,0.12)' : 'var(--dk3)',
+                color: store === null ? 'var(--rd)' : 'var(--ts)',
+                fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              ✗ Clear store
+            </button>
+          </div>
+        </div>
+
+        {/* Aisle */}
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            Aisle
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            <button
+              onClick={() => setAisle(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '5px',
+                padding: '5px 10px', borderRadius: '18px',
+                border: `0.5px solid ${aisle === null ? 'var(--am)' : 'var(--br)'}`,
+                background: aisle === null ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                color: aisle === null ? 'var(--am)' : 'var(--ts)',
+                fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
+              }}
+            >
+              Keep as-is
+            </button>
+            {Object.entries(AISLE_NAMES).map(([key, name]) => {
+              const a = Number(key)
+              const sel = aisle === a
+              const img = AISLE_IMAGES[a]
+              const emoji = AISLE_LABELS[a]?.split(' ')[0] ?? '🛒'
+              return (
+                <button
+                  key={a}
+                  onClick={() => setAisle(aisle === a ? null : a)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    padding: '5px 10px 5px 6px', borderRadius: '18px',
+                    border: `0.5px solid ${sel ? 'var(--am)' : 'var(--br)'}`,
+                    background: sel ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                    color: sel ? 'var(--am)' : 'var(--ts)',
+                    fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
+                    fontWeight: sel ? 500 : 400,
+                  }}
+                >
+                  {img ? (
+                    <img src={img} alt={name} style={{ width: '22px', height: '22px', objectFit: 'contain', flexShrink: 0 }} />
+                  ) : (
+                    <span style={{ fontSize: '16px', lineHeight: 1 }}>{emoji}</span>
+                  )}
+                  {name}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '13px', background: 'var(--dk3)',
+              border: '0.5px solid var(--br)', borderRadius: '12px',
+              color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleApply}
+            disabled={bulkUpdate.isPending}
+            style={{
+              flex: 2, padding: '13px', background: 'var(--am)',
+              border: 'none', borderRadius: '12px',
+              color: '#141820', fontSize: '15px', fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            {bulkUpdate.isPending ? 'Applying…' : `Apply to ${count} item${count !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Toggle({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
   return (
     <button
@@ -730,16 +956,18 @@ export function CatalogScreen() {
   const navigate = useNavigate()
   const [search,      setSearch]      = useState('')
   const [editing,     setEditing]     = useState<IngredientCatalog | null>(null)
-  const [selectMode,  setSelectMode]  = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [merging,     setMerging]     = useState(false)
+  const [selectMode,   setSelectMode]   = useState(false)
+  const [selectedIds,  setSelectedIds]  = useState<Set<string>>(new Set())
+  const [merging,      setMerging]      = useState(false)
+  const [bulkEditing,  setBulkEditing]  = useState(false)
 
   const { data: isAdmin = false } = useIsAdmin()
 
   useEscapeKey(useCallback(() => {
-    if (merging)  { setMerging(false);  return }
-    if (editing)  { setEditing(null);   return }
-  }, [merging, editing]))
+    if (bulkEditing) { setBulkEditing(false); return }
+    if (merging)     { setMerging(false);     return }
+    if (editing)     { setEditing(null);      return }
+  }, [bulkEditing, merging, editing]))
 
   useIngredientImageRealtime()
 
@@ -793,6 +1021,19 @@ export function CatalogScreen() {
               <span style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', flex: 1 }}>
                 {selectedIds.size} selected
               </span>
+              {selectedIds.size >= 1 && (
+                <button
+                  onClick={() => setBulkEditing(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+                    borderRadius: '8px', padding: '7px 11px', color: 'var(--tp)',
+                    fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Edit
+                </button>
+              )}
               {selectedIds.size >= 2 && (
                 <button
                   onClick={() => setMerging(true)}
@@ -826,8 +1067,7 @@ export function CatalogScreen() {
                   display: 'flex', alignItems: 'center', gap: '4px',
                 }}
               >
-                <GitMerge size={13} />
-                Merge
+                Select
               </button>
             </>
           )}
@@ -857,7 +1097,7 @@ export function CatalogScreen() {
             padding: '8px 12px', background: 'rgba(123,175,138,0.08)',
             borderRadius: '8px', border: '0.5px solid rgba(123,175,138,0.2)',
           }}>
-            Tap ingredients to select them, then tap <strong>Merge</strong> to combine into one.
+            Tap ingredients to select them. Tap <strong>Edit</strong> to bulk-edit staple/aisle/store, or <strong>Merge</strong> (2+) to combine duplicates.
           </div>
         )}
 
@@ -995,6 +1235,16 @@ export function CatalogScreen() {
           isAdmin={isAdmin}
           onClose={() => setEditing(null)}
           onDeleted={() => setEditing(null)}
+        />
+      )}
+
+      {/* Bulk edit sheet */}
+      {bulkEditing && (
+        <BulkEditSheet
+          ids={[...selectedIds]}
+          stores={stores}
+          onClose={() => setBulkEditing(false)}
+          onDone={() => { setBulkEditing(false); exitSelectMode() }}
         />
       )}
 

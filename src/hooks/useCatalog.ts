@@ -74,6 +74,33 @@ export function useDeleteCatalogItem() {
   })
 }
 
+export interface BulkCatalogUpdate {
+  is_pantry_staple?:   boolean
+  default_store?:      string | null
+  default_aisle_order?: number | null
+}
+
+/** Apply the same field values to multiple catalog items at once. */
+export function useBulkUpdateCatalogItems() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async ({ ids, update }: { ids: string[]; update: BulkCatalogUpdate }) => {
+      if (ids.length === 0) return
+      const { error } = await supabase
+        .from('ingredients_catalog')
+        .update(update)
+        .in('id', ids)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['catalog', familyId] })
+      queryClient.invalidateQueries({ queryKey: ['staple-predictions', familyId] })
+    },
+  })
+}
+
 /**
  * Merge multiple ingredients into a single canonical one.
  * All FK references (recipe_ingredients, grocery_list_items, staples,
