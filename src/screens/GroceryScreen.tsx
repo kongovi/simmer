@@ -392,7 +392,7 @@ export function GroceryScreen() {
               style={{ position: 'absolute', inset: 0, zIndex: 18 }}
             />
             <div style={{
-              position: 'absolute', bottom: 'calc(68px + env(safe-area-inset-bottom))', left: 0, right: 0,
+              position: 'fixed', bottom: 'calc(68px + env(safe-area-inset-bottom))', left: 0, right: 0,
               background: 'var(--dk2)',
               borderTop: '0.5px solid var(--brh)',
               zIndex: 20,
@@ -489,7 +489,7 @@ export function GroceryScreen() {
         {/* Pinned bottom bar: add field + staples button */}
         {!showKb && (
           <div style={{
-            position: 'absolute', bottom: 'calc(68px + env(safe-area-inset-bottom))', left: 0, right: 0,
+            position: 'fixed', bottom: 'calc(68px + env(safe-area-inset-bottom))', left: 0, right: 0,
             padding: '6px 12px 7px',
             background: 'var(--dk)',
             borderTop: '0.5px solid var(--br)',
