@@ -98,39 +98,54 @@ export function GroceryScreen() {
   }
 
   // ── Add bar / KB pane ──
-  const [showKb,    setShowKb]    = useState(false)
-  const [kbSearch,  setKbSearch]  = useState('')
+  const [showKb,   setShowKb]   = useState(false)
+  const [kbSearch, setKbSearch] = useState('')
+  const [kbQty,    setKbQty]    = useState('')
+  const [kbUnit,   setKbUnit]   = useState('')
   const kbInputRef = useRef<HTMLInputElement>(null)
 
   const { data: suggestions = [] } = useIngredientSuggestions(kbSearch)
 
-  function openKb() { setShowKb(true); setKbSearch(''); setTimeout(() => kbInputRef.current?.focus(), 50) }
-  function closeKb() { setShowKb(false); setKbSearch('') }
+  function openKb() {
+    setShowKb(true); setKbSearch(''); setKbQty(''); setKbUnit('')
+    setTimeout(() => kbInputRef.current?.focus(), 50)
+  }
+  function closeKb() { setShowKb(false); setKbSearch(''); setKbQty(''); setKbUnit('') }
 
   function handleAddSuggestion(sug: { id: string; name: string; emoji: string | null; image_url?: string | null; image_status?: string | null }) {
     if (!list) return
+    const qty = kbQty.trim() ? parseFloat(kbQty.trim()) : null
     addItem.mutate(
-      { listId: list.id, name: sug.name, ingredientId: sug.id, emoji: sug.emoji },
+      {
+        listId: list.id, name: sug.name, ingredientId: sug.id, emoji: sug.emoji,
+        quantity: !isNaN(qty as number) && qty !== null ? qty : null,
+        unit: kbUnit.trim() || null,
+      },
       {
         onSuccess: () => {
-          // Fire image gen if this catalog item doesn't have one yet
           if (!sug.image_url && sug.image_status !== 'generating') {
             generateIngredientImage(sug.id, sug.name).catch(() => {})
           }
         },
       }
     )
+    // Keep pane open so user can add the same item again with different amounts
+    setKbQty(''); setKbUnit('')
   }
 
   function handleAddCustom() {
     if (!list || !kbSearch.trim()) return
     const name = kbSearch.trim()
-    setKbSearch('')
+    const qty = kbQty.trim() ? parseFloat(kbQty.trim()) : null
+    setKbSearch(''); setKbQty(''); setKbUnit('')
     addItem.mutate(
-      { listId: list.id, name },
+      {
+        listId: list.id, name,
+        quantity: !isNaN(qty as number) && qty !== null ? qty : null,
+        unit: kbUnit.trim() || null,
+      },
       {
         onSuccess: (result) => {
-          // useAddManualItem upserted a catalog entry — fire image gen for it
           if (result?.ingredientId && result.needsImage) {
             generateIngredientImage(result.ingredientId, name).catch(() => {})
           }
@@ -427,6 +442,34 @@ export function GroceryScreen() {
                 </button>
               </div>
 
+              {/* Qty + unit row */}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={kbQty}
+                  onChange={e => setKbQty(e.target.value)}
+                  placeholder="Qty"
+                  style={{
+                    width: '72px', background: 'var(--dk3)',
+                    border: '0.5px solid var(--brh)', borderRadius: '8px',
+                    padding: '6px 8px', color: 'var(--tp)',
+                    fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+                <input
+                  value={kbUnit}
+                  onChange={e => setKbUnit(e.target.value)}
+                  placeholder="unit (lbs, oz, cup…)"
+                  style={{
+                    flex: 1, background: 'var(--dk3)',
+                    border: '0.5px solid var(--brh)', borderRadius: '8px',
+                    padding: '6px 8px', color: 'var(--tp)',
+                    fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+              </div>
+
               {/* Suggestions label */}
               <div style={{ fontSize: '11px', color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
                 Suggestions
@@ -442,7 +485,7 @@ export function GroceryScreen() {
                 {suggestions.map(sug => (
                   <button
                     key={sug.id}
-                    onClick={() => { handleAddSuggestion(sug); closeKb() }}
+                    onClick={() => handleAddSuggestion(sug)}
                     style={{
                       background: 'var(--dk3)', border: '0.5px solid var(--br)',
                       borderRadius: '8px', padding: '7px 4px',
@@ -469,7 +512,7 @@ export function GroceryScreen() {
               {/* Add free-text item if no exact match */}
               {kbSearch.trim() && !suggestions.some(s => s.name.toLowerCase() === kbSearch.trim().toLowerCase()) && (
                 <button
-                  onClick={() => { handleAddCustom(); closeKb(); }}
+                  onClick={handleAddCustom}
                   style={{
                     width: '100%',
                     background: 'rgba(123,175,138,0.08)',

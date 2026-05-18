@@ -271,28 +271,6 @@ export function PlannerScreen() {
             </div>
           </div>
 
-          {/* Plan with Claude */}
-          <button
-            onClick={() => navigate('/planner/claude', { state: { weekStart, weekDays: weekDays.map(toISODate) } })}
-            style={{
-              width: '100%', background: 'rgba(123,175,138,0.06)',
-              border: '0.5px dashed rgba(123,175,138,0.35)',
-              borderRadius: '11px', padding: '10px 14px',
-              display: 'flex', alignItems: 'center', gap: '10px',
-              marginBottom: '16px', cursor: 'pointer', fontFamily: 'inherit',
-            }}
-          >
-            <Sparkles size={17} color="var(--am)" style={{ flexShrink: 0 }} />
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--am)' }}>
-                Plan my week with {aiLabel} →
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--ts)', marginTop: '2px' }}>
-                Describe meals and {aiLabel} fills the grid
-              </div>
-            </div>
-          </button>
-
           {/* Loading */}
           {slotsLoading && (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
@@ -392,23 +370,39 @@ export function PlannerScreen() {
           </div>
         </div>
 
-        {/* Generate grocery list — pinned */}
+        {/* Pinned bottom bar — Plan + Generate */}
         <div style={{
           position: 'fixed', bottom: 'calc(68px + env(safe-area-inset-bottom))', left: 0, right: 0,
-          padding: '8px 16px', background: 'var(--dk)', borderTop: '0.5px solid var(--br)', zIndex: 5,
+          padding: '8px 12px', background: 'var(--dk)', borderTop: '0.5px solid var(--br)', zIndex: 5,
+          display: 'flex', gap: '8px',
         }}>
+          <button
+            onClick={() => navigate('/planner/claude', { state: { weekStart, weekDays: weekDays.map(toISODate) } })}
+            style={{
+              flex: 1, padding: '13px 10px',
+              background: 'rgba(123,175,138,0.1)',
+              color: 'var(--am)',
+              border: '0.5px solid rgba(123,175,138,0.35)', borderRadius: '11px',
+              fontSize: '13px', fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Sparkles size={14} /> Plan with {aiLabel}
+          </button>
           <button
             onClick={() => navigate('/staging', { state: { weekStart, from: 'planner' } })}
             style={{
-              width: '100%', padding: '13px',
+              flex: 2, padding: '13px',
               background: 'var(--am)', color: '#141820',
               border: 'none', borderRadius: '11px',
-              fontSize: '15px', fontWeight: 600,
+              fontSize: '14px', fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
             }}
           >
-            <Sparkles size={15} /> Generate grocery list
+            <Sparkles size={14} /> Grocery list
           </button>
         </div>
       </div>

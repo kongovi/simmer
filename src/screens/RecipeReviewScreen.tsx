@@ -44,6 +44,24 @@ export function RecipeReviewScreen() {
     })
   }
 
+  // Manual merges — user-chosen catalog item for a "new" ingredient
+  const [manualMerge, setManualMerge] = useState<Map<number, string>>(new Map()) // idx → catalogId
+  const [mergePickerIdx, setMergePickerIdx] = useState<number | null>(null)
+  const [mergeSearch, setMergeSearch] = useState('')
+
+  function pickManualMerge(idx: number, catalogId: string) {
+    setManualMerge(prev => new Map(prev).set(idx, catalogId))
+    setMergePickerIdx(null)
+    setMergeSearch('')
+  }
+  function clearManualMerge(idx: number) {
+    setManualMerge(prev => { const m = new Map(prev); m.delete(idx); return m })
+  }
+
+  const mergePickerResults = mergePickerIdx !== null
+    ? catalog.filter(c => c.name.toLowerCase().includes(mergeSearch.toLowerCase())).slice(0, 8)
+    : []
+
   if (!parsed && !state?.partial) {
     // No state — redirect back
     navigate('/recipes/new', { replace: true })
@@ -94,10 +112,12 @@ export function RecipeReviewScreen() {
         difficulty: parsed?.difficulty ?? null,
         ingredients: ingredients.map((ing, idx) => {
           const { catalog: match, isMerge } = matchIngredientFull(ing.name, catalog)
-          // If user chose "Keep separate" for a merge, don't pass catalogId → creates new entry
-          const useMatch = match && !(isMerge && keepSeparate.has(idx))
+          // Priority: manual merge > auto-merge (unless user kept separate) > new
+          const manualId = manualMerge.get(idx)
+          const autoId   = match && !(isMerge && keepSeparate.has(idx)) ? match.id : undefined
+          const catalogId = manualId ?? autoId
           return {
-            catalogId: useMatch ? match.id : undefined,
+            catalogId,
             name: ing.name,
             emoji: ing.emoji,
             quantity: ing.quantity,
@@ -215,9 +235,11 @@ export function RecipeReviewScreen() {
           {ingredients.map((ing, idx) => {
             const { catalog: catalogMatch, isMerge } = matchIngredientFull(ing.name, catalog)
             const userKeptSeparate = keepSeparate.has(idx)
+            const manualCatalogId  = manualMerge.get(idx)
+            const manualCatalogItem = manualCatalogId ? catalog.find(c => c.id === manualCatalogId) : null
             // Effective state after user overrides
-            const effectiveIsNew   = !catalogMatch || (isMerge && userKeptSeparate)
-            const showMergeAlert   = isMerge && !!catalogMatch && !userKeptSeparate
+            const effectiveIsNew   = !manualCatalogId && (!catalogMatch || (isMerge && userKeptSeparate))
+            const showMergeAlert   = !manualCatalogId && isMerge && !!catalogMatch && !userKeptSeparate
             const needsReview      = ing.flag === 'confirm_quantity'
 
             return (
@@ -346,6 +368,52 @@ export function RecipeReviewScreen() {
                     </button>
                   </div>
                 )}
+
+                {/* New ingredient — offer to merge with existing */}
+                {effectiveIsNew && !manualCatalogItem && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginTop: '5px', marginLeft: '26px',
+                  }}>
+                    <span style={{ fontSize: '10px', color: 'var(--ts)' }}>New to your catalog</span>
+                    <button
+                      onClick={() => { setMergePickerIdx(idx); setMergeSearch('') }}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: '10px', color: 'var(--am)', fontFamily: 'inherit',
+                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
+                      }}
+                    >
+                      Merge with existing →
+                    </button>
+                  </div>
+                )}
+
+                {/* Manual merge chosen */}
+                {manualCatalogItem && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginTop: '5px', marginLeft: '26px',
+                    background: 'rgba(201,125,42,0.1)',
+                    border: '0.5px solid rgba(201,125,42,0.35)',
+                    borderRadius: '6px', padding: '4px 8px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ fontSize: '10px', color: '#c97d2a' }}>Merging with →</span>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#c97d2a' }}>{manualCatalogItem.name}</span>
+                    </div>
+                    <button
+                      onClick={() => clearManualMerge(idx)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
+                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
+                      }}
+                    >
+                      Undo
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -418,6 +486,80 @@ export function RecipeReviewScreen() {
           </p>
         )}
       </div>
+
+      {/* Merge picker modal */}
+      {mergePickerIdx !== null && (
+        <>
+          <div
+            onClick={() => { setMergePickerIdx(null); setMergeSearch('') }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 59 }}
+          />
+          <div style={{
+            position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+            zIndex: 60, width: 'min(320px, calc(100vw - 32px))',
+            background: 'var(--dk2)', border: '0.5px solid var(--brh)',
+            borderRadius: '14px', padding: '16px',
+          }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tp)', marginBottom: '4px' }}>
+              Merge "{ingredients[mergePickerIdx]?.name}" with…
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--ts)', marginBottom: '12px' }}>
+              Search your ingredient catalog
+            </div>
+            <input
+              autoFocus
+              value={mergeSearch}
+              onChange={e => setMergeSearch(e.target.value)}
+              placeholder="Search catalog…"
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+                borderRadius: '8px', padding: '8px 10px',
+                color: 'var(--tp)', fontSize: '14px',
+                fontFamily: 'inherit', outline: 'none',
+                marginBottom: '8px',
+              }}
+            />
+            <div style={{ maxHeight: '240px', overflowY: 'auto', borderRadius: '8px', border: '0.5px solid var(--br)', overflow: 'hidden' }}>
+              {mergePickerResults.length === 0 ? (
+                <div style={{ padding: '12px', fontSize: '13px', color: 'var(--tm)', textAlign: 'center' }}>
+                  {mergeSearch ? 'No matches' : 'Type to search…'}
+                </div>
+              ) : mergePickerResults.map((c, i) => (
+                <button
+                  key={c.id}
+                  onClick={() => pickManualMerge(mergePickerIdx, c.id)}
+                  style={{
+                    width: '100%', textAlign: 'left',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '9px 12px', background: 'none', border: 'none',
+                    borderTop: i > 0 ? '0.5px solid var(--br)' : 'none',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    color: 'var(--tp)', fontSize: '13px',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--dkc)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={{ fontSize: '16px' }}>{c.emoji ?? '🥄'}</span>
+                  <span>{c.name}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => { setMergePickerIdx(null); setMergeSearch('') }}
+              style={{
+                width: '100%', marginTop: '10px',
+                background: 'none', border: '0.5px solid var(--brh)',
+                borderRadius: '9px', padding: '8px',
+                color: 'var(--ts)', fontSize: '13px',
+                fontFamily: 'inherit', cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Pinned bottom bar */}
       <div
