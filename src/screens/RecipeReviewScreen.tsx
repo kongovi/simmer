@@ -92,6 +92,11 @@ export function RecipeReviewScreen() {
       i === idx ? { ...ing, quantity: qty ? parseFloat(qty) : null, flag: null } : ing
     ))
   }
+  function updateIngredientUnit(idx: number, unit: string) {
+    setIngredients(prev => prev.map((ing, i) =>
+      i === idx ? { ...ing, unit: unit || null } : ing
+    ))
+  }
   function removeIngredient(idx: number) {
     setIngredients(prev => prev.filter((_, i) => i !== idx))
   }
@@ -241,7 +246,7 @@ export function RecipeReviewScreen() {
         </Section>
 
         {/* Ingredients */}
-        <Section title={`Ingredients — tap qty to edit`}>
+        <Section title={`Ingredients — tap to edit qty & unit`}>
           {ingredients.map((ing, idx) => {
             const { catalog: catalogMatch, isMerge } = matchIngredientFull(ing.name, catalog)
             const userKeptSeparate  = keepSeparate.has(idx)
@@ -296,7 +301,7 @@ export function RecipeReviewScreen() {
                     )}
                   </div>
 
-                  {/* Quantity */}
+                  {/* Quantity + Unit */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
                     <input
                       type="number"
@@ -315,9 +320,39 @@ export function RecipeReviewScreen() {
                         outline: 'none',
                       }}
                     />
-                    {ing.unit && (
-                      <span style={{ fontSize: '11px', color: 'var(--ts)' }}>{ing.unit}</span>
-                    )}
+                    <select
+                      value={ing.unit ?? ''}
+                      onChange={e => updateIngredientUnit(idx, e.target.value)}
+                      style={{
+                        backgroundColor: 'var(--dk3)',
+                        border: '0.5px solid var(--br)',
+                        borderRadius: '6px',
+                        padding: '3px 4px',
+                        fontSize: '11px',
+                        color: ing.unit ? 'var(--ts)' : 'var(--tm)',
+                        outline: 'none',
+                        fontFamily: 'inherit',
+                        appearance: 'none',
+                        cursor: 'pointer',
+                        minWidth: '38px',
+                        maxWidth: '56px',
+                      }}
+                    >
+                      <option value="">—</option>
+                      <option value="tsp">tsp</option>
+                      <option value="tbsp">tbsp</option>
+                      <option value="cup">cup</option>
+                      <option value="oz">oz</option>
+                      <option value="lbs">lbs</option>
+                      <option value="g">g</option>
+                      <option value="ml">ml</option>
+                      <option value="whole">whole</option>
+                      <option value="clove">clove</option>
+                      <option value="bunch">bunch</option>
+                      <option value="can">can</option>
+                      <option value="slice">slice</option>
+                      <option value="sprig">sprig</option>
+                    </select>
                   </div>
 
                   {/* Remove */}
