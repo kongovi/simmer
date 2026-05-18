@@ -132,8 +132,8 @@ export function PlannerScreen() {
 
   const visibleCols = MEAL_TYPES.filter(m => colVisible[m.key])
 
-  // Grid: [day col] + one col per visible meal type
-  const gridCols = `48px ${visibleCols.map(() => '1fr').join(' ')}`
+  // Grid: [day col] + one col per visible meal type (each meal col scrolls its tiles horizontally)
+  const gridCols = `48px ${visibleCols.map(() => 'minmax(0,1fr)').join(' ')}`
 
   return (
     <Screen style={{ paddingBottom: 'calc(68px + 56px + env(safe-area-inset-bottom))' }}>
@@ -360,32 +360,27 @@ export function PlannerScreen() {
 
 function MealCell({ dishes, onOpen }: { dishes: SlotDish[]; onOpen: () => void }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-      {dishes.map((d, idx) => {
-        const isLast = idx === dishes.length - 1
-        return isLast ? (
-          // Last tile: flex row with the tile + "+ add" to its right
-          <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <div style={{ flex: 1 }}>
-              <DishTile dish={d} onClick={onOpen} />
-            </div>
-            <button onClick={onOpen} style={addLinkStyle}>
-              +add
-            </button>
-          </div>
-        ) : (
-          <DishTile key={d.id} dish={d} onClick={onOpen} />
-        )
-      })}
+    <div style={{
+      display: 'flex', flexDirection: 'row',
+      alignItems: 'flex-start', gap: '6px',
+      overflowX: 'auto', scrollbarWidth: 'none',
+    }}>
+      {dishes.map(d => (
+        <DishTile key={d.id} dish={d} onClick={onOpen} />
+      ))}
 
-      {/* Empty cell — just the + add link */}
-      {dishes.length === 0 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minHeight: '34px' }}>
-          <button onClick={onOpen} style={addLinkStyle}>
-            +add
-          </button>
-        </div>
-      )}
+      {/* +add always visible after tiles (or alone if empty) */}
+      <button
+        onClick={onOpen}
+        style={{
+          ...addLinkStyle,
+          alignSelf: 'center',
+          minWidth: '36px',
+          flexShrink: 0,
+        }}
+      >
+        +add
+      </button>
     </div>
   )
 }
@@ -393,30 +388,54 @@ function MealCell({ dishes, onOpen }: { dishes: SlotDish[]; onOpen: () => void }
 // ── DishTile ──────────────────────────────────────────────────────────────────
 
 function DishTile({ dish, onClick }: { dish: SlotDish; onClick: () => void }) {
+  const name     = dishDisplayName(dish)
+  const imgUrl   = dish.recipe?.image_status === 'done' ? dish.recipe.image_url : null
+  const emoji    = dishEmoji(dish)
+
   return (
     <div
       onClick={onClick}
       style={{
+        width: '120px',
         background: 'var(--dkc)',
         border: '0.5px solid var(--brh)',
-        borderRadius: '8px',
-        padding: '7px 8px',
-        display: 'flex', alignItems: 'center', gap: '6px',
+        borderRadius: '10px',
+        overflow: 'hidden',
         cursor: 'pointer',
         transition: 'border-color 0.15s',
+        flexShrink: 0,
       }}
     >
-      <span style={{ fontSize: '17px', lineHeight: 1, flexShrink: 0 }}>{dishEmoji(dish)}</span>
-      <span style={{
-        fontSize: '12px', color: 'var(--tp)', fontWeight: 500,
-        lineHeight: 1.35,
+      {/* Image / emoji area — square */}
+      <div style={{
+        width: '120px', height: '110px',
+        background: 'var(--dk3)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden',
+      }}>
+        {imgUrl ? (
+          <img
+            src={imgUrl}
+            alt={name}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        ) : (
+          <span style={{ fontSize: '42px', lineHeight: 1 }}>{emoji}</span>
+        )}
+      </div>
+
+      {/* Name label */}
+      <div style={{
+        padding: '6px 7px 7px',
+        fontSize: '12px', fontWeight: 500, color: 'var(--tp)',
+        lineHeight: 1.3,
         overflow: 'hidden',
         display: '-webkit-box',
         WebkitLineClamp: 2,
         WebkitBoxOrient: 'vertical',
       }}>
-        {dishDisplayName(dish)}
-      </span>
+        {name}
+      </div>
     </div>
   )
 }

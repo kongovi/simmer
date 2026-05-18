@@ -13,7 +13,7 @@ export interface SlotDish {
   recipe_id:    string | null
   freeform_name: string | null
   // joined from recipes (null for freeform)
-  recipe: { id: string; name: string; emoji: string | null } | null
+  recipe: { id: string; name: string; emoji: string | null; image_url: string | null; image_status: string | null } | null
 }
 
 export interface AddDishPayload {
@@ -36,7 +36,7 @@ export function useSlotsForWeek(weekStart: string) {
     queryFn:  async () => {
       const { data, error } = await supabase
         .from('meal_plan_slots')
-        .select('id, slot_date, meal_type, sort_order, recipe_id, freeform_name, recipe:recipes(id, name, emoji)')
+        .select('id, slot_date, meal_type, sort_order, recipe_id, freeform_name, recipe:recipes(id, name, emoji, image_url, image_status)')
         .eq('family_id', familyId!)
         .eq('week_start', weekStart)
         .order('sort_order')
