@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
 import { parseOrderCSV, fuzzyMatchIngredient } from '../lib/csvImport'
+import { generateIngredientImage } from '../lib/images'
 
 export interface ImportResult {
   imported:     number
@@ -31,6 +32,7 @@ export function useOrderImport() {
       let newToCatalog = 0
       let skipped      = 0
       const historyRows: { family_id: string; ingredient_id: string; purchased_at: string; source: string }[] = []
+      const newIngredients: { id: string; name: string }[] = []
 
       // Work in batches to avoid huge single inserts
       const currentCatalog = [...(catalog ?? [])]
@@ -49,6 +51,7 @@ export function useOrderImport() {
           if (ingErr) { skipped++; continue }
           ingredientId = newIng.id
           currentCatalog.push({ id: newIng.id, name: newIng.name })
+          newIngredients.push({ id: newIng.id, name: newIng.name })
           newToCatalog++
         }
 
@@ -70,6 +73,25 @@ export function useOrderImport() {
           .from('purchase_history')
           .insert(chunk)
         if (phErr) throw phErr
+      }
+
+      // 5. Kick off image generation for all newly created catalog entries.
+      //    Bulk-mark as 'generating' first so pulsing dots appear immediately,
+      //    then stagger the actual edge-function calls 300ms apart.
+      if (newIngredients.length > 0) {
+        const newIds = newIngredients.map(i => i.id)
+        await supabase
+          .from('ingredients_catalog')
+          .update({ image_status: 'generating' })
+          .in('id', newIds)
+
+        newIngredients.forEach((ing, i) => {
+          setTimeout(() => {
+            generateIngredientImage(ing.id, ing.name).catch(err =>
+              console.warn(`Import image error [${ing.name}]:`, err)
+            )
+          }, i * 300) // stagger: 0ms, 300ms, 600ms, …
+        })
       }
 
       return {

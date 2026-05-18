@@ -55,7 +55,7 @@ export function detectAisleOrder(name: string, emoji: string | null): number {
   if (/\b(coffee|tea|juice|water|soda|beer|wine|drink|beverage|kombucha|oat milk|almond milk|soy milk|coconut water|sparkling)\b/.test(n)) return 10
 
   // Oils & Spices
-  if (/\b(oil|vinegar|sauce|spice|salt|pepper|cumin|coriander|turmeric|paprika|cinnamon|bay|oregano|thyme|rosemary|sumac|urfa|zaatar|garam|masala|seasoning|powder|ground|dried|chili|chilli|cayenne|cardamom|clove|nutmeg|saffron|vanilla|extract|mustard|ketchup|mayo|mayonnaise|hot sauce|soy sauce|fish sauce|worcestershire|sriracha|tahini|miso|hoisin|oyster sauce)\b/.test(n)) return 6
+  if (/\b(oil|vinegar|sauce|spice|salt|pepper|cumin|coriander|turmeric|paprika|cinnamon|bay|oregano|thyme|rosemary|sumac|urfa|zaatar|garam|masala|seasoning|powder|dried|chili|chilli|cayenne|cardamom|clove|nutmeg|saffron|vanilla|extract|mustard|ketchup|mayo|mayonnaise|hot sauce|soy sauce|fish sauce|worcestershire|sriracha|tahini|miso|hoisin|oyster sauce)\b/.test(n)) return 6
 
   // Canned & Dry
   if (/\b(canned|can|paste|broth|stock|beans|lentils|pasta|rice|flour|sugar|honey|syrup|coconut milk|tomato sauce|noodle|cereal|oat|oats|barley|quinoa|couscous|chickpea|lentil|black bean|kidney bean|chickpeas)\b/.test(n)) return 5
@@ -67,7 +67,7 @@ export function detectAisleOrder(name: string, emoji: string | null): number {
   if (/\b(chicken|beef|lamb|pork|fish|shrimp|salmon|tuna|turkey|meat|sausage|bacon|steak|ground|fillet|prawn|cod|tilapia|mahi|halibut|trout|crab|lobster|scallop|anchov|sardine|duck|veal|bison|venison|rib|rack|chop|tenderloin|brisket|flank|skirt)\b/.test(n)) return 2
 
   // Produce
-  if (/\b(onion|garlic|lemon|lime|tomato|pepper|potato|carrot|celery|spinach|lettuce|apple|banana|berry|ginger|cilantro|parsley|basil|mint|cucumber|zucchini|eggplant|mushroom|avocado|mango|orange|grape|pear|plum|peach|cherry|kale|arugula|fennel|leek|shallot|scallion|chard|beet|radish|asparagus|corn|pea|squash|cauliflower|broccoli|cabbage|bok choy|herb|fresh|produce|vegetable|fruit|jalapeño|serrano|habanero)\b/.test(n)) return 1
+  if (/\b(onion|garlic|lemon|lime|tomato|pepper|potato|carrot|celery|spinach|lettuce|apple|banana|berry|ginger|cilantro|parsley|basil|mint|cucumber|zucchini|eggplant|mushroom|avocado|mango|orange|grape|pear|plum|peach|cherry|kale|arugula|fennel|leek|shallot|scallion|chard|beet|radish|asparagus|corn|pea|squash|cauliflower|broccoli|cabbage|bok choy|herb|fresh|produce|vegetable|fruit|jalapeño|serrano|habanero|kiwi|clementine|mandarin|grapefruit|pomegranate|watermelon|cantaloupe|melon|nectarine|apricot|fig|pomelo|persimmon|guava|papaya|lychee|dragonfruit|starfruit|artichoke|brussels sprout|sweet potato|yam|butternut|acorn squash|snap pea|sugar snap|green bean|string bean|wax bean|sprout|microgreen|watercress|endive|radicchio|escarole|tomatillo|cactus|jicama|turnip|parsnip|rutabaga|kohlrabi|daikon|lotus root|bamboo shoot)\b/.test(n)) return 1
 
   // Emoji-based fallback
   const emojiAisle: Record<string, number> = {
