@@ -13,6 +13,7 @@ export interface FamilyMember {
   user_id: string | null
   role: UserRole
   display_name: string | null
+  avatar_url: string | null
   created_at: string
 }
 

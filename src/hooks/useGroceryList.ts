@@ -187,7 +187,7 @@ export function useIngredientSuggestions(search: string) {
     queryFn:  async () => {
       let q = supabase
         .from('ingredients_catalog')
-        .select('id, name, emoji, default_store, image_url, image_status')
+        .select('id, name, emoji, brand_note, default_store, default_aisle_order, image_url, image_status')
         .eq('family_id', familyId!)
         .order('name')
         .limit(24)
@@ -340,7 +340,7 @@ export function useAddManualItem() {
 
   return useMutation({
     mutationFn: async ({
-      listId, name, quantity, unit, notes, ingredientId, emoji,
+      listId, name, quantity, unit, notes, ingredientId, emoji, assignedStore, aisleOrder,
     }: {
       listId:        string
       name:          string
@@ -349,6 +349,8 @@ export function useAddManualItem() {
       notes?:        string | null
       ingredientId?: string | null
       emoji?:        string | null
+      assignedStore?: string | null
+      aisleOrder?:   number | null
     }): Promise<{ ingredientId: string | null; needsImage: boolean }> => {
       let resolvedIngredientId = ingredientId ?? null
       let needsImage = false
@@ -406,7 +408,8 @@ export function useAddManualItem() {
           notes:           notes ?? null,
           source:          'manual',
           recipe_ids:      [],
-          aisle_order:     detectAisleOrder(name, emoji ?? null),
+          assigned_store:  assignedStore ?? null,
+          aisle_order:     aisleOrder ?? detectAisleOrder(name, emoji ?? null),
           is_checked:      false,
         })
       if (error) throw error
@@ -504,6 +507,24 @@ export function useUpdateGroceryItem() {
       queryClient.invalidateQueries({ queryKey: ['grocery-items', listId] })
       queryClient.invalidateQueries({ queryKey: ['catalog',       familyId] })
       queryClient.invalidateQueries({ queryKey: ['known-stores',  familyId] })
+    },
+  })
+}
+
+/** Delete all items from the active grocery list. */
+export function useClearGroceryList() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ listId }: { listId: string }) => {
+      const { error } = await supabase
+        .from('grocery_list_items')
+        .delete()
+        .eq('grocery_list_id', listId)
+      if (error) throw error
+    },
+    onSuccess: (_v, { listId }) => {
+      queryClient.invalidateQueries({ queryKey: ['grocery-items', listId] })
     },
   })
 }

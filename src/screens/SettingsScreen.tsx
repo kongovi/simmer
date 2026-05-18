@@ -73,7 +73,7 @@ function NavRow({
 
 // ── Member avatar ─────────────────────────────────────────────────────────────
 
-function MemberAvatar({ name, role }: { name: string | null; role: string }) {
+function MemberAvatar({ name, role, avatarUrl }: { name: string | null; role: string; avatarUrl?: string | null }) {
   const initials = (name ?? '?').slice(0, 2).toUpperCase()
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: '0.5px solid var(--br)' }}>
@@ -82,9 +82,11 @@ function MemberAvatar({ name, role }: { name: string | null; role: string }) {
         background: role === 'planner' ? 'rgba(123,175,138,0.25)' : 'rgba(255,255,255,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: '14px', fontWeight: 600, color: role === 'planner' ? 'var(--am)' : 'var(--tp)',
-        flexShrink: 0,
+        flexShrink: 0, overflow: 'hidden',
       }}>
-        {initials}
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={name ?? ''} style={{ width: '32px', height: '32px', objectFit: 'cover' }} />
+        ) : initials}
       </div>
       <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>{name ?? 'Unknown'}</span>
       <span style={{
@@ -388,7 +390,7 @@ export function SettingsScreen() {
         <SettingsSection title="Family">
           {/* Members */}
           {members.map(m => (
-            <MemberAvatar key={m.id} name={m.display_name} role={m.role} />
+            <MemberAvatar key={m.id} name={m.display_name} role={m.role} avatarUrl={m.avatar_url} />
           ))}
           {members.length === 0 && (
             <div style={{ padding: '12px 14px', fontSize: '14px', color: 'var(--ts)', borderBottom: '0.5px solid var(--br)' }}>

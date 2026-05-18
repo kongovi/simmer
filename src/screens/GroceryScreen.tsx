@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Sparkles, Flame } from 'lucide-react'
+import { Sparkles, Flame, RefreshCw, Trash2 } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import {
   useActiveGroceryList, useGroceryListItems, useGroceryListRealtime,
   useToggleItem, useAddManualItem, useUpdateGroceryItem, useUpdateItemStore,
-  useKnownStores, useIngredientSuggestions,
+  useKnownStores, useIngredientSuggestions, useClearGroceryList,
   itemDisplayName, itemEmoji, itemQtyLabel,
   detectAisleOrder,
 } from '../hooks/useGroceryList'
@@ -82,6 +82,15 @@ export function GroceryScreen() {
   const addItem     = useAddManualItem()
   const updateItem  = useUpdateGroceryItem()
   const assignStore = useUpdateItemStore()
+  const clearList   = useClearGroceryList()
+
+  // ── Clear list confirmation ──
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+
+  function handleClearList() {
+    if (!list) return
+    clearList.mutate({ listId: list.id }, { onSuccess: () => setShowClearConfirm(false) })
+  }
 
   /** Right-click / context-menu: cycle the item through available stores. */
   function handleStoreCycle(item: GroceryItem) {
@@ -113,7 +122,7 @@ export function GroceryScreen() {
   }
   function closeKb() { setShowKb(false); setKbSearch(''); setKbQty(''); setKbUnit(''); setKbNotes('') }
 
-  function handleAddSuggestion(sug: { id: string; name: string; emoji: string | null; image_url?: string | null; image_status?: string | null }) {
+  function handleAddSuggestion(sug: { id: string; name: string; emoji: string | null; brand_note?: string | null; default_store?: string | null; default_aisle_order?: number | null; image_url?: string | null; image_status?: string | null }) {
     if (!list) return
     const qty = kbQty.trim() ? parseFloat(kbQty.trim()) : null
     addItem.mutate(
@@ -121,7 +130,11 @@ export function GroceryScreen() {
         listId: list.id, name: sug.name, ingredientId: sug.id, emoji: sug.emoji,
         quantity: !isNaN(qty as number) && qty !== null ? qty : null,
         unit: kbUnit.trim() || null,
-        notes: kbNotes.trim() || null,
+        // Use typed notes first; fall back to catalog brand_note as the per-item default
+        notes: kbNotes.trim() || sug.brand_note || null,
+        // Inherit catalog store and aisle defaults
+        assignedStore: sug.default_store ?? null,
+        aisleOrder: sug.default_aisle_order ?? null,
       },
       {
         onSuccess: () => {
@@ -158,14 +171,14 @@ export function GroceryScreen() {
   }
 
   // ── Edit item sheet (long-press) ──
-  const [editSheetItem, setEditSheetItem] = useState<GroceryItem | null>(null)
-  const [editName,      setEditName]      = useState('')
-  const [editQty,       setEditQty]       = useState('')
-  const [editUnit,      setEditUnit]      = useState('')
-  const [editNotes,     setEditNotes]     = useState('')
-  const [editAisle,     setEditAisle]     = useState<number>(7)
-  const [editStore,     setEditStore]     = useState<string | null>(null)
-  const [editNewStore,  setEditNewStore]  = useState('')
+  const [editSheetItem,   setEditSheetItem]   = useState<GroceryItem | null>(null)
+  const [editName,        setEditName]        = useState('')
+  const [editQty,         setEditQty]         = useState('')
+  const [editUnit,        setEditUnit]        = useState('')
+  const [editNotes,       setEditNotes]       = useState('')
+  const [editAisle,       setEditAisle]       = useState<number>(7)
+  const [editStore,       setEditStore]       = useState<string | null>(null)
+  const [editRegenStatus, setEditRegenStatus] = useState<'idle' | 'busy'>('idle')
 
   function openEditSheet(item: GroceryItem) {
     setEditSheetItem(item)
@@ -175,7 +188,7 @@ export function GroceryScreen() {
     setEditNotes(item.notes ?? item.ingredient?.brand_note ?? '')
     setEditAisle(item.aisle_order ?? detectAisleOrder(itemDisplayName(item), item.ingredient?.emoji ?? null))
     setEditStore(item.assigned_store ?? item.ingredient?.default_store ?? null)
-    setEditNewStore('')
+    setEditRegenStatus('idle')
   }
 
   function closeEditSheet() { setEditSheetItem(null) }
@@ -197,12 +210,11 @@ export function GroceryScreen() {
     }, { onSuccess: closeEditSheet })
   }
 
-  function handleAddEditStore() {
-    const s = editNewStore.trim()
-    if (!s) return
-    if (!allStores.includes(s)) setExtraStores(prev => [...prev, s])
-    setEditStore(s)
-    setEditNewStore('')
+  async function handleEditRegen() {
+    if (!editSheetItem?.ingredient_id) return
+    setEditRegenStatus('busy')
+    await generateIngredientImage(editSheetItem.ingredient_id, editName).catch(() => {})
+    setEditRegenStatus('idle')
   }
 
   // ── Week range label ──
@@ -275,9 +287,23 @@ export function GroceryScreen() {
                 <p style={{ fontSize: '13px', color: 'var(--ts)', margin: 0 }}>{weekLabel}</p>
               )}
             </div>
-            <span style={{ fontSize: '13px', color: 'var(--tm)', paddingTop: '4px' }}>
-              {unchecked.length} left
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+              <span style={{ fontSize: '13px', color: 'var(--tm)' }}>
+                {unchecked.length} left
+              </span>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  background: 'none', border: '0.5px solid var(--br)',
+                  borderRadius: '7px', padding: '5px 9px',
+                  color: 'var(--tm)', fontSize: '12px', fontWeight: 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                <Trash2 size={11} /> Clear
+              </button>
+            </div>
           </div>
 
           {/* Store tabs */}
@@ -588,214 +614,279 @@ export function GroceryScreen() {
           </div>
         )}
 
-        {/* Edit item bottom sheet */}
-        {editSheetItem && (
+        {/* Clear list confirmation */}
+        {showClearConfirm && (
           <>
             <div
-              onClick={closeEditSheet}
-              style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 49 }}
+              onClick={() => setShowClearConfirm(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 49 }}
             />
             <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
+              position: 'fixed', bottom: 0, left: 0, right: 0,
               background: 'var(--dk2)',
               borderTop: '0.5px solid var(--brh)',
               borderRadius: '16px 16px 0 0',
               zIndex: 50,
-              maxHeight: '82vh',
-              display: 'flex', flexDirection: 'column',
+              padding: '20px 16px 32px',
             }}>
-              {/* Drag handle */}
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '12px' }}>
                 <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: 'var(--br)' }} />
               </div>
-
-              {/* Scrollable content */}
-              <div style={{ overflowY: 'auto', padding: '12px 16px 32px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-
-                {/* Header: image + name */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {/* Image or emoji */}
-                  <div style={{ flexShrink: 0, width: '48px', height: '48px', borderRadius: '12px', background: 'var(--dk3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {editSheetItem.ingredient?.image_status === 'done' && editSheetItem.ingredient.image_url ? (
-                      <img src={editSheetItem.ingredient.image_url} alt={editName} style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
-                    ) : (
-                      <span style={{ fontSize: '30px' }}>{itemEmoji(editSheetItem)}</span>
-                    )}
-                  </div>
-                  {/* Editable name */}
-                  <input
-                    value={editName}
-                    onChange={e => setEditName(e.target.value)}
-                    style={{
-                      flex: 1, background: 'var(--dk3)',
-                      border: '0.5px solid var(--brh)', borderRadius: '10px',
-                      padding: '10px 12px', color: 'var(--tp)',
-                      fontSize: '17px', fontWeight: 600, fontFamily: 'inherit', outline: 'none',
-                    }}
-                  />
-                </div>
-
-                {/* Quantity + unit */}
-                <div>
-                  <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quantity</div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={editQty}
-                      onChange={e => setEditQty(e.target.value)}
-                      placeholder="—"
-                      style={{
-                        width: '80px', background: 'var(--dk3)',
-                        border: '0.5px solid var(--brh)', borderRadius: '8px',
-                        padding: '8px 10px', color: 'var(--tp)',
-                        fontSize: '15px', fontFamily: 'inherit', outline: 'none',
-                      }}
-                    />
-                    <input
-                      value={editUnit}
-                      onChange={e => setEditUnit(e.target.value)}
-                      placeholder="unit (oz, lbs, cup…)"
-                      style={{
-                        flex: 1, background: 'var(--dk3)',
-                        border: '0.5px solid var(--brh)', borderRadius: '8px',
-                        padding: '8px 10px', color: 'var(--tp)',
-                        fontSize: '15px', fontFamily: 'inherit', outline: 'none',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Notes */}
-                <div>
-                  <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</div>
-                  <input
-                    value={editNotes}
-                    onChange={e => setEditNotes(e.target.value)}
-                    placeholder="Brand, variety, notes…"
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      background: 'var(--dk3)',
-                      border: '0.5px solid var(--brh)', borderRadius: '8px',
-                      padding: '8px 10px', color: 'var(--tp)',
-                      fontSize: '15px', fontFamily: 'inherit', outline: 'none',
-                    }}
-                  />
-                </div>
-
-                {/* Aisle */}
-                <div>
-                  <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {Object.entries(AISLE_NAMES).map(([key, name]) => {
-                      const a = Number(key)
-                      const selected = editAisle === a
-                      const img = AISLE_IMAGES[a]
-                      const emoji = AISLE_LABELS[a]?.split(' ')[0] ?? '🛒'
-                      return (
-                        <button
-                          key={a}
-                          onClick={() => setEditAisle(a)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '5px',
-                            padding: '5px 10px 5px 6px', borderRadius: '18px',
-                            border: `0.5px solid ${selected ? 'var(--am)' : 'var(--brh)'}`,
-                            background: selected ? 'rgba(123,175,138,0.15)' : 'none',
-                            color: selected ? 'var(--am)' : 'var(--ts)',
-                            fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
-                            fontWeight: selected ? 500 : 400,
-                          }}
-                        >
-                          {img ? (
-                            <img src={img} alt={name} style={{ width: '22px', height: '22px', objectFit: 'contain', flexShrink: 0 }} />
-                          ) : (
-                            <span style={{ fontSize: '16px', lineHeight: 1 }}>{emoji}</span>
-                          )}
-                          {name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Store */}
-                <div>
-                  <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Store</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '8px' }}>
-                    {allStores.map(store => {
-                      const selected = editStore === store
-                      return (
-                        <button
-                          key={store}
-                          onClick={() => setEditStore(selected ? null : store)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '10px',
-                            padding: '9px 12px', borderRadius: '10px',
-                            background: selected ? 'rgba(123,175,138,0.1)' : 'none',
-                            border: `0.5px solid ${selected ? 'rgba(123,175,138,0.35)' : 'transparent'}`,
-                            cursor: 'pointer', fontFamily: 'inherit',
-                          }}
-                        >
-                          <span style={{
-                            width: '14px', height: '14px', borderRadius: '50%',
-                            border: `1.5px solid ${selected ? 'var(--am)' : 'var(--brh)'}`,
-                            background: selected ? 'var(--am)' : 'none',
-                            flexShrink: 0,
-                          }} />
-                          <StoreIcon name={store} emoji={storeEmojiMap[store]} size={16} />
-                          <span style={{ fontSize: '15px', color: selected ? 'var(--tp)' : 'var(--ts)', fontWeight: selected ? 500 : 400 }}>
-                            {store}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div style={{ display: 'flex', gap: '7px' }}>
-                    <input
-                      value={editNewStore}
-                      onChange={e => setEditNewStore(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleAddEditStore() }}
-                      placeholder="New store…"
-                      style={{
-                        flex: 1, background: 'var(--dk3)',
-                        border: '0.5px solid var(--brh)', borderRadius: '8px',
-                        padding: '8px 10px', color: 'var(--tp)',
-                        fontSize: '14px', fontFamily: 'inherit', outline: 'none',
-                      }}
-                    />
-                    <button
-                      onClick={handleAddEditStore}
-                      disabled={!editNewStore.trim()}
-                      style={{
-                        background: editNewStore.trim() ? 'var(--am)' : 'var(--dk3)',
-                        border: 'none', borderRadius: '8px', padding: '8px 14px',
-                        color: editNewStore.trim() ? '#141820' : 'var(--tm)',
-                        fontSize: '13px', fontWeight: 500, fontFamily: 'inherit',
-                        cursor: editNewStore.trim() ? 'pointer' : 'default',
-                      }}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-
-                {/* Save button */}
+              <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '6px' }}>
+                Clear grocery list?
+              </div>
+              <div style={{ fontSize: '14px', color: 'var(--ts)', marginBottom: '20px' }}>
+                All items will be removed. This can't be undone.
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={handleSaveEdit}
-                  disabled={updateItem.isPending}
+                  onClick={() => setShowClearConfirm(false)}
                   style={{
-                    width: '100%', padding: '13px',
-                    background: 'var(--am)', border: 'none', borderRadius: '12px',
-                    color: '#141820', fontSize: '16px', fontWeight: 600,
-                    fontFamily: 'inherit', cursor: 'pointer',
-                    opacity: updateItem.isPending ? 0.6 : 1,
+                    flex: 1, padding: '13px',
+                    background: 'var(--dk3)', border: '0.5px solid var(--br)',
+                    borderRadius: '11px', color: 'var(--ts)',
+                    fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >
-                  {updateItem.isPending ? 'Saving…' : 'Save'}
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClearList}
+                  disabled={clearList.isPending}
+                  style={{
+                    flex: 1, padding: '13px',
+                    background: 'rgba(208,90,48,0.15)', border: '0.5px solid var(--rd)',
+                    borderRadius: '11px', color: 'var(--rd)',
+                    fontSize: '15px', fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    opacity: clearList.isPending ? 0.6 : 1,
+                  }}
+                >
+                  {clearList.isPending ? 'Clearing…' : 'Clear list'}
                 </button>
               </div>
             </div>
           </>
+        )}
+
+        {/* Edit item bottom sheet */}
+        {editSheetItem && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, zIndex: 49,
+              background: 'rgba(0,0,0,0.6)',
+              display: 'flex', alignItems: 'flex-end',
+            }}
+            onClick={e => { if (e.target === e.currentTarget) closeEditSheet() }}
+          >
+            <div style={{
+              background: 'var(--dk2)', borderRadius: '20px 20px 0 0',
+              padding: '20px 16px 32px', width: '100%',
+              borderTop: '0.5px solid var(--brh)',
+              maxHeight: '90vh', overflowY: 'auto',
+            }}>
+              {/* Header: image + name + regen — matches catalog EditSheet */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                <div style={{
+                  position: 'relative', flexShrink: 0,
+                  width: '56px', height: '56px', borderRadius: '14px',
+                  background: 'var(--dk3)', overflow: 'hidden',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {editSheetItem.ingredient?.image_status === 'done' && editSheetItem.ingredient.image_url ? (
+                    <img
+                      src={editSheetItem.ingredient.image_url}
+                      alt={editName}
+                      style={{ width: '56px', height: '56px', objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '32px', lineHeight: 1 }}>{itemEmoji(editSheetItem)}</span>
+                  )}
+                  {editSheetItem.ingredient?.image_status === 'generating' && (
+                    <div style={{
+                      position: 'absolute', bottom: '4px', left: '4px',
+                      width: '7px', height: '7px', borderRadius: '50%',
+                      background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite',
+                    }} />
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', display: 'block' }}>{editName}</span>
+                  {editSheetItem.ingredient_id && (
+                    <button
+                      onClick={handleEditRegen}
+                      disabled={editRegenStatus === 'busy' || editSheetItem.ingredient?.image_status === 'generating'}
+                      style={{
+                        marginTop: '4px',
+                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                        background: 'none', border: 'none', padding: 0,
+                        color: editRegenStatus === 'busy' ? 'var(--tm)' : 'var(--ts)',
+                        fontSize: '12px', cursor: editRegenStatus === 'busy' ? 'default' : 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <RefreshCw size={11} style={{ animation: editRegenStatus === 'busy' ? 'spin 0.8s linear infinite' : 'none' }} />
+                      {editRegenStatus === 'busy' ? 'Generating…' : 'Regenerate image'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Name */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Name</div>
+                <input
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+                    borderRadius: '8px', padding: '9px 11px',
+                    color: 'var(--tp)', fontSize: '16px', fontWeight: 500,
+                    fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+              </div>
+
+              {/* Quantity + unit (grocery-specific) */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quantity</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={editQty}
+                    onChange={e => setEditQty(e.target.value)}
+                    placeholder="—"
+                    style={{
+                      width: '80px', background: 'var(--dk3)',
+                      border: '0.5px solid var(--brh)', borderRadius: '8px',
+                      padding: '9px 11px', color: 'var(--tp)',
+                      fontSize: '15px', fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                  <input
+                    value={editUnit}
+                    onChange={e => setEditUnit(e.target.value)}
+                    placeholder="unit (oz, lbs, cup…)"
+                    style={{
+                      flex: 1, background: 'var(--dk3)',
+                      border: '0.5px solid var(--brh)', borderRadius: '8px',
+                      padding: '9px 11px', color: 'var(--tp)',
+                      fontSize: '15px', fontFamily: 'inherit', outline: 'none',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Notes (per-instance, grocery-specific) */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '13px', color: 'var(--ts)', display: 'block', marginBottom: '6px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Notes
+                </label>
+                <input
+                  value={editNotes}
+                  onChange={e => setEditNotes(e.target.value)}
+                  placeholder="e.g. TJ's organic, grass-fed"
+                  style={{
+                    width: '100%', background: 'var(--dk3)',
+                    border: '0.5px solid var(--brh)', borderRadius: '8px',
+                    padding: '9px 11px', color: 'var(--tp)', fontSize: '15px',
+                    fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              {/* Store — pill buttons matching catalog */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '13px', color: 'var(--ts)', display: 'block', marginBottom: '6px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Store
+                </label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {allStores.map(store => (
+                    <button
+                      key={store}
+                      onClick={() => setEditStore(editStore === store ? null : store)}
+                      style={{
+                        padding: '6px 12px',
+                        background: editStore === store ? 'var(--am)' : 'var(--dk3)',
+                        border: `0.5px solid ${editStore === store ? 'var(--am)' : 'var(--br)'}`,
+                        borderRadius: '8px',
+                        color: editStore === store ? '#141820' : 'var(--tp)',
+                        fontSize: '14px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'flex', alignItems: 'center', gap: '5px',
+                      }}
+                    >
+                      <StoreIcon name={store} emoji={storeEmojiMap[store]} size={14} />
+                      {store}
+                    </button>
+                  ))}
+                  {/* Custom/other store input */}
+                  <input
+                    value={allStores.includes(editStore ?? '') ? '' : (editStore ?? '')}
+                    onChange={e => setEditStore(e.target.value || null)}
+                    placeholder="Other…"
+                    style={{
+                      background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+                      borderRadius: '8px', padding: '6px 10px',
+                      color: 'var(--tp)', fontSize: '14px',
+                      fontFamily: 'inherit', outline: 'none', width: '80px',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Aisle — pill buttons matching catalog */}
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {Object.entries(AISLE_NAMES).map(([key, name]) => {
+                    const a = Number(key)
+                    const selected = editAisle === a
+                    const img = AISLE_IMAGES[a]
+                    const emoji = AISLE_LABELS[a]?.split(' ')[0] ?? '🛒'
+                    return (
+                      <button
+                        key={a}
+                        onClick={() => setEditAisle(a)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '5px',
+                          padding: '5px 10px 5px 6px', borderRadius: '18px',
+                          border: `0.5px solid ${selected ? 'var(--am)' : 'var(--br)'}`,
+                          background: selected ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
+                          color: selected ? 'var(--am)' : 'var(--ts)',
+                          fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
+                          fontWeight: selected ? 500 : 400,
+                        }}
+                      >
+                        {img ? (
+                          <img src={img} alt={name} style={{ width: '22px', height: '22px', objectFit: 'contain', flexShrink: 0 }} />
+                        ) : (
+                          <span style={{ fontSize: '16px', lineHeight: 1 }}>{emoji}</span>
+                        )}
+                        {name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Save button */}
+              <button
+                onClick={handleSaveEdit}
+                disabled={updateItem.isPending}
+                style={{
+                  width: '100%', padding: '13px',
+                  background: 'var(--am)', border: 'none', borderRadius: '12px',
+                  color: '#141820', fontSize: '16px', fontWeight: 600,
+                  fontFamily: 'inherit', cursor: 'pointer', marginBottom: '10px',
+                  opacity: updateItem.isPending ? 0.6 : 1,
+                }}
+              >
+                {updateItem.isPending ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </Screen>
@@ -904,6 +995,8 @@ function GroceryBox({
         fontSize: '12px', color: done ? 'var(--tm)' : 'var(--tp)',
         fontWeight: 500, textAlign: 'center', lineHeight: 1.3,
         textDecoration: done ? 'line-through' : 'none',
+        wordBreak: 'break-word', overflowWrap: 'break-word',
+        width: '100%',
       }}>
         {name}
       </span>
@@ -919,6 +1012,8 @@ function GroceryBox({
         <span style={{
           fontSize: '10px', color: 'var(--tm)',
           fontStyle: 'italic', textAlign: 'center', lineHeight: 1.2,
+          wordBreak: 'break-word', overflowWrap: 'break-word',
+          width: '100%',
         }}>
           {noteText}
         </span>
