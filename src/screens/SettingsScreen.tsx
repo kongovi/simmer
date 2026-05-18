@@ -10,7 +10,7 @@ import { Screen } from '../components/layout/Screen'
 import { supabase } from '../lib/supabase'
 import { useAppStore } from '../stores/appStore'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
-import { useFamilyMembers, useFamilyInvites, useCreateInvite, useDeleteInvite, buildInviteUrl } from '../hooks/useFamilyMembers'
+import { useFamilyMembers, useFamilyInvites, useCreateInvite, useDeleteInvite, useUpdateMemberRole, useIsAdmin, buildInviteUrl } from '../hooks/useFamilyMembers'
 import { useFamilyStores, useAddFamilyStore, useDeleteFamilyStore, useUpdateFamilyStoreEmoji, useReorderFamilyStore } from '../hooks/useFamilyStores'
 import { useOrderImport } from '../hooks/useOrderImport'
 import type { ImportResult } from '../hooks/useOrderImport'
@@ -71,32 +71,77 @@ function NavRow({
   )
 }
 
-// ── Member avatar ─────────────────────────────────────────────────────────────
+// ── Member row ────────────────────────────────────────────────────────────────
 
-function MemberAvatar({ name, role, avatarUrl }: { name: string | null; role: string; avatarUrl?: string | null }) {
-  const initials = (name ?? '?').slice(0, 2).toUpperCase()
+function MemberRow({
+  id, name, role, avatarUrl, isCurrentUser, viewerIsAdmin,
+}: {
+  id: string
+  name: string | null
+  role: string
+  avatarUrl?: string | null
+  isCurrentUser: boolean
+  viewerIsAdmin: boolean
+}) {
+  const updateRole   = useUpdateMemberRole()
+  const isAdmin      = role === 'planner'
+  const initials     = (name ?? '?').slice(0, 2).toUpperCase()
+  const roleLabel    = isAdmin ? 'Admin' : 'Member'
+  const canToggle    = viewerIsAdmin && !isCurrentUser
+
+  function handleToggle() {
+    updateRole.mutate({ memberId: id, role: isAdmin ? 'member' : 'planner' })
+  }
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: '0.5px solid var(--br)' }}>
+      {/* Avatar */}
       <div style={{
-        width: '32px', height: '32px', borderRadius: '50%',
-        background: role === 'planner' ? 'rgba(123,175,138,0.25)' : 'rgba(255,255,255,0.08)',
+        width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+        background: isAdmin ? 'rgba(123,175,138,0.25)' : 'rgba(255,255,255,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: '14px', fontWeight: 600, color: role === 'planner' ? 'var(--am)' : 'var(--tp)',
-        flexShrink: 0, overflow: 'hidden',
+        fontSize: '14px', fontWeight: 600, color: isAdmin ? 'var(--am)' : 'var(--tp)',
       }}>
-        {avatarUrl ? (
-          <img src={avatarUrl} alt={name ?? ''} style={{ width: '32px', height: '32px', objectFit: 'cover' }} />
-        ) : initials}
+        {avatarUrl
+          ? <img src={avatarUrl} alt={name ?? ''} style={{ width: '32px', height: '32px', objectFit: 'cover' }} />
+          : initials}
       </div>
-      <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>{name ?? 'Unknown'}</span>
-      <span style={{
-        fontSize: '12px', fontWeight: 500, letterSpacing: '0.3px',
-        color: role === 'planner' ? 'var(--am)' : 'var(--ts)',
-        background: role === 'planner' ? 'rgba(123,175,138,0.12)' : 'rgba(255,255,255,0.06)',
-        padding: '3px 8px', borderRadius: '6px',
-      }}>
-        {role}
+
+      {/* Name */}
+      <span style={{ flex: 1, fontSize: '15px', color: 'var(--tp)' }}>
+        {name ?? 'Unknown'}
+        {isCurrentUser && <span style={{ fontSize: '12px', color: 'var(--tm)', marginLeft: '6px' }}>(you)</span>}
       </span>
+
+      {/* Role badge — tappable for admin viewers on other members */}
+      {canToggle ? (
+        <button
+          onClick={handleToggle}
+          disabled={updateRole.isPending}
+          title={isAdmin ? 'Demote to Member' : 'Promote to Admin'}
+          style={{
+            fontSize: '12px', fontWeight: 500, letterSpacing: '0.3px',
+            color: isAdmin ? 'var(--am)' : 'var(--ts)',
+            background: isAdmin ? 'rgba(123,175,138,0.12)' : 'rgba(255,255,255,0.06)',
+            border: `0.5px solid ${isAdmin ? 'rgba(123,175,138,0.3)' : 'rgba(255,255,255,0.1)'}`,
+            padding: '3px 8px', borderRadius: '6px', cursor: 'pointer',
+            fontFamily: 'inherit', opacity: updateRole.isPending ? 0.5 : 1,
+            display: 'flex', alignItems: 'center', gap: '4px',
+          }}
+        >
+          {roleLabel}
+          <span style={{ fontSize: '10px', color: 'var(--tm)' }}>▾</span>
+        </button>
+      ) : (
+        <span style={{
+          fontSize: '12px', fontWeight: 500, letterSpacing: '0.3px',
+          color: isAdmin ? 'var(--am)' : 'var(--ts)',
+          background: isAdmin ? 'rgba(123,175,138,0.12)' : 'rgba(255,255,255,0.06)',
+          padding: '3px 8px', borderRadius: '6px',
+        }}>
+          {roleLabel}
+        </span>
+      )}
     </div>
   )
 }
@@ -249,12 +294,14 @@ export function SettingsScreen() {
   const navigate     = useNavigate()
   const user         = useAppStore(s => s.user)
   const familyId     = useAppStore(s => s.familyId)
+  const currentUid   = user?.id
 
   const { data: settings } = useUserSettings()
   const updateDow           = useUpdatePlanStartDow()
 
   const { data: members  = [] } = useFamilyMembers()
   const { data: invites  = [] } = useFamilyInvites()
+  const { data: viewerIsAdmin = false } = useIsAdmin()
   const createInvite             = useCreateInvite()
   const deleteInvite             = useDeleteInvite()
 
@@ -390,7 +437,15 @@ export function SettingsScreen() {
         <SettingsSection title="Family">
           {/* Members */}
           {members.map(m => (
-            <MemberAvatar key={m.id} name={m.display_name} role={m.role} avatarUrl={m.avatar_url} />
+            <MemberRow
+              key={m.id}
+              id={m.id}
+              name={m.display_name}
+              role={m.role}
+              avatarUrl={m.avatar_url}
+              isCurrentUser={m.user_id === currentUid}
+              viewerIsAdmin={viewerIsAdmin}
+            />
           ))}
           {members.length === 0 && (
             <div style={{ padding: '12px 14px', fontSize: '14px', color: 'var(--ts)', borderBottom: '0.5px solid var(--br)' }}>

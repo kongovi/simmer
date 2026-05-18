@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Search, Store, RefreshCw, Trash2, GitMerge, Check, X } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
 import { useCatalogItems, useUpdateCatalogItem, useDeleteCatalogItem, useMergeIngredients } from '../hooks/useCatalog'
 import { useFamilyStores } from '../hooks/useFamilyStores'
+import { useIsAdmin } from '../hooks/useFamilyMembers'
+import { useEscapeKey } from '../lib/useEscapeKey'
 import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
 import { detectAisleOrder, AISLE_LABELS, AISLE_NAMES, AISLE_IMAGES } from '../lib/aisleUtils'
@@ -14,11 +16,13 @@ import type { IngredientCatalog } from '../types'
 function EditSheet({
   item,
   stores,
+  isAdmin,
   onClose,
   onDeleted,
 }: {
   item:      IngredientCatalog
   stores:    string[]
+  isAdmin:   boolean
   onClose:   () => void
   onDeleted: () => void
 }) {
@@ -35,6 +39,11 @@ function EditSheet({
   const [confirmDelete,    setConfirmDelete]    = useState(false)
   const [regenExpanded,    setRegenExpanded]    = useState(false)
   const [regenCustomText,  setRegenCustomText]  = useState('')
+
+  useEscapeKey(useCallback(() => {
+    if (confirmDelete) { setConfirmDelete(false); return }
+    onClose()
+  }, [confirmDelete, onClose]))
 
   async function handleRegen() {
     setRegenExpanded(false)
@@ -305,8 +314,8 @@ function EditSheet({
           {update.isPending ? 'Saving…' : 'Save'}
         </button>
 
-        {/* Delete */}
-        {confirmDelete ? (
+        {/* Delete — admin only */}
+        {isAdmin && (confirmDelete ? (
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={() => setConfirmDelete(false)}
@@ -345,7 +354,7 @@ function EditSheet({
             <Trash2 size={14} />
             Delete ingredient
           </button>
-        )}
+        ))}
       </div>
     </div>
   )
@@ -725,6 +734,13 @@ export function CatalogScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [merging,     setMerging]     = useState(false)
 
+  const { data: isAdmin = false } = useIsAdmin()
+
+  useEscapeKey(useCallback(() => {
+    if (merging)  { setMerging(false);  return }
+    if (editing)  { setEditing(null);   return }
+  }, [merging, editing]))
+
   useIngredientImageRealtime()
 
   const { data: items = [],  isLoading } = useCatalogItems(search)
@@ -976,6 +992,7 @@ export function CatalogScreen() {
         <EditSheet
           item={editing}
           stores={stores}
+          isAdmin={isAdmin}
           onClose={() => setEditing(null)}
           onDeleted={() => setEditing(null)}
         />

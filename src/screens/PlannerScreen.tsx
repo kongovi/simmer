@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Sparkles, Flame, Copy, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, Flame, Copy, Check, Trash2 } from 'lucide-react'
 import { useAIModelLabel } from '../lib/ai/modelLabel'
 import { Screen } from '../components/layout/Screen'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
-import { useSlotsForWeek, useAddDish, useRemoveDish, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
+import { useSlotsForWeek, useAddDish, useRemoveDish, useClearWeekPlan, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
 import type { SlotDish } from '../hooks/useMealPlan'
 import { useRecipes } from '../hooks/useRecipes'
 import {
@@ -13,6 +13,7 @@ import {
 } from '../lib/weekUtils'
 import type { MealType } from '../types'
 import { useAppStore } from '../stores/appStore'
+import { useEscapeKey } from '../lib/useEscapeKey'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -86,8 +87,18 @@ export function PlannerScreen() {
     else if (dx > 50) setMobileColIdx(i => Math.max(i - 1, 0))
   }
 
+  // ── Clear week ──
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const clearWeekPlan = useClearWeekPlan()
+
   // ── Slot popover ──
   const [popover, setPopover] = useState<PopoverState | null>(null)
+
+  // Escape key closes the top-most open overlay
+  useEscapeKey(useCallback(() => {
+    if (showClearConfirm) { setShowClearConfirm(false); return }
+    if (popover) setPopover(null)
+  }, [showClearConfirm, popover]), showClearConfirm || !!popover)
 
   // ── Data ──
   const { data: slots = [], isLoading: slotsLoading } = useSlotsForWeek(weekStart)
@@ -200,6 +211,18 @@ export function PlannerScreen() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Flame size={22} color="var(--am)" strokeWidth={2} />
             <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: 0, flex: 1 }}>Meal Planner</h1>
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '4px',
+                background: 'none', border: '0.5px solid var(--br)',
+                borderRadius: '7px', padding: '5px 9px',
+                color: 'var(--tm)', fontSize: '12px', fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <Trash2 size={11} /> Clear
+            </button>
             <button
               onClick={copyPlanToClipboard}
               style={{
@@ -325,7 +348,7 @@ export function PlannerScreen() {
             </div>
 
             {/* Day rows */}
-            {weekDays.map(day => {
+            {weekDays.map((day, dayIdx) => {
               const dateStr = toISODate(day)
               const today   = isToday(day)
               const weekday = day.toLocaleString('default', { weekday: 'short' })
@@ -336,8 +359,14 @@ export function PlannerScreen() {
                     display: 'grid',
                     gridTemplateColumns: gridCols,
                     gap: '6px',
-                    marginBottom: '10px',
                     alignItems: 'start',
+                    // Alternating row tint + top border to visually separate days
+                    borderTop: dayIdx > 0 ? '0.5px solid var(--br)' : 'none',
+                    background: dayIdx % 2 === 1 ? 'rgba(255,255,255,0.018)' : 'transparent',
+                    borderRadius: '6px',
+                    padding: '8px 4px',
+                    marginLeft: '-4px',
+                    marginRight: '-4px',
                   }}
                 >
                   {/* Day label */}
@@ -406,6 +435,41 @@ export function PlannerScreen() {
           </button>
         </div>
       </div>
+
+      {/* Clear week confirmation */}
+      {showClearConfirm && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 49, display: 'flex', alignItems: 'flex-end' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowClearConfirm(false) }}
+        >
+          <div style={{ background: 'var(--dk2)', borderRadius: '20px 20px 0 0', padding: '20px 16px 32px', width: '100%', borderTop: '0.5px solid var(--brh)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '12px' }}>
+              <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: 'var(--br)' }} />
+            </div>
+            <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--tp)', marginBottom: '6px' }}>
+              Clear this week's plan?
+            </div>
+            <div style={{ fontSize: '14px', color: 'var(--ts)', marginBottom: '20px' }}>
+              All meals for {weekLabel} will be removed. This can't be undone.
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                style={{ flex: 1, padding: '13px', background: 'var(--dk3)', border: '0.5px solid var(--br)', borderRadius: '11px', color: 'var(--ts)', fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => clearWeekPlan.mutate({ weekStart }, { onSuccess: () => setShowClearConfirm(false) })}
+                disabled={clearWeekPlan.isPending}
+                style={{ flex: 1, padding: '13px', background: 'rgba(208,90,48,0.15)', border: '0.5px solid var(--rd)', borderRadius: '11px', color: 'var(--rd)', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: clearWeekPlan.isPending ? 0.6 : 1 }}
+              >
+                {clearWeekPlan.isPending ? 'Clearing…' : 'Clear week'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Backdrop + popover */}
       {popover && (

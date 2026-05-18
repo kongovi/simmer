@@ -274,7 +274,7 @@ export function useSaveRecipe() {
           tags: payload.tags,
           difficulty: payload.difficulty,
           emoji,
-          image_status: 'pending',
+          image_status: 'generating',
           nb2_prompt: nb2Prompt,
         })
         .select('id')
@@ -444,6 +444,18 @@ export function useDeleteRecipe() {
  * a stored nb2_prompt and fires image generation for each one. Uses a ref so it
  * only runs once per session even if the component re-renders.
  */
+/**
+ * Mark a recipe as actively generating in the DB so the pulsing dot shows
+ * immediately on both the recipe tile and hero image (before the edge function
+ * finishes and Realtime delivers the 'done' update).
+ */
+export async function markRecipeGenerating(recipeId: string) {
+  await supabase
+    .from('recipes')
+    .update({ image_status: 'generating' })
+    .eq('id', recipeId)
+}
+
 export function useBackfillRecipeImages() {
   const familyId = useAppStore(s => s.familyId)
   const didRun   = useRef(false)
@@ -463,6 +475,10 @@ export function useBackfillRecipeImages() {
       if (error || !data?.length) return
 
       console.log(`[backfill] Generating images for ${data.length} recipe(s)…`)
+
+      // Mark as 'generating' in the DB first so the pulsing dot shows immediately
+      const ids = data.map(r => r.id)
+      await supabase.from('recipes').update({ image_status: 'generating' }).in('id', ids)
 
       // Fire all in parallel — each call is non-blocking and updates the DB itself
       for (const recipe of data) {

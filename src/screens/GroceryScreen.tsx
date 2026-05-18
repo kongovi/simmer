@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sparkles, Flame, RefreshCw, Trash2 } from 'lucide-react'
 import { Screen } from '../components/layout/Screen'
@@ -15,6 +15,7 @@ import { useIngredientImageRealtime, useBackfillIngredientImages, useBackfillAll
 import { generateIngredientImage } from '../lib/images'
 import { StoreIcon } from '../lib/storeIcons'
 import { useFamilyStores } from '../hooks/useFamilyStores'
+import { useEscapeKey } from '../lib/useEscapeKey'
 
 // ── GroceryScreen ─────────────────────────────────────────────────────────────
 
@@ -179,6 +180,12 @@ export function GroceryScreen() {
   const [editAisle,       setEditAisle]       = useState<number>(7)
   const [editStore,       setEditStore]       = useState<string | null>(null)
   const [editRegenStatus, setEditRegenStatus] = useState<'idle' | 'busy'>('idle')
+
+  useEscapeKey(useCallback(() => {
+    if (showClearConfirm) { setShowClearConfirm(false); return }
+    if (editSheetItem)    { setEditSheetItem(null);     return }
+    if (showKb)           { setShowKb(false);           return }
+  }, [showClearConfirm, editSheetItem, showKb]))
 
   function openEditSheet(item: GroceryItem) {
     setEditSheetItem(item)

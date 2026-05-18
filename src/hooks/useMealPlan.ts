@@ -97,6 +97,26 @@ export function useRemoveDish() {
   })
 }
 
+export function useClearWeekPlan() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async ({ weekStart }: { weekStart: string }) => {
+      if (!familyId) throw new Error('No family ID')
+      const { error } = await supabase
+        .from('meal_plan_slots')
+        .delete()
+        .eq('family_id', familyId)
+        .eq('week_start', weekStart)
+      if (error) throw error
+    },
+    onSuccess: (_v, { weekStart }) => {
+      queryClient.invalidateQueries({ queryKey: ['meal-plan', familyId, weekStart] })
+    },
+  })
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Group a flat list of SlotDish rows into a map keyed by "date_mealtype". */

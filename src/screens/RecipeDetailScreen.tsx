@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Clock, Users, Minus, Plus, ChefHat, CalendarDays, Pencil, RefreshCw, Trash2 } from 'lucide-react'
-import { useRecipe, useRecipeIngredients, useRecipeSteps, useRecipeImageRealtime, useDeleteRecipe } from '../hooks/useRecipes'
+import { useRecipe, useRecipeIngredients, useRecipeSteps, useRecipeImageRealtime, useDeleteRecipe, markRecipeGenerating } from '../hooks/useRecipes'
 import { CookingMode } from '../components/recipes/CookingMode'
 import { callNanoBanana2 } from '../lib/images/nanoBanana'
+import { useIsAdmin } from '../hooks/useFamilyMembers'
+import { useEscapeKey } from '../lib/useEscapeKey'
 
 // Card colors from prototype
 const CARD_COLORS = ['#d4e8d4', '#f0e8d0', '#f0e0d8', '#d8e0ea', '#dce8e0', '#ecdae2']
@@ -68,7 +70,15 @@ export function RecipeDetailScreen() {
   const [regenCustomText, setRegenCustomText] = useState('')
 
   const deleteRecipe = useDeleteRecipe()
+  const { data: isAdmin = false } = useIsAdmin()
   useRecipeImageRealtime()
+
+  // Escape key closes open sheets
+  useEscapeKey(useCallback(() => {
+    if (regenSheetOpen)  { setRegenSheetOpen(false); return }
+    if (confirmDelete)   { setConfirmDelete(false);  return }
+    if (cookingMode)     { setCookingMode(false);    return }
+  }, [regenSheetOpen, confirmDelete, cookingMode]), regenSheetOpen || confirmDelete || cookingMode)
 
   function openRegenSheet() {
     if (!recipe?.nb2_prompt || regenBusy) return
@@ -79,6 +89,8 @@ export function RecipeDetailScreen() {
     if (!recipe?.nb2_prompt || regenBusy) return
     setRegenSheetOpen(false)
     setRegenBusy(true)
+    // Mark as 'generating' in the DB immediately so the pulsing dot shows
+    markRecipeGenerating(recipe.id).catch(() => {})
     callNanoBanana2(recipe.nb2_prompt, recipe.id, regenCustomText || undefined)
       .finally(() => setRegenBusy(false))
   }
@@ -215,7 +227,7 @@ export function RecipeDetailScreen() {
               {isGenerating ? 'rendering…' : recipe.image_status === 'failed' ? 'generation failed' : 'queued'}
             </span>
           </div>
-          {!isGenerating && recipe.nb2_prompt && (
+          {!isGenerating && recipe.nb2_prompt && isAdmin && (
             <button onClick={openRegenSheet} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(0,0,0,0.18)', border: 'none', borderRadius: '8px', padding: '5px 10px', color: 'rgba(0,0,0,0.5)', fontSize: '11px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
               <RefreshCw size={10} /> Regenerate image
             </button>
@@ -227,7 +239,7 @@ export function RecipeDetailScreen() {
 
   const overlayButtons = (
     <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '6px', zIndex: 2 }}>
-      {recipe.nb2_prompt && !regenBusy && recipe.image_status !== 'generating' && (
+      {isAdmin && recipe.nb2_prompt && !regenBusy && recipe.image_status !== 'generating' && (
         <button onClick={openRegenSheet} style={{ background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '20px', padding: '6px 10px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
           <RefreshCw size={12} />
         </button>
@@ -317,9 +329,11 @@ export function RecipeDetailScreen() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => setConfirmDelete(true)} style={{ padding: '13px 14px', background: 'none', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', cursor: 'pointer', lineHeight: 0 }}>
-                    <Trash2 size={16} />
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => setConfirmDelete(true)} style={{ padding: '13px 14px', background: 'none', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', cursor: 'pointer', lineHeight: 0 }}>
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                   <button
                     onClick={() => navigate('/planner/add', { state: { recipeId: recipe.id, recipeName: recipe.name, recipeEmoji: recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️') } })}
                     style={{ flex: 1, padding: '13px', backgroundColor: 'var(--dk3)', color: 'var(--tp)', border: '0.5px solid var(--brh)', borderRadius: '12px', fontSize: '16px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
@@ -413,9 +427,11 @@ export function RecipeDetailScreen() {
             </div>
           ) : (
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button onClick={() => setConfirmDelete(true)} style={{ padding: '13px 14px', background: 'none', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', cursor: 'pointer', lineHeight: 0 }}>
-                <Trash2 size={16} />
-              </button>
+              {isAdmin && (
+                <button onClick={() => setConfirmDelete(true)} style={{ padding: '13px 14px', background: 'none', border: '0.5px solid var(--br)', borderRadius: '12px', color: 'var(--ts)', cursor: 'pointer', lineHeight: 0 }}>
+                  <Trash2 size={16} />
+                </button>
+              )}
               <button
                 onClick={() => navigate('/planner/add', { state: { recipeId: recipe.id, recipeName: recipe.name, recipeEmoji: recipe.emoji ?? (recipe.meal_type === 'breakfast' ? '🍳' : recipe.meal_type === 'lunch' ? '🥗' : '🍽️') } })}
                 style={{ flex: 1, padding: '13px', backgroundColor: 'var(--dk3)', color: 'var(--tp)', border: '0.5px solid var(--brh)', borderRadius: '12px', fontSize: '16px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}

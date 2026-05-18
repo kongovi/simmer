@@ -109,6 +109,53 @@ export function useAcceptInvite() {
   })
 }
 
+// ── Role management ───────────────────────────────────────────────────────────
+
+export function useUpdateMemberRole() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async ({ memberId, role }: { memberId: string; role: 'planner' | 'member' }) => {
+      const { error } = await supabase.rpc('update_member_role', {
+        p_member_id: memberId,
+        p_new_role:  role,
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['family-members', familyId] })
+    },
+  })
+}
+
+// ── Admin check ───────────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the current user has the 'planner' (admin) role in their family.
+ * Non-planner members have the 'member' (user) role.
+ */
+export function useIsAdmin() {
+  const userId   = useAppStore(s => s.user?.id)
+  const familyId = useAppStore(s => s.familyId)
+
+  return useQuery({
+    queryKey: ['is-admin', userId, familyId],
+    enabled:  !!userId && !!familyId,
+    staleTime: 1000 * 60 * 10,
+    queryFn:  async () => {
+      const { data } = await supabase
+        .from('family_members')
+        .select('role')
+        .eq('user_id', userId!)
+        .eq('family_id', familyId!)
+        .maybeSingle()
+      // 'planner' is the admin role; 'member' is the regular user role
+      return data?.role === 'planner'
+    },
+  })
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export const APP_URL = import.meta.env.VITE_APP_URL as string | undefined ?? 'https://simmer-rho-eight.vercel.app'

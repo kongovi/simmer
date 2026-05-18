@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Check, AlertTriangle, Plus, Trash2, GitMerge } from 'lucide-react'
 import type { ParsedRecipe, ParsedIngredient, ParsedStep } from '../lib/recipeParser'
 import { useSaveRecipe } from '../hooks/useRecipes'
 import { useIngredientsCatalog, matchIngredientFull } from '../hooks/useIngredientsCatalog'
+import { useEscapeKey } from '../lib/useEscapeKey'
 
 // 6 card colors — pick same one used by RecipeCard
 const CARD_COLORS = ['#d4e8d4', '#f0e8d0', '#f0e0d8', '#d8e0ea', '#dce8e0', '#ecdae2']
@@ -48,6 +49,15 @@ export function RecipeReviewScreen() {
   const [manualMerge, setManualMerge] = useState<Map<number, string>>(new Map()) // idx → catalogId
   const [mergePickerIdx, setMergePickerIdx] = useState<number | null>(null)
   const [mergeSearch, setMergeSearch] = useState('')
+
+  useEscapeKey(useCallback(() => {
+    if (mergePickerIdx !== null) {
+      setMergePickerIdx(null)
+      setMergeSearch('')
+      return
+    }
+    navigate('/recipes')
+  }, [mergePickerIdx, navigate]))
 
   function pickManualMerge(idx: number, catalogId: string) {
     setManualMerge(prev => new Map(prev).set(idx, catalogId))

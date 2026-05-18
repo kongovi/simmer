@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Link as LinkIcon, Sparkles } from 'lucide-react'
 import { useAIModelLabel } from '../lib/ai/modelLabel'
+import { useEscapeKey } from '../lib/useEscapeKey'
 
 export function RecipeImportScreen() {
   const navigate = useNavigate()
   const [url, setUrl] = useState('')
   const aiLabel = useAIModelLabel()
+
+  useEscapeKey(() => navigate('/recipes'))
 
   const isValid = url.trim().startsWith('http')
 

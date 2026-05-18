@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Sparkles } from 'lucide-react'
 import { useAIModelLabel } from '../lib/ai/modelLabel'
+import { useEscapeKey } from '../lib/useEscapeKey'
 
 export function RecipeEntryScreen() {
   const navigate = useNavigate()
   const [text, setText] = useState('')
   const aiLabel = useAIModelLabel()
+
+  useEscapeKey(() => navigate('/recipes'))
 
   function handleStructure() {
     if (!text.trim()) return
