@@ -736,10 +736,10 @@ function YNButtons({
         style={{
           background: leftSelected
             ? (leftIsGreen ? 'rgba(99,153,34,0.35)' : 'rgba(255,255,255,0.1)')
-            : (leftIsGreen ? 'rgba(99,153,34,0.2)' : 'rgba(255,255,255,0.06)'),
+            : (leftIsGreen ? 'rgba(99,153,34,0.07)' : 'rgba(255,255,255,0.06)'),
           border: `0.5px solid ${leftSelected
             ? (leftIsGreen ? 'var(--gl)' : 'var(--ts)')
-            : (leftIsGreen ? 'rgba(99,153,34,0.4)' : 'var(--brh)')}`,
+            : (leftIsGreen ? 'rgba(99,153,34,0.2)' : 'var(--brh)')}`,
           borderRadius: '7px', padding: '4px 9px',
           fontSize: '12px', fontWeight: 500,
           cursor: leftSelected ? 'default' : 'pointer',
