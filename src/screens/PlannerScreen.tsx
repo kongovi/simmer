@@ -406,27 +406,27 @@ function DishTile({ dish, onClick }: { dish: SlotDish; onClick: () => void }) {
         flexShrink: 0,
       }}
     >
-      {/* Image / emoji area — square */}
+      {/* Image / emoji area */}
       <div style={{
         width: '120px', height: '110px',
         background: 'var(--dk3)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
         overflow: 'hidden',
       }}>
         {imgUrl ? (
           <img
             src={imgUrl}
             alt={name}
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'top center' }}
           />
         ) : (
-          <span style={{ fontSize: '42px', lineHeight: 1 }}>{emoji}</span>
+          <span style={{ fontSize: '42px', lineHeight: 1, marginTop: '16px' }}>{emoji}</span>
         )}
       </div>
 
       {/* Name label */}
       <div style={{
-        padding: '6px 7px 7px',
+        padding: '3px 7px 6px',
         fontSize: '12px', fontWeight: 500, color: 'var(--tp)',
         lineHeight: 1.3,
         overflow: 'hidden',
