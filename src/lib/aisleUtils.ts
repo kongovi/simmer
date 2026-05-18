@@ -13,6 +13,22 @@ export const AISLE_LABELS: Record<number, string> = {
   12: '🛒 Other',
 }
 
+/** Plain names without emoji — for display next to aisle images */
+export const AISLE_NAMES: Record<number, string> = {
+  1:  'Produce',
+  2:  'Meat & Fish',
+  3:  'Frozen',
+  4:  'Snacks',
+  5:  'Canned & Dry',
+  6:  'Oils & Spices',
+  7:  'Dairy & Eggs',
+  8:  'Bread & Bakery',
+  9:  'Deli & Prepared',
+  10: 'Beverages',
+  11: 'Household',
+  12: 'Other',
+}
+
 /** Silently assign aisle sort order from ingredient name/emoji.
  *  1=Produce  2=Meat&Fish  3=Frozen  4=Snacks  5=Canned&Dry
  *  6=Oils&Spices  7=Dairy&Eggs  8=Bread&Bakery  9=Deli&Prepared
@@ -68,4 +84,19 @@ export function detectAisleOrder(name: string, emoji: string | null): number {
   if (emoji && emojiAisle[emoji]) return emojiAisle[emoji]
 
   return 12
+}
+
+export const AISLE_IMAGES: Record<number, string | null> = {
+  1:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-1.png',
+  2:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-2.png',
+  3:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-3.png',
+  4:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-4.png',
+  5:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-5.png',
+  6:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-6.png',
+  7:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-7.png',
+  8:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-8.png',
+  9:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-9.png',
+  10:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-10.png',
+  11:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-11.png',
+  12:  'https://prxexzcyfcwvdhjrcwfw.supabase.co/storage/v1/object/public/ingredient-images/aisle-12.png',
 }

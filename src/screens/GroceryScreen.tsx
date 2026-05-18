@@ -9,7 +9,7 @@ import {
   itemDisplayName, itemEmoji, itemQtyLabel,
   detectAisleOrder,
 } from '../hooks/useGroceryList'
-import { AISLE_LABELS } from '../lib/aisleUtils'
+import { AISLE_LABELS, AISLE_NAMES, AISLE_IMAGES } from '../lib/aisleUtils'
 import type { GroceryItem } from '../hooks/useGroceryList'
 import { useIngredientImageRealtime, useBackfillIngredientImages, useBackfillAllCatalogImages } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
@@ -643,23 +643,31 @@ export function GroceryScreen() {
                 <div>
                   <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {Object.entries(AISLE_LABELS).map(([key, label]) => {
+                    {Object.entries(AISLE_NAMES).map(([key, name]) => {
                       const a = Number(key)
                       const selected = editAisle === a
+                      const img = AISLE_IMAGES[a]
+                      const emoji = AISLE_LABELS[a]?.split(' ')[0] ?? '🛒'
                       return (
                         <button
                           key={a}
                           onClick={() => setEditAisle(a)}
                           style={{
-                            padding: '6px 11px', borderRadius: '18px',
+                            display: 'flex', alignItems: 'center', gap: '5px',
+                            padding: '5px 10px 5px 6px', borderRadius: '18px',
                             border: `0.5px solid ${selected ? 'var(--am)' : 'var(--brh)'}`,
                             background: selected ? 'rgba(123,175,138,0.15)' : 'none',
                             color: selected ? 'var(--am)' : 'var(--ts)',
-                            fontSize: '14px', fontFamily: 'inherit', cursor: 'pointer',
+                            fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
                             fontWeight: selected ? 500 : 400,
                           }}
                         >
-                          {label}
+                          {img ? (
+                            <img src={img} alt={name} style={{ width: '22px', height: '22px', objectFit: 'contain', flexShrink: 0 }} />
+                          ) : (
+                            <span style={{ fontSize: '16px', lineHeight: 1 }}>{emoji}</span>
+                          )}
+                          {name}
                         </button>
                       )
                     })}

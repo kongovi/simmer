@@ -6,7 +6,7 @@ import { useCatalogItems, useUpdateCatalogItem, useDeleteCatalogItem, useMergeIn
 import { useFamilyStores } from '../hooks/useFamilyStores'
 import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
-import { detectAisleOrder, AISLE_LABELS } from '../lib/aisleUtils'
+import { detectAisleOrder, AISLE_LABELS, AISLE_NAMES, AISLE_IMAGES } from '../lib/aisleUtils'
 import type { IngredientCatalog } from '../types'
 
 // ── Edit sheet ────────────────────────────────────────────────────────────────
@@ -252,15 +252,18 @@ function EditSheet({
         <div style={{ marginBottom: '16px' }}>
           <div style={{ fontSize: '13px', color: 'var(--ts)', fontWeight: 500, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Aisle</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            {Object.entries(AISLE_LABELS).map(([key, label]) => {
+            {Object.entries(AISLE_NAMES).map(([key, name]) => {
               const a = Number(key)
               const selected = aisle === a
+              const img = AISLE_IMAGES[a]
+              const emoji = AISLE_LABELS[a]?.split(' ')[0] ?? '🛒'
               return (
                 <button
                   key={a}
                   onClick={() => setAisle(a)}
                   style={{
-                    padding: '6px 10px', borderRadius: '18px',
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    padding: '5px 10px 5px 6px', borderRadius: '18px',
                     border: `0.5px solid ${selected ? 'var(--am)' : 'var(--br)'}`,
                     background: selected ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
                     color: selected ? 'var(--am)' : 'var(--ts)',
@@ -268,7 +271,12 @@ function EditSheet({
                     fontWeight: selected ? 500 : 400,
                   }}
                 >
-                  {label}
+                  {img ? (
+                    <img src={img} alt={name} style={{ width: '22px', height: '22px', objectFit: 'contain', flexShrink: 0 }} />
+                  ) : (
+                    <span style={{ fontSize: '16px', lineHeight: 1 }}>{emoji}</span>
+                  )}
+                  {name}
                 </button>
               )
             })}
@@ -627,15 +635,18 @@ function MergeSheet({
         {/* ── Aisle ── */}
         <div style={SECTION_LABEL}>Aisle</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '24px' }}>
-          {Object.entries(AISLE_LABELS).map(([key, label]) => {
+          {Object.entries(AISLE_NAMES).map(([key, name]) => {
             const a = Number(key)
             const sel = aisle === a
+            const img = AISLE_IMAGES[a]
+            const emoji = AISLE_LABELS[a]?.split(' ')[0] ?? '🛒'
             return (
               <button
                 key={a}
                 onClick={() => setAisle(a)}
                 style={{
-                  padding: '6px 10px', borderRadius: '18px',
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  padding: '5px 10px 5px 6px', borderRadius: '18px',
                   border: `0.5px solid ${sel ? 'var(--am)' : 'var(--br)'}`,
                   background: sel ? 'rgba(123,175,138,0.15)' : 'var(--dk3)',
                   color: sel ? 'var(--am)' : 'var(--ts)',
@@ -643,7 +654,12 @@ function MergeSheet({
                   fontWeight: sel ? 500 : 400,
                 }}
               >
-                {label}
+                {img ? (
+                  <img src={img} alt={name} style={{ width: '22px', height: '22px', objectFit: 'contain', flexShrink: 0 }} />
+                ) : (
+                  <span style={{ fontSize: '16px', lineHeight: 1 }}>{emoji}</span>
+                )}
+                {name}
               </button>
             )
           })}
@@ -853,11 +869,21 @@ export function CatalogScreen() {
         {!isLoading && grouped.map(group => (
           <div key={group.aisle} style={{ marginBottom: '20px' }}>
             <div style={{
-              fontSize: '13px', fontWeight: 600, color: 'var(--tm)',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              fontSize: '12px', fontWeight: 600, color: 'var(--tm)',
               textTransform: 'uppercase', letterSpacing: '0.8px',
               marginBottom: '6px', paddingLeft: '4px',
             }}>
-              {group.label}
+              {AISLE_IMAGES[group.aisle] ? (
+                <img
+                  src={AISLE_IMAGES[group.aisle]!}
+                  alt={AISLE_NAMES[group.aisle] ?? ''}
+                  style={{ width: '20px', height: '20px', objectFit: 'contain', flexShrink: 0 }}
+                />
+              ) : (
+                <span style={{ fontSize: '14px' }}>{group.label.split(' ')[0]}</span>
+              )}
+              {AISLE_NAMES[group.aisle] ?? group.label}
             </div>
             <div style={{
               background: 'var(--dkc)', border: '0.5px solid var(--br)',
