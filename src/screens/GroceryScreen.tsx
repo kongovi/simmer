@@ -324,38 +324,6 @@ export function GroceryScreen() {
             )}
           </div>
 
-          {/* Action row */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-            <button
-              onClick={() => navigate('/staging', { state: { from: 'grocery' } })}
-              style={{
-                flex: 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                padding: '8px', borderRadius: '10px',
-                border: '0.5px solid rgba(123,175,138,0.3)',
-                background: 'rgba(123,175,138,0.08)',
-                fontSize: '13px', fontWeight: 500, color: 'var(--am)',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              <Sparkles size={13} /> Review staples
-            </button>
-            <button
-              onClick={openKb}
-              style={{
-                flex: 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                padding: '8px', borderRadius: '10px',
-                border: '0.5px solid var(--brh)',
-                background: 'none',
-                fontSize: '13px', fontWeight: 500, color: 'var(--ts)',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              ＋ Add item
-            </button>
-          </div>
-
           {/* Grocery grid — unchecked */}
           {unchecked.length === 0 && checked.length === 0 && (
             <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--tm)', fontSize: '15px' }}>
@@ -518,19 +486,21 @@ export function GroceryScreen() {
           </>
         )}
 
-        {/* Add bar — pinned above nav */}
+        {/* Pinned bottom bar: add field + staples button */}
         {!showKb && (
           <div style={{
             position: 'absolute', bottom: 'calc(68px + env(safe-area-inset-bottom))', left: 0, right: 0,
-            padding: '6px 16px 7px',
+            padding: '6px 12px 7px',
             background: 'var(--dk)',
             borderTop: '0.5px solid var(--br)',
             zIndex: 5,
+            display: 'flex', alignItems: 'center', gap: '8px',
           }}>
+            {/* Add item field */}
             <button
               onClick={openKb}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
+                flex: 1, display: 'flex', alignItems: 'center', gap: '8px',
                 background: 'var(--dk3)', border: '0.5px solid var(--br)',
                 borderRadius: '9px', padding: '9px 12px',
                 color: 'var(--tm)', fontSize: '14px',
@@ -540,6 +510,23 @@ export function GroceryScreen() {
             >
               <span>＋</span>
               <span>Add an item…</span>
+            </button>
+
+            {/* Review staples */}
+            <button
+              onClick={() => navigate('/staging', { state: { from: 'grocery' } })}
+              style={{
+                flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: '5px',
+                padding: '9px 12px', borderRadius: '9px',
+                border: '0.5px solid rgba(123,175,138,0.35)',
+                background: 'rgba(123,175,138,0.08)',
+                fontSize: '13px', fontWeight: 500, color: 'var(--am)',
+                cursor: 'pointer', fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Sparkles size={13} /> Staples
             </button>
           </div>
         )}
