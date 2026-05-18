@@ -121,10 +121,10 @@ export function RecipeReviewScreen() {
         tags: parsed?.tags ?? [],
         difficulty: parsed?.difficulty ?? null,
         ingredients: ingredients.map((ing, idx) => {
-          const { catalog: match, isMerge } = matchIngredientFull(ing.name, catalog)
-          // Priority: manual merge > auto-merge (unless user kept separate) > new
+          const { catalog: match } = matchIngredientFull(ing.name, catalog)
+          // Priority: manual merge > auto-match (unless user kept separate) > new
           const manualId = manualMerge.get(idx)
-          const autoId   = match && !(isMerge && keepSeparate.has(idx)) ? match.id : undefined
+          const autoId   = match && !keepSeparate.has(idx) ? match.id : undefined
           const catalogId = manualId ?? autoId
           return {
             catalogId,
@@ -244,13 +244,18 @@ export function RecipeReviewScreen() {
         <Section title={`Ingredients — tap qty to edit`}>
           {ingredients.map((ing, idx) => {
             const { catalog: catalogMatch, isMerge } = matchIngredientFull(ing.name, catalog)
-            const userKeptSeparate = keepSeparate.has(idx)
-            const manualCatalogId  = manualMerge.get(idx)
+            const userKeptSeparate  = keepSeparate.has(idx)
+            const manualCatalogId   = manualMerge.get(idx)
             const manualCatalogItem = manualCatalogId ? catalog.find(c => c.id === manualCatalogId) : null
             // Effective state after user overrides
-            const effectiveIsNew   = !manualCatalogId && (!catalogMatch || (isMerge && userKeptSeparate))
-            const showMergeAlert   = !manualCatalogId && isMerge && !!catalogMatch && !userKeptSeparate
-            const needsReview      = ing.flag === 'confirm_quantity'
+            const effectiveIsNew    = !manualCatalogId && (!catalogMatch || userKeptSeparate)
+            // Fuzzy match: show amber "Merging with →" alert
+            const showMergeAlert    = !manualCatalogId && isMerge && !!catalogMatch && !userKeptSeparate
+            // Exact match: show subtle "Linked to catalog" row so user can opt out
+            const showExactMatch    = !manualCatalogId && !isMerge && !!catalogMatch && !userKeptSeparate
+            // Kept separate confirmation (covers both fuzzy and exact)
+            const showKeptSeparate  = userKeptSeparate && !!catalogMatch
+            const needsReview       = ing.flag === 'confirm_quantity'
 
             return (
               <div
@@ -354,8 +359,33 @@ export function RecipeReviewScreen() {
                   </div>
                 )}
 
-                {/* "Kept separate" confirmation row */}
-                {isMerge && userKeptSeparate && catalogMatch && (
+                {/* Exact match row — subtle affordance to opt out */}
+                {showExactMatch && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginTop: '5px', marginLeft: '26px',
+                    background: 'rgba(93,202,165,0.06)',
+                    border: '0.5px solid rgba(93,202,165,0.2)',
+                    borderRadius: '6px', padding: '4px 8px',
+                  }}>
+                    <span style={{ fontSize: '10px', color: 'var(--gl)' }}>
+                      Linked to <strong style={{ fontWeight: 600 }}>{catalogMatch!.name}</strong> in your catalog
+                    </span>
+                    <button
+                      onClick={() => toggleKeepSeparate(idx)}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
+                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
+                      }}
+                    >
+                      Keep separate
+                    </button>
+                  </div>
+                )}
+
+                {/* "Kept separate" confirmation row (exact or fuzzy) */}
+                {showKeptSeparate && (
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     marginTop: '5px', marginLeft: '26px',

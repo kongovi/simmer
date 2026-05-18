@@ -145,6 +145,15 @@ export function useBackfillAllCatalogImages() {
 
       console.log(`[catalog backfill] Generating images for ${data.length} ingredient(s)…`)
 
+      // Mark all as 'generating' immediately so pulsing dots appear at once
+      const ids = data.map(r => r.id)
+      await supabase
+        .from('ingredients_catalog')
+        .update({ image_status: 'generating' })
+        .in('id', ids)
+
+      // Stagger the actual edge-function calls to avoid flooding.
+      // generateIngredientImage will redundantly set 'generating' again — harmless.
       data.forEach((ing, i) => {
         setTimeout(() => {
           generateIngredientImage(ing.id, ing.name).catch(err =>

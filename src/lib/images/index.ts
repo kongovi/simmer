@@ -3,6 +3,7 @@ import { getAISettingsCache } from '../ai/settingsCache'
 import { callNanoBanana2, callNanoBanana2Ingredient } from './nanoBanana'
 import { callDallE3 } from './dalle'
 import { callFlux } from './flux'
+import { supabase } from '../supabase'
 
 const IMAGE_PROMPT_TEMPLATE = `
 A professional, isometric 3/4 view food illustration for a mobile recipe app,
@@ -30,14 +31,22 @@ function getImageModel(): ImageModel {
 
 /**
  * Fire-and-forget ingredient image generation.
- * Always uses NB2 (ingredient mode hits the same Edge Function).
- * @param customPromptAddition  Optional free-text appended after the base style prompt.
+ * Sets image_status = 'generating' in the DB first so pulsing dots appear
+ * immediately in GroceryScreen, CatalogScreen, and RecipeDetailScreen.
+ * Realtime pushes the 'done' update when the edge function finishes.
  */
 export async function generateIngredientImage(
   ingredientId: string,
   ingredientName: string,
   customPromptAddition?: string,
 ): Promise<string> {
+  // Mark as generating so the pulsing dot shows everywhere before the edge
+  // function returns (it fires async and returns 202 immediately).
+  await supabase
+    .from('ingredients_catalog')
+    .update({ image_status: 'generating' })
+    .eq('id', ingredientId)
+
   return callNanoBanana2Ingredient(ingredientId, ingredientName, customPromptAddition)
 }
 
