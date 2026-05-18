@@ -5,7 +5,7 @@ import { Screen } from '../components/layout/Screen'
 import {
   useActiveGroceryList, useGroceryListItems, useGroceryListRealtime,
   useToggleItem, useAddManualItem, useUpdateGroceryItem, useUpdateItemStore,
-  useKnownStores, useIngredientSuggestions, useClearGroceryList,
+  useKnownStores, useIngredientSuggestions, useClearGroceryList, useDeleteGroceryItem,
   itemDisplayName, itemEmoji, itemQtyLabel,
   detectAisleOrder,
 } from '../hooks/useGroceryList'
@@ -84,6 +84,7 @@ export function GroceryScreen() {
   const updateItem  = useUpdateGroceryItem()
   const assignStore = useUpdateItemStore()
   const clearList   = useClearGroceryList()
+  const deleteItem  = useDeleteGroceryItem()
 
   // ── Clear list confirmation ──
   const [showClearConfirm, setShowClearConfirm] = useState(false)
@@ -428,6 +429,7 @@ export function GroceryScreen() {
                     onTap={() => list && toggleItem.mutate({ id: item.id, listId: list.id, checked: false })}
                     onLongPress={() => openEditSheet(item)}
                     onContextMenu={() => handleStoreCycle(item)}
+                    onDelete={() => list && deleteItem.mutate({ itemId: item.id, listId: list.id })}
                   />
                 ))}
               </div>
@@ -903,7 +905,7 @@ export function GroceryScreen() {
 // ── GroceryBox ────────────────────────────────────────────────────────────────
 
 function GroceryBox({
-  item, done = false, storeEmojiMap = {}, onTap, onLongPress, onContextMenu,
+  item, done = false, storeEmojiMap = {}, onTap, onLongPress, onContextMenu, onDelete,
 }: {
   item:           GroceryItem
   done?:          boolean
@@ -911,6 +913,7 @@ function GroceryBox({
   onTap:          () => void
   onLongPress:    () => void
   onContextMenu?: () => void
+  onDelete?:      () => void
 }) {
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
@@ -963,16 +966,35 @@ function GroceryBox({
         WebkitUserSelect: 'none',
       }}
     >
-      {/* ✓ badge (done) or store favicon (not done) */}
+      {/* ✓ badge + trash icon (done) or store favicon (not done) */}
       {done ? (
-        <div style={{
-          position: 'absolute', top: '5px', right: '5px',
-          width: '14px', height: '14px', borderRadius: '50%',
-          background: 'var(--gn)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span style={{ fontSize: '9px', color: 'white', fontWeight: 600 }}>✓</span>
-        </div>
+        <>
+          <div style={{
+            position: 'absolute', top: '5px', right: '5px',
+            width: '14px', height: '14px', borderRadius: '50%',
+            background: 'var(--gn)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: '9px', color: 'white', fontWeight: 600 }}>✓</span>
+          </div>
+          {onDelete && (
+            <button
+              onPointerDown={e => { e.stopPropagation() }}
+              onPointerUp={e => { e.stopPropagation() }}
+              onClick={e => { e.stopPropagation(); onDelete() }}
+              style={{
+                position: 'absolute', top: '4px', left: '4px',
+                background: 'none', border: 'none', padding: '2px',
+                cursor: 'pointer', color: 'var(--tm)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: '4px',
+                lineHeight: 1,
+              }}
+            >
+              <Trash2 size={11} />
+            </button>
+          )}
+        </>
       ) : storeName ? (
         <div style={{ position: 'absolute', top: '5px', right: '5px' }}>
           <StoreIcon name={storeName} emoji={storeEmojiMap[storeName]} size={16} />

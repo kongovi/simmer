@@ -407,9 +407,14 @@ async function processIngredient(
       .from('ingredient-images')
       .getPublicUrl(fileName)
 
+    // Append a cache-buster so the CDN treats each regeneration as a fresh
+    // resource — without this, upsert overwrites the file but the old URL is
+    // cached and the browser keeps showing the previous image.
+    const cacheBustedUrl = `${publicUrl}?v=${Date.now()}`
+
     const { error: updateErr } = await supabaseAdmin
       .from('ingredients_catalog')
-      .update({ image_url: publicUrl, image_status: 'done' })
+      .update({ image_url: cacheBustedUrl, image_status: 'done' })
       .eq('id', ingredientId)
     if (updateErr) throw updateErr
 
@@ -451,10 +456,12 @@ async function processRecipe(
       .from('recipe-images')
       .getPublicUrl(fileName)
 
+    const cacheBustedUrl = `${publicUrl}?v=${Date.now()}`
+
     const { error: updateErr } = await supabaseAdmin
       .from('recipes')
       .update({
-        image_url: publicUrl,
+        image_url: cacheBustedUrl,
         image_status: 'done',
         nb2_prompt: prompt,
         updated_at: new Date().toISOString(),

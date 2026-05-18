@@ -511,6 +511,24 @@ export function useUpdateGroceryItem() {
   })
 }
 
+/** Delete a single item from the grocery list. */
+export function useDeleteGroceryItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ itemId }: { itemId: string; listId: string }) => {
+      const { error } = await supabase
+        .from('grocery_list_items')
+        .delete()
+        .eq('id', itemId)
+      if (error) throw error
+    },
+    onSuccess: (_v, { listId }) => {
+      queryClient.invalidateQueries({ queryKey: ['grocery-items', listId] })
+    },
+  })
+}
+
 /** Delete all items from the active grocery list. */
 export function useClearGroceryList() {
   const queryClient = useQueryClient()

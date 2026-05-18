@@ -33,8 +33,10 @@ export function StagingScreen() {
   const zone4Items = staplePreds?.zone4 ?? []
 
   // ── Selections ──
-  // Zone 2: ingredient_ids the user chose "Need it" — default: none (all Skip)
-  const [zone2NeedIt, setZone2NeedIt] = useState<Set<string>>(new Set())
+  // Zone 1: ingredient_ids the user chose "Skip" — default: none (all Need it)
+  const [zone1Skip, setZone1Skip]     = useState<Set<string>>(new Set())
+  // Zone 2: ingredient_ids the user chose "Skip" — default: none (all Need it)
+  const [zone2Skip, setZone2Skip]     = useState<Set<string>>(new Set())
   // Zone 3: ingredient_ids the user chose "No" — default: none (all Yes)
   const [zone3No, setZone3No]         = useState<Set<string>>(new Set())
   // Zone 4: ingredient_ids the user chose "Add"
@@ -62,8 +64,8 @@ export function StagingScreen() {
       {
         weekStart:      weekStart!,
         from,
-        zone1Items,
-        zone2Selected:  zone2Items.filter(i => zone2NeedIt.has(i.ingredient_id)),
+        zone1Items:     zone1Items.filter(i => !zone1Skip.has(i.ingredient_id)),
+        zone2Selected:  zone2Items.filter(i => !zone2Skip.has(i.ingredient_id)),
         zone3Selected:  zone3Items.filter(i => !zone3No.has(i.ingredient_id)),
         zone4Selected:  zone4Items.filter(i => zone4Added.has(i.ingredient_id)),
         existingListId: from === 'grocery' ? (activeList?.id ?? null) : null,
@@ -158,7 +160,7 @@ export function StagingScreen() {
             <Zone
               variant="buy"
               title="Zone 1 — Buy this week"
-              subtitle="Perishables and recipe-specific quantities — always on the list"
+              subtitle="Perishables and recipe-specific quantities — skip any you already have"
               isLoading={ingLoading}
             >
               {zone1Items.length === 0 && !ingLoading && (
@@ -168,16 +170,25 @@ export function StagingScreen() {
                     : 'No perishables found for this week.'}
                 </EmptyZone>
               )}
-              {zone1Items.map(item => (
-                <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name} note={item.recipe_note} imageUrl={item.image_url} imageStatus={item.image_status} />
-              ))}
+              {zone1Items.map(item => {
+                const skip = zone1Skip.has(item.ingredient_id)
+                return (
+                  <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name} note={item.recipe_note} imageUrl={item.image_url} imageStatus={item.image_status}>
+                    <YNButtons
+                      leftLabel="Need it" leftSelected={!skip}  onLeft={() => setZone1Skip(s => toggle(s, item.ingredient_id))}
+                      rightLabel="Skip"   rightSelected={skip}  onRight={() => setZone1Skip(s => toggle(s, item.ingredient_id))}
+                      leftIsGreen
+                    />
+                  </ZoneItem>
+                )
+              })}
             </Zone>
 
             {/* ── Zone 2 — Check your pantry ── */}
             <Zone
               variant="check"
               title="Zone 2 — Check your pantry"
-              subtitle="Claude thinks you likely have these — confirm if you need them"
+              subtitle="Claude thinks you likely have these — skip any you don't need"
               isLoading={ingLoading}
               hint="Skipped items stay tracked — Claude resurfaces them when you're likely running low."
             >
@@ -185,13 +196,13 @@ export function StagingScreen() {
                 <EmptyZone>No pantry items needed from this week's recipes.</EmptyZone>
               )}
               {zone2Items.map(item => {
-                const needIt = zone2NeedIt.has(item.ingredient_id)
+                const skip = zone2Skip.has(item.ingredient_id)
                 return (
                   <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name} imageUrl={item.image_url} imageStatus={item.image_status}>
                     <YNButtons
-                      leftLabel="Skip"     leftSelected={!needIt}  onLeft={() => setZone2NeedIt(s => toggle(s, item.ingredient_id))}
-                      rightLabel="Need it" rightSelected={needIt}  onRight={() => setZone2NeedIt(s => toggle(s, item.ingredient_id))}
-                      rightIsGreen
+                      leftLabel="Need it" leftSelected={!skip}  onLeft={() => setZone2Skip(s => toggle(s, item.ingredient_id))}
+                      rightLabel="Skip"   rightSelected={skip}  onRight={() => setZone2Skip(s => toggle(s, item.ingredient_id))}
+                      leftIsGreen
                     />
                   </ZoneItem>
                 )
@@ -517,7 +528,7 @@ function YNButtons({
   return (
     <div style={{ display: 'flex', gap: '5px', flexShrink: 0 }}>
       <button
-        onClick={onLeft}
+        onClick={() => { if (!leftSelected) onLeft() }}
         style={{
           background: leftSelected
             ? (leftIsGreen ? 'rgba(99,153,34,0.35)' : 'rgba(255,255,255,0.1)')
@@ -526,7 +537,8 @@ function YNButtons({
             ? (leftIsGreen ? 'var(--gl)' : 'var(--ts)')
             : (leftIsGreen ? 'rgba(99,153,34,0.4)' : 'var(--brh)')}`,
           borderRadius: '7px', padding: '4px 9px',
-          fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+          fontSize: '12px', fontWeight: 500,
+          cursor: leftSelected ? 'default' : 'pointer',
           fontFamily: 'inherit',
           color: leftSelected
             ? (leftIsGreen ? 'var(--gl)' : 'var(--ts)')
@@ -537,7 +549,7 @@ function YNButtons({
         {leftLabel}
       </button>
       <button
-        onClick={onRight}
+        onClick={() => { if (!rightSelected) onRight() }}
         style={{
           background: rightSelected
             ? (rightIsGreen ? 'rgba(99,153,34,0.35)' : 'rgba(255,255,255,0.1)')
@@ -546,7 +558,8 @@ function YNButtons({
             ? (rightIsGreen ? 'var(--gl)' : 'var(--ts)')
             : (rightIsGreen ? 'rgba(99,153,34,0.4)' : 'var(--brh)')}`,
           borderRadius: '7px', padding: '4px 9px',
-          fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+          fontSize: '12px', fontWeight: 500,
+          cursor: rightSelected ? 'default' : 'pointer',
           fontFamily: 'inherit',
           color: rightSelected
             ? (rightIsGreen ? 'var(--gl)' : 'var(--ts)')
