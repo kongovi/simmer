@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, ShoppingCart } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, ArrowLeftRight, X } from 'lucide-react'
 import {
   useStagingIngredients,
   useStaplePredictions,
   useConfirmStagingList,
 } from '../hooks/useStaples'
-import type { StapleWithHistory } from '../hooks/useStaples'
-import { useActiveGroceryList, useHasActiveList } from '../hooks/useGroceryList'
+import type { StapleWithHistory, StagingIngredient } from '../hooks/useStaples'
+import { useActiveGroceryList, useHasActiveList, useIngredientSuggestions } from '../hooks/useGroceryList'
+import { detectAisleOrder } from '../lib/aisleUtils'
 
 // ── StagingScreen ─────────────────────────────────────────────────────────────
 
@@ -44,6 +45,51 @@ export function StagingScreen() {
   // Zone 4 expanded
   const [zone4Open, setZone4Open]     = useState(false)
 
+  // ── Zone 1 item swap ──
+  // Maps original ingredient_id → replacement catalog item
+  type Zone1Override = Pick<StagingIngredient, 'ingredient_id' | 'name' | 'emoji' | 'image_url' | 'image_status' | 'default_store' | 'aisle_order'>
+  const [zone1Overrides, setZone1Overrides] = useState<Map<string, Zone1Override>>(new Map())
+  const [swapTargetId, setSwapTargetId]     = useState<string | null>(null) // original ingredient_id being swapped
+  const [swapSearch,   setSwapSearch]       = useState('')
+  const swapSearchRef = useRef<HTMLInputElement>(null)
+
+  const { data: swapSuggestions = [] } = useIngredientSuggestions(swapSearch)
+
+  useEffect(() => {
+    if (swapTargetId) setTimeout(() => swapSearchRef.current?.focus(), 80)
+  }, [swapTargetId])
+
+  function openSwap(originalId: string) {
+    setSwapTargetId(originalId)
+    setSwapSearch('')
+  }
+
+  function applySwap(sug: typeof swapSuggestions[number]) {
+    if (!swapTargetId) return
+    setZone1Overrides(prev => {
+      const next = new Map(prev)
+      next.set(swapTargetId, {
+        ingredient_id: sug.id,
+        name:          sug.name,
+        emoji:         sug.emoji,
+        image_url:     sug.image_url ?? null,
+        image_status:  sug.image_status ?? null,
+        default_store: sug.default_store ?? null,
+        aisle_order:   sug.default_aisle_order ?? detectAisleOrder(sug.name, sug.emoji),
+      })
+      return next
+    })
+    setSwapTargetId(null)
+  }
+
+  function clearSwap(originalId: string) {
+    setZone1Overrides(prev => {
+      const next = new Map(prev)
+      next.delete(originalId)
+      return next
+    })
+  }
+
   // ── Overwrite warning ──
   const [showOverwrite, setShowOverwrite] = useState(false)
 
@@ -64,7 +110,12 @@ export function StagingScreen() {
       {
         weekStart:      weekStart!,
         from,
-        zone1Items:     zone1Items.filter(i => !zone1Skip.has(i.ingredient_id)),
+        zone1Items:     zone1Items
+          .filter(i => !zone1Skip.has(i.ingredient_id))
+          .map(i => {
+            const ov = zone1Overrides.get(i.ingredient_id)
+            return ov ? { ...i, ...ov } : i
+          }),
         zone2Selected:  zone2Items.filter(i => !zone2Skip.has(i.ingredient_id)),
         zone3Selected:  zone3Items.filter(i => !zone3No.has(i.ingredient_id)),
         zone4Selected:  zone4Items.filter(i => zone4Added.has(i.ingredient_id)),
@@ -172,8 +223,24 @@ export function StagingScreen() {
               )}
               {zone1Items.map(item => {
                 const skip = zone1Skip.has(item.ingredient_id)
+                const ov   = zone1Overrides.get(item.ingredient_id)
+                const displayName      = ov?.name       ?? item.name
+                const displayEmoji     = ov?.emoji      ?? item.emoji
+                const displayImageUrl  = ov?.image_url  ?? item.image_url
+                const displayImageStatus = ov?.image_status ?? item.image_status
+                const displayNote      = ov
+                  ? `Subbing for ${item.name}${item.recipe_note ? ' · ' + item.recipe_note : ''}`
+                  : item.recipe_note
                 return (
-                  <ZoneItem key={item.ingredient_id} emoji={item.emoji} name={item.name} note={item.recipe_note} imageUrl={item.image_url} imageStatus={item.image_status}>
+                  <ZoneItem
+                    key={item.ingredient_id}
+                    emoji={displayEmoji}
+                    name={displayName}
+                    note={displayNote}
+                    imageUrl={displayImageUrl}
+                    imageStatus={displayImageStatus}
+                    onEdit={() => openSwap(item.ingredient_id)}
+                  >
                     <YNButtons
                       leftLabel="Need it" leftSelected={!skip}  onLeft={() => setZone1Skip(s => toggle(s, item.ingredient_id))}
                       rightLabel="Skip"   rightSelected={skip}  onRight={() => setZone1Skip(s => toggle(s, item.ingredient_id))}
@@ -342,6 +409,127 @@ export function StagingScreen() {
         </div>
       )}
 
+      {/* ── Zone 1 item swap sheet ── */}
+      {swapTargetId && (() => {
+        const original = zone1Items.find(i => i.ingredient_id === swapTargetId)
+        const hasOverride = zone1Overrides.has(swapTargetId)
+        return (
+          <>
+            <div
+              onClick={() => setSwapTargetId(null)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 49 }}
+            />
+            <div style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0,
+              background: 'var(--dk2)', borderRadius: '20px 20px 0 0',
+              borderTop: '0.5px solid var(--brh)',
+              padding: '16px 16px 32px',
+              zIndex: 50,
+              maxHeight: '72vh',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              {/* Drag handle */}
+              <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '10px' }}>
+                <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: 'var(--br)' }} />
+              </div>
+
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--tp)' }}>
+                    Replace item
+                  </div>
+                  {original && (
+                    <div style={{ fontSize: '12px', color: 'var(--ts)', marginTop: '1px' }}>
+                      Swapping out: {original.name}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSwapTargetId(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ts)', padding: '4px' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Search input */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+                borderRadius: '10px', padding: '8px 12px',
+                marginBottom: '10px',
+              }}>
+                <span style={{ color: 'var(--tm)', fontSize: '14px' }}>🔍</span>
+                <input
+                  ref={swapSearchRef}
+                  value={swapSearch}
+                  onChange={e => setSwapSearch(e.target.value)}
+                  placeholder="Search your catalog…"
+                  style={{
+                    flex: 1, background: 'none', border: 'none',
+                    color: 'var(--tp)', fontSize: '14px',
+                    fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+                {swapSearch && (
+                  <button onClick={() => setSwapSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: 0 }}>
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Results */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {/* Restore original if currently overridden */}
+                {hasOverride && (
+                  <button
+                    onClick={() => { clearSwap(swapTargetId); setSwapTargetId(null) }}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                      background: 'rgba(255,255,255,0.04)', border: '0.5px solid var(--br)',
+                      borderRadius: '10px', padding: '10px 12px',
+                      marginBottom: '6px', cursor: 'pointer', fontFamily: 'inherit',
+                      color: 'var(--ts)', fontSize: '13px',
+                    }}
+                  >
+                    <span style={{ fontSize: '16px' }}>↩</span>
+                    Restore original ({original?.name})
+                  </button>
+                )}
+
+                {swapSuggestions.length === 0 && swapSearch.trim() && (
+                  <div style={{ fontSize: '13px', color: 'var(--tm)', fontStyle: 'italic', padding: '8px 0' }}>
+                    No matches in your catalog
+                  </div>
+                )}
+
+                {swapSuggestions.map(sug => (
+                  <button
+                    key={sug.id}
+                    onClick={() => applySwap(sug)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                      background: 'none', border: 'none', borderBottom: '0.5px solid rgba(255,255,255,0.05)',
+                      padding: '9px 0', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ width: '32px', height: '32px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {sug.image_status === 'done' && sug.image_url ? (
+                        <img src={sug.image_url} alt={sug.name} style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+                      ) : (
+                        <span style={{ fontSize: '22px', lineHeight: 1 }}>{sug.emoji ?? '🛒'}</span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '14px', color: 'var(--tp)', fontWeight: 500 }}>{sug.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
       {/* ── Overwrite warning modal ── */}
       {showOverwrite && (
         <>
@@ -464,7 +652,7 @@ function Zone({
 // ── ZoneItem ──────────────────────────────────────────────────────────────────
 
 function ZoneItem({
-  emoji, name, note, children, imageUrl, imageStatus,
+  emoji, name, note, children, imageUrl, imageStatus, onEdit,
 }: {
   emoji?:       string | null
   name:         string
@@ -472,6 +660,7 @@ function ZoneItem({
   children?:    React.ReactNode
   imageUrl?:    string | null
   imageStatus?: string | null
+  onEdit?:      () => void
 }) {
   const showImg = imageStatus === 'done' && imageUrl
   return (
@@ -497,8 +686,22 @@ function ZoneItem({
           }} />
         )}
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '14px', color: 'var(--tp)', fontWeight: 500 }}>{name}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          onClick={onEdit}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            cursor: onEdit ? 'pointer' : 'default',
+          }}
+        >
+          <span style={{
+            fontSize: '14px', color: 'var(--tp)', fontWeight: 500,
+            borderBottom: onEdit ? '0.5px dashed rgba(255,255,255,0.25)' : 'none',
+          }}>
+            {name}
+          </span>
+          {onEdit && <ArrowLeftRight size={11} color="var(--ts)" />}
+        </div>
         {note && (
           <div style={{ fontSize: '11px', color: 'var(--ts)', marginTop: '1px' }}>{note}</div>
         )}
