@@ -18,7 +18,7 @@ const FLASH_MODELS = [..._envModels, ..._CODE_DEFAULT_MODELS]
 
 /** Ingredient image prompt template */
 function buildIngredientPrompt(name: string): string {
-  return `A single ${name}, isometric 3/4 view, the subject filling 80% of the frame, 512x512 pixels, rendered in Retro-Pop art style. Thick clean black outlines. Vintage muted color palette: cream, teal, burnt orange, mustard yellow. Shadows rendered as halftone dot texture. Solid warm off-white background #F5F0E8. No text, no labels, no other objects, no plate or surface — just the ingredient itself.`
+  return `A single ${name} as a raw cooking ingredient — depicted exactly as it would appear when pulled from a grocery bag or pantry shelf before cooking: whole, uncut, and uncooked (or in its typical store-bought form for processed items like canned goods, pasta, or sauces). Isometric 3/4 view, the subject filling 80% of the frame, 512x512 pixels, rendered in Retro-Pop art style. Thick clean black outlines. Vintage muted color palette: cream, teal, burnt orange, mustard yellow. Shadows rendered as halftone dot texture. Solid warm off-white background #F5F0E8. No text, no labels, no other objects, no plate or surface — just the ingredient itself.`
 }
 
 /** Safe chunked bytes → base64 (avoids stack overflow on large arrays) */
