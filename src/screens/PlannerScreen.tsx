@@ -16,10 +16,10 @@ import { useAppStore } from '../stores/appStore'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const MEAL_TYPES: { key: MealType; label: string }[] = [
-  { key: 'breakfast', label: 'B' },
-  { key: 'lunch',     label: 'L' },
-  { key: 'dinner',    label: 'D' },
+const MEAL_TYPES: { key: MealType; label: string; short: string }[] = [
+  { key: 'breakfast', label: 'Breakfast', short: 'Bkfst' },
+  { key: 'lunch',     label: 'Lunch',     short: 'Lunch'  },
+  { key: 'dinner',    label: 'Dinner',    short: 'Dinner' },
 ]
 
 // ── PlannerScreen ─────────────────────────────────────────────────────────────
@@ -132,42 +132,44 @@ export function PlannerScreen() {
 
   const visibleCols = MEAL_TYPES.filter(m => colVisible[m.key])
 
+  // Grid: [day col] + one col per visible meal type
+  const gridCols = `48px ${visibleCols.map(() => '1fr').join(' ')}`
+
   return (
     <Screen style={{ paddingBottom: 'calc(68px + 56px + env(safe-area-inset-bottom))' }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        {/* Scrollable body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 130px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 140px' }}>
 
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+          {/* ── Header ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Flame size={22} color="var(--am)" strokeWidth={2} />
             <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>
               Meal Planner
             </h1>
           </div>
 
-          {/* Week nav row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+          {/* ── Week nav ── */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <button onClick={() => setWeekStartDate(d => shiftWeek(d, -1))} style={navBtnStyle}>
-              <ChevronLeft size={14} />
+              <ChevronLeft size={16} />
             </button>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--tp)' }}>{weekLabel}</span>
+            <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--tp)' }}>{weekLabel}</span>
             <button onClick={() => setWeekStartDate(d => shiftWeek(d, 1))} style={navBtnStyle}>
-              <ChevronRight size={14} />
+              <ChevronRight size={16} />
             </button>
           </div>
 
-          {/* Start day dropdown + column toggles on one row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--ts)', whiteSpace: 'nowrap' }}>Start day</span>
+          {/* ── Start day + column toggles ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--ts)', whiteSpace: 'nowrap' }}>Start</span>
             <select
               value={planDow}
               onChange={handleDowChange}
               style={{
                 background: 'var(--dk3)', border: '0.5px solid var(--brh)',
-                borderRadius: '6px', padding: '3px 7px',
-                color: 'var(--tp)', fontSize: '12px',
-                fontFamily: 'inherit', flexShrink: 0, cursor: 'pointer',
+                borderRadius: '6px', padding: '4px 8px',
+                color: 'var(--tp)', fontSize: '13px',
+                fontFamily: 'inherit', cursor: 'pointer',
               }}
             >
               {DOW_NAMES.map((name, i) => (
@@ -177,7 +179,6 @@ export function PlannerScreen() {
 
             <div style={{ flex: 1 }} />
 
-            {/* Column visibility toggles — ABOVE the table, never inside header */}
             <div style={{ display: 'flex', gap: '5px' }}>
               {MEAL_TYPES.map(m => {
                 const on = colVisible[m.key]
@@ -186,23 +187,23 @@ export function PlannerScreen() {
                     key={m.key}
                     onClick={() => setColVisible(prev => ({ ...prev, [m.key]: !prev[m.key] }))}
                     style={{
-                      fontSize: '12px', fontWeight: 500,
-                      padding: '4px 10px', borderRadius: '18px',
+                      fontSize: '13px', fontWeight: 500,
+                      padding: '5px 11px', borderRadius: '18px',
                       border: `0.5px solid ${on ? 'var(--brh)' : 'var(--br)'}`,
                       background: on ? 'var(--dkc)' : 'none',
                       color: on ? 'var(--tp)' : 'var(--tm)',
                       textDecoration: on ? 'none' : 'line-through',
-                      cursor: 'pointer', transition: 'all 0.15s',
+                      cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit',
                     }}
                   >
-                    {m.label}
+                    {m.short}
                   </button>
                 )
               })}
             </div>
           </div>
 
-          {/* Plan with Claude — dashed sage button */}
+          {/* ── Plan with Claude ── */}
           <button
             onClick={() => navigate('/planner/claude', {
               state: { weekStart, weekDays: weekDays.map(toISODate) },
@@ -210,77 +211,103 @@ export function PlannerScreen() {
             style={{
               width: '100%', background: 'rgba(123,175,138,0.06)',
               border: '0.5px dashed rgba(123,175,138,0.35)',
-              borderRadius: '11px', padding: '9px 13px',
-              display: 'flex', alignItems: 'center', gap: '9px',
-              marginBottom: '12px', cursor: 'pointer', fontFamily: 'inherit',
+              borderRadius: '11px', padding: '10px 14px',
+              display: 'flex', alignItems: 'center', gap: '10px',
+              marginBottom: '16px', cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
-            <Sparkles size={16} color="var(--am)" style={{ flexShrink: 0 }} />
+            <Sparkles size={17} color="var(--am)" style={{ flexShrink: 0 }} />
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--am)' }}>
                 Plan my week with {aiLabel} →
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--ts)', marginTop: '1px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--ts)', marginTop: '2px' }}>
                 Describe meals and {aiLabel} fills the grid
               </div>
             </div>
           </button>
 
-          {/* Slots loading indicator */}
+          {/* ── Loading spinner ── */}
           {slotsLoading && (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
-              <div style={{ width: '16px', height: '16px', border: '2px solid var(--br)', borderTopColor: 'var(--am)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+              <div style={{ width: '18px', height: '18px', border: '2px solid var(--br)', borderTopColor: 'var(--am)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
             </div>
           )}
 
-          {/* Planner grid table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '4px', opacity: slotsLoading ? 0.4 : 1, transition: 'opacity 0.2s' }}>
-            <thead>
-              <tr>
-                <th style={thDayStyle} />
-                {visibleCols.map(m => (
-                  <th key={m.key} style={thColStyle}>{m.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {weekDays.map(day => {
-                const dateStr = toISODate(day)
-                const today   = isToday(day)
-                const label   = day.toLocaleString('default', { weekday: 'short' })
-                return (
-                  <tr key={dateStr}>
-                    <td style={{
-                      fontSize: '11px', fontWeight: 500,
-                      padding: '4px 4px 4px 0',
-                      textAlign: 'left', verticalAlign: 'top',
-                      whiteSpace: 'nowrap',
-                      color: today ? 'var(--am)' : 'var(--tm)',
+          {/* ── Planner grid ── */}
+          <div style={{ opacity: slotsLoading ? 0.4 : 1, transition: 'opacity 0.2s' }}>
+
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '6px', marginBottom: '6px' }}>
+              <div /> {/* day col spacer */}
+              {visibleCols.map(m => (
+                <div key={m.key} style={{
+                  fontSize: '13px', fontWeight: 600, color: 'var(--ts)',
+                  textAlign: 'center', padding: '0 2px',
+                  letterSpacing: '0.2px',
+                }}>
+                  {m.label}
+                </div>
+              ))}
+            </div>
+
+            {/* Day rows */}
+            {weekDays.map(day => {
+              const dateStr = toISODate(day)
+              const today   = isToday(day)
+              const weekday = day.toLocaleString('default', { weekday: 'short' })
+
+              return (
+                <div
+                  key={dateStr}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: gridCols,
+                    gap: '6px',
+                    marginBottom: '10px',
+                    alignItems: 'start',
+                  }}
+                >
+                  {/* Day label */}
+                  <div style={{
+                    paddingTop: '6px',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    gap: '1px',
+                  }}>
+                    <span style={{
+                      fontSize: '13px', fontWeight: 600,
+                      color: today ? 'var(--am)' : 'var(--ts)',
+                      lineHeight: 1,
                     }}>
-                      <div>{label}</div>
-                      <div style={{ fontSize: '10px', marginTop: '1px', opacity: 0.7 }}>
-                        {day.getDate()}
-                      </div>
-                    </td>
-                    {visibleCols.map(m => {
-                      const dishes = slotMap.get(`${dateStr}_${m.key}`) ?? []
-                      return (
-                        <td key={m.key} style={{ padding: '2px', verticalAlign: 'top' }}>
-                          <SlotCell
-                            dishes={dishes}
-                            onClick={() => openSlot(dateStr, m.key)}
-                          />
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                      {weekday}
+                    </span>
+                    <span style={{
+                      fontSize: '15px', fontWeight: today ? 700 : 400,
+                      color: today ? 'var(--am)' : 'var(--tp)',
+                      lineHeight: 1,
+                    }}>
+                      {day.getDate()}
+                    </span>
+                  </div>
+
+                  {/* Meal cells */}
+                  {visibleCols.map(m => {
+                    const dishes = slotMap.get(`${dateStr}_${m.key}`) ?? []
+                    return (
+                      <MealCell
+                        key={m.key}
+                        dishes={dishes}
+                        onOpen={() => openSlot(dateStr, m.key)}
+                      />
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
         </div>
 
-        {/* Generate grocery list — pinned above bottom nav */}
+        {/* ── Generate grocery list — pinned ── */}
         <div style={{
           position: 'fixed', bottom: 'calc(68px + env(safe-area-inset-bottom))', left: 0, right: 0,
           padding: '8px 16px',
@@ -291,13 +318,12 @@ export function PlannerScreen() {
           <button
             onClick={() => navigate('/staging', { state: { weekStart, from: 'planner' } })}
             style={{
-              width: '100%', padding: '12px',
+              width: '100%', padding: '13px',
               background: 'var(--am)',
               color: '#141820',
               border: 'none', borderRadius: '11px',
               fontSize: '15px', fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
+              cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
             }}
           >
@@ -330,55 +356,67 @@ export function PlannerScreen() {
   )
 }
 
-// ── SlotCell ──────────────────────────────────────────────────────────────────
+// ── MealCell ──────────────────────────────────────────────────────────────────
 
-function SlotCell({ dishes, onClick }: { dishes: SlotDish[]; onClick: () => void }) {
-  const filled = dishes.length > 0
+function MealCell({ dishes, onOpen }: { dishes: SlotDish[]; onOpen: () => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+      {dishes.map((d, idx) => {
+        const isLast = idx === dishes.length - 1
+        return isLast ? (
+          // Last tile: flex row with the tile + "+ add" to its right
+          <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ flex: 1 }}>
+              <DishTile dish={d} onClick={onOpen} />
+            </div>
+            <button onClick={onOpen} style={addLinkStyle}>
+              +add
+            </button>
+          </div>
+        ) : (
+          <DishTile key={d.id} dish={d} onClick={onOpen} />
+        )
+      })}
+
+      {/* Empty cell — just the + add link */}
+      {dishes.length === 0 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minHeight: '34px' }}>
+          <button onClick={onOpen} style={addLinkStyle}>
+            +add
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── DishTile ──────────────────────────────────────────────────────────────────
+
+function DishTile({ dish, onClick }: { dish: SlotDish; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
       style={{
-        background: filled ? 'var(--dkc)' : 'var(--dk3)',
-        border: `0.5px solid ${filled ? 'var(--brh)' : 'var(--br)'}`,
+        background: 'var(--dkc)',
+        border: '0.5px solid var(--brh)',
         borderRadius: '8px',
-        minHeight: '72px',
+        padding: '7px 8px',
+        display: 'flex', alignItems: 'center', gap: '6px',
         cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: filled ? 'flex-start' : 'center',
-        padding: filled ? '5px 3px 4px' : '0',
-        gap: '2px',
         transition: 'border-color 0.15s',
       }}
     >
-      {filled ? (
-        <>
-          {dishes.map((d, idx) => (
-            <div
-              key={d.id}
-              style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}
-            >
-              {idx > 0 && (
-                <div style={{ width: '75%', height: '0.5px', background: 'rgba(255,255,255,0.1)', margin: '2px 0' }} />
-              )}
-              <span style={{ fontSize: '17px', lineHeight: 1 }}>{dishEmoji(d)}</span>
-              <span style={{
-                fontSize: '8px', color: 'var(--ts)', textAlign: 'center', lineHeight: 1.2,
-                overflow: 'hidden', display: '-webkit-box',
-                WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', maxWidth: '100%',
-              }}>
-                {dishDisplayName(d)}
-              </span>
-            </div>
-          ))}
-          <span style={{ fontSize: '10px', color: 'var(--am)', opacity: 0.7, marginTop: '1px' }}>
-            · add
-          </span>
-        </>
-      ) : (
-        <span style={{ fontSize: '19px', color: 'var(--tm)' }}>+</span>
-      )}
+      <span style={{ fontSize: '17px', lineHeight: 1, flexShrink: 0 }}>{dishEmoji(dish)}</span>
+      <span style={{
+        fontSize: '12px', color: 'var(--tp)', fontWeight: 500,
+        lineHeight: 1.35,
+        overflow: 'hidden',
+        display: '-webkit-box',
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: 'vertical',
+      }}>
+        {dishDisplayName(dish)}
+      </span>
     </div>
   )
 }
@@ -421,16 +459,16 @@ function SlotPopover({
       position: 'fixed',
       left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
       zIndex: 40,
-      width: 'min(280px, calc(100vw - 32px))',
+      width: 'min(300px, calc(100vw - 32px))',
       background: 'var(--dk2)',
       border: '0.5px solid var(--brh)',
       borderRadius: '14px',
-      padding: '14px',
+      padding: '16px',
     }}>
       {/* Title */}
       <div style={{
-        fontSize: '12px', fontWeight: 500, color: 'var(--tm)',
-        textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px',
+        fontSize: '13px', fontWeight: 600, color: 'var(--ts)',
+        textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px',
       }}>
         {dayLabel} · {mealLabel}
       </div>
@@ -438,7 +476,7 @@ function SlotPopover({
       {/* Dish list */}
       <div>
         {popover.dishes.length === 0 && (
-          <p style={{ fontSize: '14px', color: 'var(--tm)', margin: '0 0 10px', textAlign: 'center' }}>
+          <p style={{ fontSize: '14px', color: 'var(--tm)', margin: '0 0 12px', textAlign: 'center' }}>
             No dishes yet
           </p>
         )}
@@ -449,7 +487,7 @@ function SlotPopover({
               key={d.id}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '7px 0',
+                padding: '8px 0',
                 borderBottom: '0.5px solid var(--br)',
               }}
             >
@@ -483,7 +521,7 @@ function SlotPopover({
       </div>
 
       {/* Add row */}
-      <div style={{ paddingTop: '10px' }}>
+      <div style={{ paddingTop: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
           <input
             value={popover.inputVal}
@@ -494,8 +532,8 @@ function SlotPopover({
             style={{
               flex: 1, background: 'var(--dk3)',
               border: '0.5px solid var(--brh)', borderRadius: '8px',
-              padding: '6px 9px', color: 'var(--tp)',
-              fontSize: '13px', fontFamily: 'inherit', outline: 'none',
+              padding: '8px 10px', color: 'var(--tp)',
+              fontSize: '14px', fontFamily: 'inherit', outline: 'none',
             }}
           />
           <button
@@ -504,9 +542,9 @@ function SlotPopover({
             style={{
               background: popover.inputVal.trim() ? 'var(--am)' : 'var(--dk3)',
               border: 'none', borderRadius: '7px',
-              padding: '6px 10px',
+              padding: '8px 12px',
               color: popover.inputVal.trim() ? '#141820' : 'var(--tm)',
-              fontSize: '13px', fontWeight: 500,
+              fontSize: '14px', fontWeight: 600,
               fontFamily: 'inherit',
               cursor: popover.inputVal.trim() ? 'pointer' : 'not-allowed',
               transition: 'all 0.15s',
@@ -532,19 +570,19 @@ function SlotPopover({
                 style={{
                   width: '100%', textAlign: 'left',
                   display: 'flex', alignItems: 'center', gap: '8px',
-                  padding: '7px 10px',
+                  padding: '8px 10px',
                   background: 'none', border: 'none', cursor: 'pointer',
                   borderTop: idx > 0 ? '0.5px solid var(--br)' : 'none',
-                  color: 'var(--tp)', fontSize: '13px',
+                  color: 'var(--tp)', fontSize: '14px',
                   fontFamily: 'inherit',
                   transition: 'background 0.1s',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--dkc)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
-                <span style={{ fontSize: '16px' }}>{r.emoji ?? '🍽️'}</span>
+                <span style={{ fontSize: '17px' }}>{r.emoji ?? '🍽️'}</span>
                 <span style={{ flex: 1 }}>{r.name}</span>
-                <span style={{ fontSize: '11px', color: 'var(--am)', fontWeight: 500 }}>link</span>
+                <span style={{ fontSize: '12px', color: 'var(--am)', fontWeight: 500 }}>link</span>
               </button>
             ))}
           </div>
@@ -555,10 +593,10 @@ function SlotPopover({
       <button
         onClick={onClose}
         style={{
-          width: '100%', marginTop: '10px',
+          width: '100%', marginTop: '12px',
           background: 'none', border: '0.5px solid var(--brh)',
-          borderRadius: '9px', padding: '7px',
-          color: 'var(--ts)', fontSize: '13px',
+          borderRadius: '9px', padding: '9px',
+          color: 'var(--ts)', fontSize: '14px',
           fontFamily: 'inherit', cursor: 'pointer',
         }}
       >
@@ -568,35 +606,35 @@ function SlotPopover({
   )
 }
 
-// ── Shared button styles ──────────────────────────────────────────────────────
+// ── Styles ─────────────────────────────────────────────────────────────────────
 
 const navBtnStyle: React.CSSProperties = {
   background: 'none', border: '0.5px solid var(--br)',
-  borderRadius: '7px', padding: '5px 8px',
+  borderRadius: '7px', padding: '6px 9px',
   color: 'var(--ts)', cursor: 'pointer',
   display: 'flex', alignItems: 'center',
 }
 
-const thColStyle: React.CSSProperties = {
-  fontSize: '11px', fontWeight: 500, color: 'var(--tm)',
-  textAlign: 'center', padding: '4px 2px', letterSpacing: '0.3px',
-}
-
-const thDayStyle: React.CSSProperties = {
-  ...thColStyle, width: '28px', textAlign: 'left',
+const addLinkStyle: React.CSSProperties = {
+  background: 'none', border: 'none',
+  padding: '4px 2px',
+  fontSize: '12px', fontWeight: 500,
+  color: 'var(--am)', cursor: 'pointer',
+  fontFamily: 'inherit', flexShrink: 0,
+  opacity: 0.75,
+  whiteSpace: 'nowrap',
 }
 
 const cancelBtnStyle: React.CSSProperties = {
   background: 'none', border: '0.5px solid var(--br)',
-  borderRadius: '6px', padding: '3px 8px',
-  fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
+  borderRadius: '6px', padding: '4px 10px',
+  fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
   color: 'var(--ts)',
 }
 
 const removeBtnStyle: React.CSSProperties = {
   background: 'rgba(192,98,90,0.1)', border: '0.5px solid var(--rd)',
-  borderRadius: '6px', padding: '3px 8px',
-  fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer',
+  borderRadius: '6px', padding: '4px 10px',
+  fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer',
   color: 'var(--rd)',
 }
-
