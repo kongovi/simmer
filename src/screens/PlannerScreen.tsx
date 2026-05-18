@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Sparkles, Flame } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles, Flame, Copy, Check } from 'lucide-react'
 import { useAIModelLabel } from '../lib/ai/modelLabel'
 import { Screen } from '../components/layout/Screen'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
@@ -66,8 +66,12 @@ export function PlannerScreen() {
   const [colVisible, setColVisible] = useState({ breakfast: false, lunch: true, dinner: true })
   const visibleCols = MEAL_TYPES.filter(m => colVisible[m.key])
 
-  // ── Mobile: active column + swipe ──
-  const [mobileColIdx, setMobileColIdx] = useState(0)
+  // ── Mobile: active column + swipe — default to dinner ──
+  const [mobileColIdx, setMobileColIdx] = useState(() => {
+    const defaultVisible = MEAL_TYPES.filter(m => ({ breakfast: false, lunch: true, dinner: true } as Record<string,boolean>)[m.key])
+    const idx = defaultVisible.findIndex(m => m.key === 'dinner')
+    return idx >= 0 ? idx : 0
+  })
   // Clamp if visible cols shrinks
   const clampedIdx = Math.min(mobileColIdx, Math.max(0, visibleCols.length - 1))
   const activeMobileCol = visibleCols[clampedIdx] ?? visibleCols[0]
@@ -151,6 +155,31 @@ export function PlannerScreen() {
     setPopover(p => p ? { ...p, inputVal: '', selectedRecipeId: null } : p)
   }
 
+  // ── Export ────────────────────────────────────────────────────────────────
+
+  const [copied, setCopied] = useState(false)
+
+  const copyPlanToClipboard = useCallback(() => {
+    const lines = weekDays.map(day => {
+      const dateStr = toISODate(day)
+      const dayName = day.toLocaleString('default', { weekday: 'long' })
+      const mealParts = MEAL_TYPES
+        .map(m => {
+          const dishes = slotMap.get(`${dateStr}_${m.key}`) ?? []
+          if (dishes.length === 0) return null
+          return `${m.label} - ${dishes.map(dishDisplayName).join(', ')}`
+        })
+        .filter(Boolean) as string[]
+      if (mealParts.length === 0) return null
+      return `${dayName}: ${mealParts.join('; ')}`
+    }).filter(Boolean) as string[]
+
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [weekDays, slotMap])
+
   // ── Shared grid content ────────────────────────────────────────────────────
 
   // Desktop: all visible cols; Mobile: single active col
@@ -170,7 +199,23 @@ export function PlannerScreen() {
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Flame size={22} color="var(--am)" strokeWidth={2} />
-            <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: 0 }}>Meal Planner</h1>
+            <h1 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--tp)', margin: 0, flex: 1 }}>Meal Planner</h1>
+            <button
+              onClick={copyPlanToClipboard}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '5px',
+                background: 'none',
+                border: `0.5px solid ${copied ? 'var(--am)' : 'var(--brh)'}`,
+                borderRadius: '8px', padding: '6px 10px',
+                color: copied ? 'var(--am)' : 'var(--ts)',
+                fontSize: '13px', fontWeight: 500,
+                fontFamily: 'inherit', cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+              {copied ? 'Copied!' : 'Export'}
+            </button>
           </div>
 
           {/* Week nav */}
