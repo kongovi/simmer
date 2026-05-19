@@ -46,16 +46,32 @@ export function useStagingIngredients(weekStart: string | null) {
     staleTime: 1000 * 60 * 5,
     retry: 0, // AI call already has its own fallback — don't retry the whole query
     queryFn:  async () => {
-      // 1. Fetch slots with a recipe_id for this week
+      // 1a. Fetch eating-out slot keys so we can exclude them
+      const { data: eatingOutRows } = await supabase
+        .from('meal_plan_slot_settings')
+        .select('slot_date, meal_type')
+        .eq('family_id', familyId!)
+        .eq('week_start', weekStart!)
+        .eq('is_eating_out', true)
+      const eatingOutKeys = new Set(
+        (eatingOutRows ?? []).map(r => `${r.slot_date}_${r.meal_type}`)
+      )
+
+      // 1b. Fetch slots with a recipe_id for this week
       const { data: slots, error: slotsErr } = await supabase
         .from('meal_plan_slots')
-        .select('recipe_id')
+        .select('recipe_id, slot_date, meal_type')
         .eq('family_id', familyId!)
         .eq('week_start', weekStart!)
         .not('recipe_id', 'is', null)
       if (slotsErr) throw slotsErr
 
-      const recipeIds = [...new Set((slots ?? []).map(s => s.recipe_id as string))]
+      // Filter out slots where the family is eating out
+      const filteredSlots = (slots ?? []).filter(
+        s => !eatingOutKeys.has(`${s.slot_date}_${s.meal_type}`)
+      )
+
+      const recipeIds = [...new Set(filteredSlots.map(s => s.recipe_id as string))]
 
       if (recipeIds.length === 0) {
         return { zone1: [] as StagingIngredient[], zone2: [] as StagingIngredient[], hasRecipes: false }

@@ -138,6 +138,64 @@ export function useClearWeekPlan() {
   })
 }
 
+// ── Eating-out slot settings ──────────────────────────────────────────────────
+
+/** Returns a Set of "${slot_date}_${meal_type}" keys that are marked eating out. */
+export function useSlotSettings(weekStart: string) {
+  const familyId = useAppStore(s => s.familyId)
+
+  return useQuery({
+    queryKey: ['slot-settings', familyId, weekStart],
+    enabled:  !!familyId && !!weekStart,
+    queryFn:  async () => {
+      const { data, error } = await supabase
+        .from('meal_plan_slot_settings')
+        .select('slot_date, meal_type')
+        .eq('family_id', familyId!)
+        .eq('week_start', weekStart)
+        .eq('is_eating_out', true)
+      if (error) throw error
+      return new Set((data ?? []).map(r => `${r.slot_date}_${r.meal_type}`))
+    },
+  })
+}
+
+export function useToggleEatingOut() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async ({ weekStart, slotDate, mealType, isEatingOut }: {
+      weekStart: string; slotDate: string; mealType: MealType; isEatingOut: boolean
+    }) => {
+      if (!familyId) throw new Error('No family ID')
+      if (isEatingOut) {
+        const { error } = await supabase
+          .from('meal_plan_slot_settings')
+          .upsert({
+            family_id:     familyId,
+            week_start:    weekStart,
+            slot_date:     slotDate,
+            meal_type:     mealType,
+            is_eating_out: true,
+          }, { onConflict: 'family_id,slot_date,meal_type' })
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('meal_plan_slot_settings')
+          .delete()
+          .eq('family_id', familyId)
+          .eq('slot_date', slotDate)
+          .eq('meal_type', mealType)
+        if (error) throw error
+      }
+    },
+    onSuccess: (_v, payload) => {
+      queryClient.invalidateQueries({ queryKey: ['slot-settings', familyId, payload.weekStart] })
+    },
+  })
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Group a flat list of SlotDish rows into a map keyed by "date_mealtype". */
