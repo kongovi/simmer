@@ -467,7 +467,7 @@ export function RecipeReviewScreen() {
 
         {/* Ingredients */}
         <Section title={`Ingredients — tap to edit qty & unit`} loading={aiLoading}>
-          {groupBySection(ingredients, components).flatMap(({ section, items }, groupIdx) => {
+          {groupBySection(ingredients, components).flatMap(({ section, items }) => {
             const rows: React.ReactNode[] = []
 
             // Section divider header (only for named sections)
@@ -523,7 +523,7 @@ export function RecipeReviewScreen() {
                     {/* Emoji + name + note */}
                     <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      {effectiveIsNew && !showAiSuggestion ? (
+                      {effectiveIsNew ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <input
                             value={ing.name}
@@ -665,7 +665,7 @@ export function RecipeReviewScreen() {
                   )}
 
                   {/* New ingredient */}
-                  {effectiveIsNew && !manualCatalogItem && !showAiSuggestion && (
+                  {effectiveIsNew && !manualCatalogItem && !showAiMerge && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '5px', marginLeft: '26px' }}>
                       <span style={{ fontSize: '10px', color: 'var(--ts)' }}>New to your catalog</span>
                       <button onClick={() => { setMergePickerIdx(idx); setMergeSearch('') }} style={{ ...subBtnStyle, color: 'var(--am)' }}>
