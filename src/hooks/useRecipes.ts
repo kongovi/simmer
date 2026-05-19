@@ -152,8 +152,9 @@ export interface SaveRecipePayload {
     unit: string | null
     prep_note: string | null
     serving_note: string | null
+    section?: string | null
   }[]
-  steps: { step_number: number; instruction: string }[]
+  steps: { step_number: number; instruction: string; section?: string | null }[]
 }
 
 /** Bulk staples that shouldn't be the recipe's representative emoji */
@@ -293,6 +294,7 @@ export function useSaveRecipe() {
             prep_note: ing.prep_note,
             serving_note: ing.serving_note,
             sort_order: i,
+            section: ing.section ?? null,
           }))
         )
         if (riErr) throw riErr
@@ -307,6 +309,7 @@ export function useSaveRecipe() {
             instruction: s.instruction,
             ingredient_ids: matchIngredientIds(s.instruction, payload.ingredients, ingredientIds),
             sort_order: i,
+            section: s.section ?? null,
           }))
         )
         if (sErr) throw sErr

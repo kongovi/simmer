@@ -9,11 +9,15 @@ export interface ParsedIngredient {
   serving_note: string | null
   /** Set when Claude couldn't confidently extract quantity */
   flag: 'confirm_quantity' | null
+  /** Component/section this ingredient belongs to (e.g. "Dough", "Sauce") */
+  section?: string | null
 }
 
 export interface ParsedStep {
   step_number: number
   instruction: string
+  /** Component/section this step belongs to (e.g. "Dough", "Sauce") */
+  section?: string | null
 }
 
 export interface ParsedRecipe {
@@ -25,6 +29,12 @@ export interface ParsedRecipe {
   difficulty: string | null
   ingredients: ParsedIngredient[]
   steps: ParsedStep[]
+  /**
+   * Named components for multi-part recipes (e.g. ["Dough", "Sauce", "Pizza"]).
+   * When present, every ingredient and step carries a matching `section` field.
+   * Omit (or leave empty) for single-component recipes.
+   */
+  components?: string[]
 }
 
 const SYSTEM_PROMPT = `You are a recipe structuring assistant. Your job is to extract and structure recipe text into clean JSON.
@@ -36,7 +46,8 @@ RULES:
 - For tags: include cuisine style (e.g. "Indian", "Mexican", "Italian"), dietary notes ("Vegetarian", "Vegan", "Gluten-free"), and "Quick" if total cook time ≤ 30 min.
 - For flag: set "confirm_quantity" when the original text had vague measures like "a knob of", "to taste", "some", "handful", or any non-numeric amount. Leave null otherwise.
 - For difficulty: "Easy", "Medium", or "Hard". Null if unclear.
-- For meal_type: infer from context if not stated. Null if genuinely ambiguous.`
+- For meal_type: infer from context if not stated. Null if genuinely ambiguous.
+- MULTI-COMPONENT RECIPES: If the recipe has distinct components that are made separately (e.g. Pizza → Dough + Sauce + Assembly; Burger → Patty + Bun + Assembly; Layer cake → Sponge + Frosting + Assembly), add a "components" array naming each part in logical order, and set the "section" field on every ingredient and step to the matching component name. For simple single-step recipes, omit "components" entirely and leave "section" as null on all items.`
 
 const USER_PROMPT_TEMPLATE = `Structure this recipe into JSON matching this exact schema:
 
@@ -47,6 +58,7 @@ const USER_PROMPT_TEMPLATE = `Structure this recipe into JSON matching this exac
   "meal_type": "breakfast" | "lunch" | "dinner" | null,
   "tags": string[],
   "difficulty": "Easy" | "Medium" | "Hard" | null,
+  "components": string[] | null,
   "ingredients": [
     {
       "name": string,
@@ -55,16 +67,21 @@ const USER_PROMPT_TEMPLATE = `Structure this recipe into JSON matching this exac
       "unit": "tsp" | "tbsp" | "cup" | "oz" | "lbs" | "g" | "ml" | "whole" | null,
       "prep_note": string | null,
       "serving_note": string | null,
-      "flag": "confirm_quantity" | null
+      "flag": "confirm_quantity" | null,
+      "section": string | null
     }
   ],
   "steps": [
     {
       "step_number": number,
-      "instruction": string
+      "instruction": string,
+      "section": string | null
     }
   ]
 }
+
+"components" is the ordered list of component names (e.g. ["Dough","Sauce","Pizza"]) or null for simple recipes.
+"section" on each ingredient/step must exactly match one of the component names, or null for simple recipes.
 
 Recipe text:
 ---

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, Check, AlertTriangle, Plus, Trash2, GitMerge } from 'lucide-react'
+import { ArrowLeft, Check, AlertTriangle, Plus, Trash2, GitMerge, Columns } from 'lucide-react'
 import type { ParsedRecipe, ParsedIngredient, ParsedStep } from '../lib/recipeParser'
 import { useSaveRecipe } from '../hooks/useRecipes'
 import { useIngredientsCatalog, matchIngredientFull } from '../hooks/useIngredientsCatalog'
@@ -45,6 +45,9 @@ export function RecipeReviewScreen() {
 
   // Editable steps
   const [steps, setSteps]           = useState<ParsedStep[]>(parsed?.steps ?? [])
+
+  // Named components (sections) for multi-part recipes
+  const [components, setComponents] = useState<string[]>(parsed?.components ?? [])
 
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState<string | null>(null)
@@ -210,6 +213,16 @@ export function RecipeReviewScreen() {
     }))
   }, [catalog])
 
+  // "Add section" inline input — shared across ingredients + steps panels
+  const [newSectionDraft, setNewSectionDraft] = useState('')
+  const [addingSectionFor, setAddingSectionFor] = useState<'ingredients' | 'steps' | null>(null)
+
+  function commitNewSection() {
+    if (newSectionDraft.trim()) addSection(newSectionDraft)
+    setNewSectionDraft('')
+    setAddingSectionFor(null)
+  }
+
   const mergePickerResults = mergePickerIdx !== null
     ? catalog.filter(c => c.name.toLowerCase().includes(mergeSearch.toLowerCase())).slice(0, 8)
     : []
@@ -258,10 +271,40 @@ export function RecipeReviewScreen() {
     setSteps(prev => prev.map((s, i) => i === idx ? { ...s, instruction } : s))
   }
   function addStep() {
-    setSteps(prev => [...prev, { step_number: prev.length + 1, instruction: '' }])
+    // New step goes into the last component (if any)
+    const lastSection = components.length > 0 ? components[components.length - 1] : null
+    setSteps(prev => [...prev, { step_number: prev.length + 1, instruction: '', section: lastSection }])
   }
   function removeStep(idx: number) {
     setSteps(prev => prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, step_number: i + 1 })))
+  }
+
+  // ── Section / component helpers ───────────────────────────────────
+  function renameSection(oldName: string, newName: string) {
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === oldName) return
+    setComponents(prev => prev.map(c => c === oldName ? trimmed : c))
+    setIngredients(prev => prev.map(ing =>
+      ing.section === oldName ? { ...ing, section: trimmed } : ing
+    ))
+    setSteps(prev => prev.map(s =>
+      s.section === oldName ? { ...s, section: trimmed } : s
+    ))
+  }
+  function deleteSection(name: string) {
+    setComponents(prev => prev.filter(c => c !== name))
+    // Unassign items — they fall into the "unsectioned" group
+    setIngredients(prev => prev.map(ing =>
+      ing.section === name ? { ...ing, section: null } : ing
+    ))
+    setSteps(prev => prev.map(s =>
+      s.section === name ? { ...s, section: null } : s
+    ))
+  }
+  function addSection(sectionName: string) {
+    const trimmed = sectionName.trim()
+    if (!trimmed || components.includes(trimmed)) return
+    setComponents(prev => [...prev, trimmed])
   }
 
   // ── Save ─────────────────────────────────────────────────────────
@@ -311,6 +354,7 @@ export function RecipeReviewScreen() {
             unit: ing.unit,
             prep_note: ing.prep_note,
             serving_note: ing.serving_note,
+            section: ing.section ?? null,
           }
         }),
         steps,
@@ -419,385 +463,381 @@ export function RecipeReviewScreen() {
 
         {/* Ingredients */}
         <Section title={`Ingredients — tap to edit qty & unit`} loading={aiLoading}>
-          {ingredients.map((ing, idx) => {
-            const { catalog: catalogMatch, isMerge } = matchIngredientFull(ing.name, catalog)
-            const userKeptSeparate  = keepSeparate.has(idx)
-            const manualCatalogId   = manualMerge.get(idx)
-            const manualCatalogItem = manualCatalogId ? catalog.find(c => c.id === manualCatalogId) : null
-            // Effective state after user overrides
-            const effectiveIsNew    = !manualCatalogId && (!catalogMatch || userKeptSeparate)
-            // Fuzzy match: show amber "Merging with →" alert
-            const showMergeAlert    = !manualCatalogId && isMerge && !!catalogMatch && !userKeptSeparate
-            // Exact match: show subtle "Linked to catalog" row so user can opt out
-            const showExactMatch    = !manualCatalogId && !isMerge && !!catalogMatch && !userKeptSeparate
-            // Kept separate confirmation — only when no manual merge has overridden it
-            const showKeptSeparate  = userKeptSeparate && !!catalogMatch && !manualCatalogId
-            const needsReview       = ing.flag === 'confirm_quantity'
-            // AI synonym suggestion — shown only when nothing else resolved this ingredient
-            const aiSuggestedId   = aiSuggestions.get(idx)
-            const aiSuggestedItem = aiSuggestedId ? catalog.find(c => c.id === aiSuggestedId) : null
-            const showAiSuggestion = !!aiSuggestedItem && !manualCatalogId && !userKeptSeparate && !catalogMatch
+          {groupBySection(ingredients, components).flatMap(({ section, items }, groupIdx) => {
+            const rows: React.ReactNode[] = []
 
-            return (
-              <div
-                key={idx}
-                style={{
-                  padding: '9px 14px',
-                  borderBottom: idx < ingredients.length - 1 ? '0.5px solid var(--br)' : 'none',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                  {/* Status icon */}
-                  <div style={{ width: '16px', flexShrink: 0, paddingTop: '1px' }}>
-                    {needsReview ? (
-                      <AlertTriangle size={13} color="var(--am)" />
-                    ) : showMergeAlert ? (
-                      <GitMerge size={13} color="#c97d2a" />
-                    ) : (
-                      <Check size={13} color={effectiveIsNew ? 'var(--ts)' : 'var(--gl)'} />
-                    )}
+            // Section divider header (only for named sections)
+            if (section !== null) {
+              rows.push(
+                <SectionDivider
+                  key={`ing-sec-${section}`}
+                  name={section}
+                  onRename={newName => renameSection(section, newName)}
+                  onDelete={() => deleteSection(section)}
+                />
+              )
+            }
+
+            // Ingredient rows for this section
+            items.forEach(({ idx }, itemIdx) => {
+              const ing = ingredients[idx]
+              const { catalog: catalogMatch, isMerge } = matchIngredientFull(ing.name, catalog)
+              const userKeptSeparate  = keepSeparate.has(idx)
+              const manualCatalogId   = manualMerge.get(idx)
+              const manualCatalogItem = manualCatalogId ? catalog.find(c => c.id === manualCatalogId) : null
+              const effectiveIsNew    = !manualCatalogId && (!catalogMatch || userKeptSeparate)
+              const showMergeAlert    = !manualCatalogId && isMerge && !!catalogMatch && !userKeptSeparate
+              const showExactMatch    = !manualCatalogId && !isMerge && !!catalogMatch && !userKeptSeparate
+              const showKeptSeparate  = userKeptSeparate && !!catalogMatch && !manualCatalogId
+              const needsReview       = ing.flag === 'confirm_quantity'
+              const aiSuggestedId     = aiSuggestions.get(idx)
+              const aiSuggestedItem   = aiSuggestedId ? catalog.find(c => c.id === aiSuggestedId) : null
+              const showAiSuggestion  = !!aiSuggestedItem && !manualCatalogId && !userKeptSeparate && !catalogMatch
+              // Show a border unless this is the last item AND there's nothing after this group
+              const isLastItem = itemIdx === items.length - 1
+              rows.push(
+                <div
+                  key={idx}
+                  style={{
+                    padding: '9px 14px',
+                    borderBottom: !isLastItem ? '0.5px solid var(--br)' : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    {/* Status icon */}
+                    <div style={{ width: '16px', flexShrink: 0, paddingTop: '1px' }}>
+                      {needsReview ? (
+                        <AlertTriangle size={13} color="var(--am)" />
+                      ) : showMergeAlert ? (
+                        <GitMerge size={13} color="#c97d2a" />
+                      ) : (
+                        <Check size={13} color={effectiveIsNew ? 'var(--ts)' : 'var(--gl)'} />
+                      )}
+                    </div>
+
+                    {/* Emoji + name + note */}
+                    <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {effectiveIsNew && !showAiSuggestion ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <input
+                            value={ing.name}
+                            onChange={e => updateIngredientName(idx, e.target.value)}
+                            style={{
+                              flex: 1, minWidth: 0,
+                              background: 'none', border: 'none',
+                              borderBottom: '0.5px solid var(--am)',
+                              outline: 'none', padding: '0 0 1px',
+                              fontSize: '13px', fontWeight: 500,
+                              color: 'var(--tp)', fontFamily: 'inherit',
+                            }}
+                          />
+                          <span style={{ fontSize: '9px', color: 'var(--gl)', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px', flexShrink: 0 }}>
+                            + new
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
+                          {ing.name}
+                        </div>
+                      )}
+                      <input
+                        value={ing.prep_note ?? ''}
+                        onChange={e => updateIngredientPrepNote(idx, e.target.value)}
+                        placeholder="add a note…"
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          background: 'none', border: 'none',
+                          borderBottom: '0.5px solid transparent',
+                          outline: 'none', padding: '2px 0 1px',
+                          fontSize: '11px', color: 'var(--ts)',
+                          fontFamily: 'inherit', marginTop: '1px',
+                        }}
+                        onFocus={e => (e.currentTarget.style.borderBottomColor = 'var(--br)')}
+                        onBlur={e  => (e.currentTarget.style.borderBottomColor = 'transparent')}
+                      />
+                      {needsReview && (
+                        <div style={{ fontSize: '10px', color: 'var(--am)', marginTop: '1px' }}>confirm quantity</div>
+                      )}
+                    </div>
+
+                    {/* Quantity + Unit */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0, paddingTop: '1px' }}>
+                      <input
+                        type="number"
+                        value={ing.quantity ?? ''}
+                        onChange={e => updateIngredientQty(idx, e.target.value)}
+                        placeholder="?"
+                        style={{
+                          width: '44px',
+                          backgroundColor: needsReview ? 'rgba(239,159,39,0.1)' : 'var(--dk3)',
+                          border: `0.5px solid ${needsReview ? 'var(--am)' : 'var(--br)'}`,
+                          borderRadius: '6px', padding: '3px 5px',
+                          fontSize: '12px', color: 'var(--tp)',
+                          textAlign: 'right', outline: 'none',
+                        }}
+                      />
+                      <select
+                        value={ing.unit ?? ''}
+                        onChange={e => updateIngredientUnit(idx, e.target.value)}
+                        style={{
+                          backgroundColor: 'var(--dk3)', border: '0.5px solid var(--br)',
+                          borderRadius: '6px', padding: '3px 4px',
+                          fontSize: '11px', color: ing.unit ? 'var(--ts)' : 'var(--tm)',
+                          outline: 'none', fontFamily: 'inherit',
+                          appearance: 'none', cursor: 'pointer',
+                          minWidth: '38px', maxWidth: '56px',
+                        }}
+                      >
+                        <option value="">—</option>
+                        <option value="tsp">tsp</option>
+                        <option value="tbsp">tbsp</option>
+                        <option value="cup">cup</option>
+                        <option value="oz">oz</option>
+                        <option value="lbs">lbs</option>
+                        <option value="g">g</option>
+                        <option value="ml">ml</option>
+                        <option value="whole">whole</option>
+                        <option value="clove">clove</option>
+                        <option value="bunch">bunch</option>
+                        <option value="can">can</option>
+                        <option value="slice">slice</option>
+                        <option value="sprig">sprig</option>
+                      </select>
+                    </div>
+
+                    {/* Remove */}
+                    <button
+                      onClick={() => removeIngredient(idx)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0, paddingTop: '3px' }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
 
-                  {/* Emoji + name + note */}
-                  <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Name — editable for new ingredients, static when merged */}
-                    {effectiveIsNew && !showAiSuggestion ? (
+                  {/* Merge alert */}
+                  {showMergeAlert && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginTop: '5px', marginLeft: '26px',
+                      background: 'rgba(201,125,42,0.1)', border: '0.5px solid rgba(201,125,42,0.35)',
+                      borderRadius: '6px', padding: '4px 8px',
+                    }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <input
-                          value={ing.name}
-                          onChange={e => updateIngredientName(idx, e.target.value)}
-                          style={{
-                            flex: 1, minWidth: 0,
-                            background: 'none', border: 'none',
-                            borderBottom: '0.5px solid var(--am)',
-                            outline: 'none', padding: '0 0 1px',
-                            fontSize: '13px', fontWeight: 500,
-                            color: 'var(--tp)', fontFamily: 'inherit',
-                          }}
-                        />
-                        <span style={{ fontSize: '9px', color: 'var(--gl)', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px', flexShrink: 0 }}>
-                          + new
+                        <span style={{ fontSize: '10px', color: '#c97d2a' }}>Merging with existing →</span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#c97d2a' }}>{catalogMatch.name}</span>
+                      </div>
+                      <button onClick={() => toggleKeepSeparate(idx)} style={subBtnStyle}>Keep separate</button>
+                    </div>
+                  )}
+
+                  {/* Exact match */}
+                  {showExactMatch && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginTop: '5px', marginLeft: '26px',
+                      background: 'rgba(93,202,165,0.06)', border: '0.5px solid rgba(93,202,165,0.2)',
+                      borderRadius: '6px', padding: '4px 8px',
+                    }}>
+                      <span style={{ fontSize: '10px', color: 'var(--gl)' }}>
+                        Linked to <strong style={{ fontWeight: 600 }}>{catalogMatch!.name}</strong> in your catalog
+                      </span>
+                      <button onClick={() => toggleKeepSeparate(idx)} style={subBtnStyle}>Keep separate</button>
+                    </div>
+                  )}
+
+                  {/* Kept separate */}
+                  {showKeptSeparate && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginTop: '5px', marginLeft: '26px',
+                      background: 'rgba(93,202,165,0.08)', border: '0.5px solid rgba(93,202,165,0.25)',
+                      borderRadius: '6px', padding: '4px 8px',
+                    }}>
+                      <span style={{ fontSize: '10px', color: 'var(--gl)' }}>Will be saved as a new ingredient</span>
+                      <button onClick={() => toggleKeepSeparate(idx)} style={subBtnStyle}>Undo</button>
+                    </div>
+                  )}
+
+                  {/* New ingredient */}
+                  {effectiveIsNew && !manualCatalogItem && !showAiSuggestion && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '5px', marginLeft: '26px' }}>
+                      <span style={{ fontSize: '10px', color: 'var(--ts)' }}>New to your catalog</span>
+                      <button onClick={() => { setMergePickerIdx(idx); setMergeSearch('') }} style={{ ...subBtnStyle, color: 'var(--am)' }}>
+                        Merge with existing →
+                      </button>
+                    </div>
+                  )}
+
+                  {/* AI suggestion */}
+                  {showAiSuggestion && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginTop: '5px', marginLeft: '26px',
+                      background: 'rgba(138,149,168,0.10)', border: '0.5px solid rgba(138,149,168,0.30)',
+                      borderRadius: '6px', padding: '4px 8px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+                        <span style={{ fontSize: '9px', color: 'var(--ts)', flexShrink: 0 }}>✦ AI match →</span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tp)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {aiSuggestedItem!.name}
                         </span>
                       </div>
-                    ) : (
-                      <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
-                        {ing.name}
+                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginLeft: '8px' }}>
+                        <button onClick={() => pickManualMerge(idx, aiSuggestedId!)} style={{ ...subBtnStyle, color: 'var(--am)' }}>Accept</button>
+                        <button onClick={() => toggleKeepSeparate(idx)} style={subBtnStyle}>Keep separate</button>
                       </div>
-                    )}
-                    {/* Prep note — always editable */}
-                    <input
-                      value={ing.prep_note ?? ''}
-                      onChange={e => updateIngredientPrepNote(idx, e.target.value)}
-                      placeholder="add a note…"
-                      style={{
-                        width: '100%', boxSizing: 'border-box',
-                        background: 'none', border: 'none',
-                        borderBottom: '0.5px solid transparent',
-                        outline: 'none', padding: '2px 0 1px',
-                        fontSize: '11px', color: 'var(--ts)',
-                        fontFamily: 'inherit', marginTop: '1px',
-                      }}
-                      onFocus={e  => (e.currentTarget.style.borderBottomColor = 'var(--br)')}
-                      onBlur={e   => (e.currentTarget.style.borderBottomColor = 'transparent')}
-                    />
-                    {needsReview && (
-                      <div style={{ fontSize: '10px', color: 'var(--am)', marginTop: '1px' }}>confirm quantity</div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  {/* Quantity + Unit */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0, paddingTop: '1px' }}>
-                    <input
-                      type="number"
-                      value={ing.quantity ?? ''}
-                      onChange={e => updateIngredientQty(idx, e.target.value)}
-                      placeholder="?"
-                      style={{
-                        width: '44px',
-                        backgroundColor: needsReview ? 'rgba(239,159,39,0.1)' : 'var(--dk3)',
-                        border: `0.5px solid ${needsReview ? 'var(--am)' : 'var(--br)'}`,
-                        borderRadius: '6px',
-                        padding: '3px 5px',
-                        fontSize: '12px',
-                        color: 'var(--tp)',
-                        textAlign: 'right',
-                        outline: 'none',
-                      }}
-                    />
-                    <select
-                      value={ing.unit ?? ''}
-                      onChange={e => updateIngredientUnit(idx, e.target.value)}
-                      style={{
-                        backgroundColor: 'var(--dk3)',
-                        border: '0.5px solid var(--br)',
-                        borderRadius: '6px',
-                        padding: '3px 4px',
-                        fontSize: '11px',
-                        color: ing.unit ? 'var(--ts)' : 'var(--tm)',
-                        outline: 'none',
-                        fontFamily: 'inherit',
-                        appearance: 'none',
-                        cursor: 'pointer',
-                        minWidth: '38px',
-                        maxWidth: '56px',
-                      }}
-                    >
-                      <option value="">—</option>
-                      <option value="tsp">tsp</option>
-                      <option value="tbsp">tbsp</option>
-                      <option value="cup">cup</option>
-                      <option value="oz">oz</option>
-                      <option value="lbs">lbs</option>
-                      <option value="g">g</option>
-                      <option value="ml">ml</option>
-                      <option value="whole">whole</option>
-                      <option value="clove">clove</option>
-                      <option value="bunch">bunch</option>
-                      <option value="can">can</option>
-                      <option value="slice">slice</option>
-                      <option value="sprig">sprig</option>
-                    </select>
-                  </div>
-
-                  {/* Remove */}
-                  <button
-                    onClick={() => removeIngredient(idx)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0, paddingTop: '3px' }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  {/* Manual merge */}
+                  {manualCatalogItem && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginTop: '5px', marginLeft: '26px',
+                      background: 'rgba(201,125,42,0.1)', border: '0.5px solid rgba(201,125,42,0.35)',
+                      borderRadius: '6px', padding: '4px 8px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ fontSize: '10px', color: '#c97d2a' }}>Merging with →</span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#c97d2a' }}>{manualCatalogItem.name}</span>
+                      </div>
+                      <button onClick={() => clearManualMerge(idx)} style={subBtnStyle}>Undo</button>
+                    </div>
+                  )}
                 </div>
+              )
+            })
 
-                {/* Merge alert row */}
-                {showMergeAlert && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginTop: '5px', marginLeft: '26px',
-                    background: 'rgba(201,125,42,0.1)',
-                    border: '0.5px solid rgba(201,125,42,0.35)',
-                    borderRadius: '6px', padding: '4px 8px',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <span style={{ fontSize: '10px', color: '#c97d2a' }}>
-                        Merging with existing →
-                      </span>
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#c97d2a' }}>
-                        {catalogMatch.name}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => toggleKeepSeparate(idx)}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
-                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
-                      }}
-                    >
-                      Keep separate
-                    </button>
-                  </div>
-                )}
-
-                {/* Exact match row — subtle affordance to opt out */}
-                {showExactMatch && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginTop: '5px', marginLeft: '26px',
-                    background: 'rgba(93,202,165,0.06)',
-                    border: '0.5px solid rgba(93,202,165,0.2)',
-                    borderRadius: '6px', padding: '4px 8px',
-                  }}>
-                    <span style={{ fontSize: '10px', color: 'var(--gl)' }}>
-                      Linked to <strong style={{ fontWeight: 600 }}>{catalogMatch!.name}</strong> in your catalog
-                    </span>
-                    <button
-                      onClick={() => toggleKeepSeparate(idx)}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
-                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
-                      }}
-                    >
-                      Keep separate
-                    </button>
-                  </div>
-                )}
-
-                {/* "Kept separate" confirmation row (exact or fuzzy) */}
-                {showKeptSeparate && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginTop: '5px', marginLeft: '26px',
-                    background: 'rgba(93,202,165,0.08)',
-                    border: '0.5px solid rgba(93,202,165,0.25)',
-                    borderRadius: '6px', padding: '4px 8px',
-                  }}>
-                    <span style={{ fontSize: '10px', color: 'var(--gl)' }}>
-                      Will be saved as a new ingredient
-                    </span>
-                    <button
-                      onClick={() => toggleKeepSeparate(idx)}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
-                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
-                      }}
-                    >
-                      Undo
-                    </button>
-                  </div>
-                )}
-
-                {/* New ingredient — offer to merge with existing */}
-                {effectiveIsNew && !manualCatalogItem && !showAiSuggestion && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginTop: '5px', marginLeft: '26px',
-                  }}>
-                    <span style={{ fontSize: '10px', color: 'var(--ts)' }}>New to your catalog</span>
-                    <button
-                      onClick={() => { setMergePickerIdx(idx); setMergeSearch('') }}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '10px', color: 'var(--am)', fontFamily: 'inherit',
-                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
-                      }}
-                    >
-                      Merge with existing →
-                    </button>
-                  </div>
-                )}
-
-                {/* AI synonym suggestion — opt-in, distinct from auto fuzzy match */}
-                {showAiSuggestion && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginTop: '5px', marginLeft: '26px',
-                    background: 'rgba(138,149,168,0.10)',
-                    border: '0.5px solid rgba(138,149,168,0.30)',
-                    borderRadius: '6px', padding: '4px 8px',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
-                      <span style={{ fontSize: '9px', color: 'var(--ts)', flexShrink: 0 }}>✦ AI match →</span>
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tp)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {aiSuggestedItem!.name}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginLeft: '8px' }}>
-                      <button
-                        onClick={() => pickManualMerge(idx, aiSuggestedId!)}
-                        style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          fontSize: '10px', color: 'var(--am)', fontFamily: 'inherit',
-                          padding: '0 2px', textDecoration: 'underline',
-                        }}
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => toggleKeepSeparate(idx)}
-                        style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
-                          padding: '0 2px', textDecoration: 'underline',
-                        }}
-                      >
-                        Keep separate
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Manual merge chosen */}
-                {manualCatalogItem && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginTop: '5px', marginLeft: '26px',
-                    background: 'rgba(201,125,42,0.1)',
-                    border: '0.5px solid rgba(201,125,42,0.35)',
-                    borderRadius: '6px', padding: '4px 8px',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <span style={{ fontSize: '10px', color: '#c97d2a' }}>Merging with →</span>
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#c97d2a' }}>{manualCatalogItem.name}</span>
-                    </div>
-                    <button
-                      onClick={() => clearManualMerge(idx)}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
-                        padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
-                      }}
-                    >
-                      Undo
-                    </button>
-                  </div>
-                )}
-              </div>
-            )
+            return rows
           })}
+
+          {/* Add section footer */}
+          {addingSectionFor === 'ingredients' ? (
+            <div style={{ display: 'flex', gap: '6px', padding: '9px 14px', borderTop: '0.5px solid var(--br)' }}>
+              <input
+                autoFocus
+                value={newSectionDraft}
+                onChange={e => setNewSectionDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') commitNewSection(); if (e.key === 'Escape') { setNewSectionDraft(''); setAddingSectionFor(null) } }}
+                placeholder="Section name (e.g. Dough)"
+                style={{
+                  flex: 1, background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+                  borderRadius: '7px', padding: '6px 9px',
+                  fontSize: '12px', color: 'var(--tp)',
+                  fontFamily: 'inherit', outline: 'none',
+                }}
+              />
+              <button onClick={commitNewSection} style={{ background: 'var(--am)', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: '#1a1612', cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+              <button onClick={() => { setNewSectionDraft(''); setAddingSectionFor(null) }} style={{ background: 'none', border: '0.5px solid var(--br)', borderRadius: '7px', padding: '6px 10px', fontSize: '12px', color: 'var(--ts)', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddingSectionFor('ingredients')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                width: '100%', padding: '9px 14px',
+                background: 'none', border: 'none',
+                borderTop: ingredients.length > 0 ? '0.5px solid var(--br)' : 'none',
+                cursor: 'pointer', fontSize: '11px', color: 'var(--tm)',
+              }}
+            >
+              <Columns size={11} />
+              Add section
+            </button>
+          )}
         </Section>
 
         {/* Steps */}
         <Section title="Steps">
-          {steps.map((step, idx) => (
-            <div
-              key={idx}
-              style={{
-                padding: '10px 14px',
-                borderBottom: idx < steps.length - 1 ? '0.5px solid var(--br)' : 'none',
-              }}
-            >
-              <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--am)', letterSpacing: '0.8px', marginBottom: '4px' }}>
-                STEP {step.step_number}
-              </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+          {groupBySection(steps, components).flatMap(({ section, items }) => {
+            const rows: React.ReactNode[] = []
+
+            if (section !== null) {
+              rows.push(
+                <SectionDivider
+                  key={`step-sec-${section}`}
+                  name={section}
+                  onRename={newName => renameSection(section, newName)}
+                  onDelete={() => deleteSection(section)}
+                />
+              )
+            }
+
+            items.forEach(({ idx }, itemIdx) => {
+              const step = steps[idx]
+              const isLastItem = itemIdx === items.length - 1
+              rows.push(
                 <div
-                  contentEditable
-                  suppressContentEditableWarning
-                  onBlur={e => updateStep(idx, e.currentTarget.textContent ?? '')}
+                  key={idx}
                   style={{
-                    flex: 1,
-                    fontSize: '13px',
-                    color: 'var(--tp)',
-                    lineHeight: 1.5,
-                    outline: 'none',
-                    minHeight: '20px',
+                    padding: '10px 14px',
+                    borderBottom: !isLastItem ? '0.5px solid var(--br)' : 'none',
                   }}
                 >
-                  {step.instruction}
+                  <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--am)', letterSpacing: '0.8px', marginBottom: '4px' }}>
+                    STEP {step.step_number}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <div
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={e => updateStep(idx, e.currentTarget.textContent ?? '')}
+                      style={{ flex: 1, fontSize: '13px', color: 'var(--tp)', lineHeight: 1.5, outline: 'none', minHeight: '20px' }}
+                    >
+                      {step.instruction}
+                    </div>
+                    <button
+                      onClick={() => removeStep(idx)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0, marginTop: '1px' }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => removeStep(idx)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0, marginTop: '1px' }}
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            </div>
-          ))}
+              )
+            })
 
-          {/* Add step */}
-          <button
-            onClick={addStep}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              width: '100%',
-              padding: '11px 14px',
-              background: 'none',
-              border: 'none',
-              borderTop: steps.length > 0 ? '0.5px solid var(--br)' : 'none',
-              cursor: 'pointer',
-              fontSize: '12px',
-              color: 'var(--ts)',
-            }}
-          >
-            <Plus size={13} />
-            Add a step
-          </button>
+            return rows
+          })}
+
+          {/* Add step + Add section row */}
+          <div style={{ display: 'flex', borderTop: steps.length > 0 ? '0.5px solid var(--br)' : 'none' }}>
+            <button
+              onClick={addStep}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', padding: '11px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--ts)' }}
+            >
+              <Plus size={13} />
+              Add a step
+            </button>
+            {addingSectionFor === 'steps' ? (
+              <div style={{ display: 'flex', gap: '5px', padding: '6px 10px', alignItems: 'center', borderLeft: '0.5px solid var(--br)' }}>
+                <input
+                  autoFocus
+                  value={newSectionDraft}
+                  onChange={e => setNewSectionDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') commitNewSection(); if (e.key === 'Escape') { setNewSectionDraft(''); setAddingSectionFor(null) } }}
+                  placeholder="Section name…"
+                  style={{
+                    width: '120px', background: 'var(--dk3)', border: '0.5px solid var(--brh)',
+                    borderRadius: '6px', padding: '4px 7px',
+                    fontSize: '12px', color: 'var(--tp)',
+                    fontFamily: 'inherit', outline: 'none',
+                  }}
+                />
+                <button onClick={commitNewSection} style={{ background: 'var(--am)', border: 'none', borderRadius: '6px', padding: '4px 9px', fontSize: '11px', fontWeight: 600, color: '#1a1612', cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+                <button onClick={() => { setNewSectionDraft(''); setAddingSectionFor(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', fontSize: '13px', padding: '4px 2px' }}>✕</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingSectionFor('steps')}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '11px 14px', background: 'none', border: 'none', borderLeft: '0.5px solid var(--br)', cursor: 'pointer', fontSize: '11px', color: 'var(--tm)', whiteSpace: 'nowrap' }}
+              >
+                <Columns size={11} />
+                Add section
+              </button>
+            )}
+          </div>
         </Section>
 
         {saveError && (
@@ -929,6 +969,101 @@ export function RecipeReviewScreen() {
       </div>
     </div>
   )
+}
+
+// ── Grouping helper ─────────────────────────────────────────────
+/**
+ * Groups a flat item array by section, preserving original indices.
+ * Items with null/undefined section go into a leading group with section=null.
+ * Named sections follow in the order given by `components`.
+ */
+function groupBySection<T extends { section?: string | null }>(
+  items: T[],
+  components: string[]
+): Array<{ section: string | null; items: Array<{ item: T; idx: number }> }> {
+  const buckets = new Map<string | null, Array<{ item: T; idx: number }>>()
+  buckets.set(null, [])
+  for (const c of components) buckets.set(c, [])
+
+  items.forEach((item, idx) => {
+    const sec = item.section ?? null
+    const bucket = buckets.get(sec) ?? buckets.get(null)!
+    bucket.push({ item, idx })
+  })
+
+  const result: Array<{ section: string | null; items: Array<{ item: T; idx: number }> }> = []
+  const nullItems = buckets.get(null)!
+  if (nullItems.length > 0 || components.length === 0) result.push({ section: null, items: nullItems })
+  for (const c of components) result.push({ section: c, items: buckets.get(c)! })
+  return result
+}
+
+// ── Section divider row ─────────────────────────────────────────
+function SectionDivider({ name, onRename, onDelete }: {
+  name: string
+  onRename: (newName: string) => void
+  onDelete: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft]     = useState(name)
+
+  function commit() {
+    onRename(draft.trim() || name)
+    setEditing(false)
+  }
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '8px',
+      padding: '6px 14px',
+      borderTop: '0.5px solid var(--br)', borderBottom: '0.5px solid var(--br)',
+      backgroundColor: 'rgba(255,255,255,0.025)',
+    }}>
+      <div style={{ width: '16px', flexShrink: 0 }} />
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(name); setEditing(false) } }}
+          style={{
+            flex: 1, background: 'none', border: 'none',
+            borderBottom: '0.5px solid var(--am)',
+            outline: 'none', padding: '0 0 1px',
+            fontSize: '10px', fontWeight: 700,
+            color: 'var(--ts)', letterSpacing: '0.7px',
+            textTransform: 'uppercase', fontFamily: 'inherit',
+          }}
+        />
+      ) : (
+        <div
+          onClick={() => { setDraft(name); setEditing(true) }}
+          style={{
+            flex: 1, fontSize: '10px', fontWeight: 700,
+            color: 'var(--tm)', letterSpacing: '0.7px',
+            textTransform: 'uppercase', cursor: 'text',
+          }}
+        >
+          {name}
+        </div>
+      )}
+      <button
+        onClick={onDelete}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}
+        title="Remove section"
+      >
+        <Trash2 size={11} />
+      </button>
+    </div>
+  )
+}
+
+/** Shared style for small inline action buttons (Keep separate, Undo, etc.) */
+const subBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer',
+  fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
+  padding: '0 2px', textDecoration: 'underline', flexShrink: 0,
 }
 
 // ── Small UI helpers ───────────────────────────────────────────
