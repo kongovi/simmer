@@ -136,9 +136,8 @@ export function RecipesScreen() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, 162px)',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(162px, 1fr))',
               gap: '10px',
-              justifyContent: 'start',
             }}
           >
             {recipes.map(r => <RecipeCard key={r.id} recipe={r} />)}
