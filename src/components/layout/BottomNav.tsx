@@ -17,7 +17,7 @@ export function BottomNav() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: '68px',
+        height: 'calc(68px + env(safe-area-inset-bottom))',
         backgroundColor: 'var(--dk2)',
         borderTop: '0.5px solid var(--br)',
         display: 'flex',
