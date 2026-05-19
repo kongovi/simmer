@@ -27,10 +27,18 @@ Match only when clearly the same ingredient, accounting for:
 - Common name variants (spring onion = scallion, minced beef = ground beef, plain flour = all-purpose flour)
 - Plural/singular and minor spelling differences
 
-Do NOT match when the ingredients are meaningfully different things (e.g. "cream" ≠ "sour cream", "garlic" ≠ "garlic powder").
+NEVER match across different physical forms — these are always separate catalog entries:
+- Fresh vs canned (fresh tomatoes ≠ canned tomatoes, fresh spinach ≠ canned spinach)
+- Fresh vs frozen (fresh peas ≠ frozen peas, fresh corn ≠ frozen corn)
+- Fresh vs dried (fresh herbs ≠ dried herbs, fresh ginger ≠ dried ginger)
+- Canned vs frozen (canned chickpeas ≠ frozen edamame)
+- Whole vs processed (whole tomatoes ≠ tomato paste ≠ tomato sauce ≠ tomato purée)
+- Different fat/salt levels count as the same item (salted butter = butter, full-fat milk = milk)
+
+Do NOT match when the ingredients are meaningfully different things (e.g. "cream" ≠ "sour cream", "garlic" ≠ "garlic powder", "coconut milk" ≠ "coconut cream").
 
 Return ONLY a valid JSON object mapping each input name to its matching catalog name, or null if no clear match.
-Example: {"double cream":"Heavy cream","rocket":"Arugula","exotic truffle oil":null}`
+Example: {"double cream":"Heavy cream","rocket":"Arugula","canned tomatoes":null,"exotic truffle oil":null}`
 
 // ── Suggestion cache ──────────────────────────────────────────────────────────
 // Stores Claude's raw suggestions (not user decisions).
