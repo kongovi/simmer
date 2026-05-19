@@ -255,27 +255,49 @@ export function RecipeEditScreen() {
     }
   }
 
-  // ── Section picker shared style ─────────────────────────────────────────────
-  const sectionSelectStyle: React.CSSProperties = {
-    background: 'var(--dk3)', border: '0.5px solid var(--br)',
-    borderRadius: '6px', padding: '3px 6px',
-    fontSize: '11px', color: 'var(--tm)',
-    fontFamily: 'inherit', outline: 'none',
-    cursor: 'pointer', appearance: 'none',
-    maxWidth: '90px',
-  }
-  const SectionSelect = ({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) =>
-    components.length === 0 ? null : (
-      <select
-        value={value ?? ''}
-        onChange={e => onChange(e.target.value || null)}
-        style={sectionSelectStyle}
-        title="Move to section"
-      >
-        <option value="">— no section</option>
-        {components.map(c => <option key={c} value={c}>{c}</option>)}
-      </select>
+  // ── Section chips — visible pill buttons, one per section ──────────────────
+  // Only rendered when at least one section exists.
+  // Tapping the active chip clears the assignment; tapping another assigns it.
+  function SectionChips({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+    if (components.length === 0) return null
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '4px' }}>
+        <span style={{ fontSize: '10px', color: 'var(--tm)', flexShrink: 0 }}>Section:</span>
+        {components.map(sec => {
+          const active = value === sec
+          return (
+            <button
+              key={sec}
+              onClick={() => onChange(active ? null : sec)}
+              style={{
+                padding: '3px 9px', borderRadius: '10px', border: 'none',
+                fontSize: '11px', fontWeight: active ? 600 : 400,
+                cursor: 'pointer', fontFamily: 'inherit',
+                backgroundColor: active ? 'var(--am)' : 'var(--dk3)',
+                color: active ? '#1a1612' : 'var(--ts)',
+                transition: 'background 0.1s',
+              }}
+            >
+              {sec}
+            </button>
+          )
+        })}
+        {value !== null && (
+          <button
+            onClick={() => onChange(null)}
+            style={{
+              padding: '3px 9px', borderRadius: '10px',
+              border: '0.5px solid var(--br)',
+              background: 'none', fontSize: '11px', color: 'var(--tm)',
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            none
+          </button>
+        )}
+      </div>
     )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--dk)' }}>
@@ -373,7 +395,7 @@ export function RecipeEditScreen() {
                     </button>
                   </div>
 
-                  {/* Qty + unit + prep note + section picker */}
+                  {/* Qty + unit + prep note */}
                   <div style={{ display: 'flex', gap: '6px', paddingLeft: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <input
                       type="number"
@@ -394,7 +416,10 @@ export function RecipeEditScreen() {
                       placeholder="prep note"
                       style={{ ...inputStyle, flex: 1, minWidth: '80px', padding: '3px 7px', fontSize: '12px' }}
                     />
-                    <SectionSelect value={ing.section} onChange={v => updateIngSection(idx, v)} />
+                  </div>
+                  {/* Section chips */}
+                  <div style={{ paddingLeft: '24px' }}>
+                    <SectionChips value={ing.section} onChange={v => updateIngSection(idx, v)} />
                   </div>
                 </div>
               )
@@ -484,11 +509,9 @@ export function RecipeEditScreen() {
                       <Trash2 size={13} />
                     </button>
                   </div>
-                  {components.length > 0 && (
-                    <div style={{ paddingLeft: '48px', marginTop: '5px' }}>
-                      <SectionSelect value={step.section} onChange={v => updateStepSection(idx, v)} />
-                    </div>
-                  )}
+                  <div style={{ paddingLeft: '48px' }}>
+                    <SectionChips value={step.section} onChange={v => updateStepSection(idx, v)} />
+                  </div>
                 </div>
               )
             })
