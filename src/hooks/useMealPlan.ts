@@ -12,6 +12,7 @@ export interface SlotDish {
   sort_order: number
   recipe_id:    string | null
   freeform_name: string | null
+  is_eating_out: boolean
   // joined from recipes (null for freeform)
   recipe: { id: string; name: string; emoji: string | null; image_url: string | null; image_status: string | null } | null
 }
@@ -36,7 +37,7 @@ export function useSlotsForWeek(weekStart: string) {
     queryFn:  async () => {
       const { data, error } = await supabase
         .from('meal_plan_slots')
-        .select('id, slot_date, meal_type, sort_order, recipe_id, freeform_name, recipe:recipes(id, name, emoji, image_url, image_status)')
+        .select('id, slot_date, meal_type, sort_order, recipe_id, freeform_name, is_eating_out, recipe:recipes(id, name, emoji, image_url, image_status)')
         .eq('family_id', familyId!)
         .eq('week_start', weekStart)
         .order('sort_order')
@@ -118,6 +119,27 @@ export function useMoveDish() {
   })
 }
 
+export function useToggleDishEatingOut() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async ({ id, isEatingOut, weekStart }: {
+      id: string; isEatingOut: boolean; weekStart: string
+    }) => {
+      const { error } = await supabase
+        .from('meal_plan_slots')
+        .update({ is_eating_out: isEatingOut })
+        .eq('id', id)
+      if (error) throw error
+      return weekStart
+    },
+    onSuccess: (_ws, payload) => {
+      queryClient.invalidateQueries({ queryKey: ['meal-plan', familyId, payload.weekStart] })
+    },
+  })
+}
+
 export function useClearWeekPlan() {
   const queryClient = useQueryClient()
   const familyId    = useAppStore(s => s.familyId)
@@ -134,64 +156,6 @@ export function useClearWeekPlan() {
     },
     onSuccess: (_v, { weekStart }) => {
       queryClient.invalidateQueries({ queryKey: ['meal-plan', familyId, weekStart] })
-    },
-  })
-}
-
-// ── Eating-out slot settings ──────────────────────────────────────────────────
-
-/** Returns a Set of "${slot_date}_${meal_type}" keys that are marked eating out. */
-export function useSlotSettings(weekStart: string) {
-  const familyId = useAppStore(s => s.familyId)
-
-  return useQuery({
-    queryKey: ['slot-settings', familyId, weekStart],
-    enabled:  !!familyId && !!weekStart,
-    queryFn:  async () => {
-      const { data, error } = await supabase
-        .from('meal_plan_slot_settings')
-        .select('slot_date, meal_type')
-        .eq('family_id', familyId!)
-        .eq('week_start', weekStart)
-        .eq('is_eating_out', true)
-      if (error) throw error
-      return new Set((data ?? []).map(r => `${r.slot_date}_${r.meal_type}`))
-    },
-  })
-}
-
-export function useToggleEatingOut() {
-  const queryClient = useQueryClient()
-  const familyId    = useAppStore(s => s.familyId)
-
-  return useMutation({
-    mutationFn: async ({ weekStart, slotDate, mealType, isEatingOut }: {
-      weekStart: string; slotDate: string; mealType: MealType; isEatingOut: boolean
-    }) => {
-      if (!familyId) throw new Error('No family ID')
-      if (isEatingOut) {
-        const { error } = await supabase
-          .from('meal_plan_slot_settings')
-          .upsert({
-            family_id:     familyId,
-            week_start:    weekStart,
-            slot_date:     slotDate,
-            meal_type:     mealType,
-            is_eating_out: true,
-          }, { onConflict: 'family_id,slot_date,meal_type' })
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('meal_plan_slot_settings')
-          .delete()
-          .eq('family_id', familyId)
-          .eq('slot_date', slotDate)
-          .eq('meal_type', mealType)
-        if (error) throw error
-      }
-    },
-    onSuccess: (_v, payload) => {
-      queryClient.invalidateQueries({ queryKey: ['slot-settings', familyId, payload.weekStart] })
     },
   })
 }

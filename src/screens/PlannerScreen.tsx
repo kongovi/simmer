@@ -6,7 +6,7 @@ import type { DragEndEvent } from '@dnd-kit/core'
 import { useAIModelLabel } from '../lib/ai/modelLabel'
 import { Screen } from '../components/layout/Screen'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
-import { useSlotsForWeek, useAddDish, useRemoveDish, useMoveDish, useClearWeekPlan, useSlotSettings, useToggleEatingOut, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
+import { useSlotsForWeek, useAddDish, useRemoveDish, useMoveDish, useClearWeekPlan, useToggleDishEatingOut, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
 import type { SlotDish } from '../hooks/useMealPlan'
 import { useRecipes } from '../hooks/useRecipes'
 import {
@@ -110,9 +110,8 @@ export function PlannerScreen() {
   const moveDish   = useMoveDish()
   const { data: allRecipes = [] } = useRecipes({})
 
-  // Eating-out slot settings
-  const { data: eatingOutSlots = new Set<string>() } = useSlotSettings(weekStart)
-  const toggleEatingOut = useToggleEatingOut()
+  // Eating-out per-dish toggle
+  const toggleDishEatingOut = useToggleDishEatingOut()
 
   // Drag-and-drop
   const [activeDish, setActiveDish] = useState<SlotDish | null>(null)
@@ -142,10 +141,9 @@ export function PlannerScreen() {
   }
 
   function openSlot(slotDate: string, mealType: MealType) {
-    const key      = `${slotDate}_${mealType}`
-    const dishes   = slotMap.get(key) ?? []
-    const eatingOut = eatingOutSlots.has(key)
-    setPopover({ slotDate, mealType, dishes, inputVal: '', selectedRecipeId: null, confirmDeleteId: null, isEatingOut: eatingOut })
+    const key    = `${slotDate}_${mealType}`
+    const dishes = slotMap.get(key) ?? []
+    setPopover({ slotDate, mealType, dishes, inputVal: '', selectedRecipeId: null, confirmDeleteId: null })
   }
 
   function closePopover() { setPopover(null) }
@@ -410,15 +408,12 @@ export function PlannerScreen() {
 
                   {/* Meal cells */}
                   {displayCols.map(m => {
-                    const slotKey   = `${dateStr}_${m.key}`
-                    const dishes    = slotMap.get(slotKey) ?? []
-                    const eatingOut = eatingOutSlots.has(slotKey)
+                    const dishes = slotMap.get(`${dateStr}_${m.key}`) ?? []
                     return (
                       <DroppableMealCell
                         key={m.key}
                         dropId={`slot-${dateStr}-${m.key}`}
                         dishes={dishes}
-                        isEatingOut={eatingOut}
                         onOpen={() => openSlot(dateStr, m.key)}
                       />
                     )
@@ -536,10 +531,12 @@ export function PlannerScreen() {
             onDeleteConfirm={handleDeleteConfirm}
             onDeleteCancel={handleDeleteCancel}
             onClose={closePopover}
-            onToggleEatingOut={() => {
-              const next = !popover.isEatingOut
-              setPopover(p => p ? { ...p, isEatingOut: next } : p)
-              toggleEatingOut.mutate({ weekStart, slotDate: popover.slotDate, mealType: popover.mealType, isEatingOut: next })
+            onToggleDishEatingOut={(dishId, isEatingOut) => {
+              setPopover(p => p ? {
+                ...p,
+                dishes: p.dishes.map(d => d.id === dishId ? { ...d, is_eating_out: isEatingOut } : d),
+              } : p)
+              toggleDishEatingOut.mutate({ id: dishId, isEatingOut, weekStart })
             }}
           />
         </>
@@ -550,18 +547,18 @@ export function PlannerScreen() {
 
 // ── DroppableMealCell ─────────────────────────────────────────────────────────
 
-function DroppableMealCell({ dropId, dishes, isEatingOut, onOpen }: {
-  dropId:      string
-  dishes:      SlotDish[]
-  isEatingOut: boolean
-  onOpen:      () => void
+function DroppableMealCell({ dropId, dishes, onOpen }: {
+  dropId:  string
+  dishes:  SlotDish[]
+  onOpen:  () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: dropId })
   return (
     <div
       ref={setNodeRef}
       style={{
-        display: 'flex', flexDirection: 'column', gap: '6px',
+        display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '6px',
+        alignItems: 'flex-start',
         minHeight: '48px',
         borderRadius: '8px',
         padding: '4px',
@@ -570,40 +567,23 @@ function DroppableMealCell({ dropId, dishes, isEatingOut, onOpen }: {
         transition: 'background 0.15s, border-color 0.15s',
       }}
     >
-      {isEatingOut && (
-        <button
-          onClick={onOpen}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '5px',
-            background: 'rgba(168,152,128,0.1)',
-            border: '0.5px solid rgba(168,152,128,0.25)',
-            borderRadius: '8px', padding: '5px 8px',
-            cursor: 'pointer', fontFamily: 'inherit',
-            color: 'var(--ts)', fontSize: '11px', fontWeight: 500,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <Utensils size={11} /> Eating out
-        </button>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '6px', alignItems: 'flex-start' }}>
-        {dishes.map(d => (
-          <DishTile key={d.id} dish={d} onClick={onOpen} isEatingOut={isEatingOut} />
-        ))}
-        <button onClick={onOpen} style={{ ...addLinkStyle, alignSelf: 'center' }}>
-          +add
-        </button>
-      </div>
+      {dishes.map(d => (
+        <DishTile key={d.id} dish={d} onClick={onOpen} />
+      ))}
+      <button onClick={onOpen} style={{ ...addLinkStyle, alignSelf: 'center' }}>
+        +add
+      </button>
     </div>
   )
 }
 
 // ── DishTile ──────────────────────────────────────────────────────────────────
 
-function DishTile({ dish, onClick, isEatingOut = false }: { dish: SlotDish; onClick: () => void; isEatingOut?: boolean }) {
-  const name   = dishDisplayName(dish)
-  const imgUrl = dish.recipe?.image_status === 'done' ? dish.recipe.image_url : null
-  const emoji  = dishEmoji(dish)
+function DishTile({ dish, onClick }: { dish: SlotDish; onClick: () => void }) {
+  const name        = dishDisplayName(dish)
+  const imgUrl      = dish.recipe?.image_status === 'done' ? dish.recipe.image_url : null
+  const emoji       = dishEmoji(dish)
+  const eatingOut   = dish.is_eating_out
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id:   dish.id,
@@ -619,14 +599,15 @@ function DishTile({ dish, onClick, isEatingOut = false }: { dish: SlotDish; onCl
       style={{
         width: '120px',
         background: 'var(--dkc)',
-        border: isDragging ? '0.5px solid var(--am)' : '0.5px solid var(--brh)',
+        border: isDragging ? '0.5px solid var(--am)' : eatingOut ? '0.5px solid rgba(168,152,128,0.3)' : '0.5px solid var(--brh)',
         borderRadius: '10px',
         overflow: 'hidden',
         cursor: isDragging ? 'grabbing' : 'pointer',
         flexShrink: 0,
         transition: 'border-color 0.15s, opacity 0.15s',
-        opacity: isDragging ? 0.35 : isEatingOut ? 0.45 : 1,
+        opacity: isDragging ? 0.35 : eatingOut ? 0.45 : 1,
         touchAction: 'none',
+        position: 'relative',
       }}
     >
       {imgUrl ? (
@@ -640,9 +621,20 @@ function DishTile({ dish, onClick, isEatingOut = false }: { dish: SlotDish; onCl
           <span style={{ fontSize: '42px', lineHeight: 1 }}>{emoji}</span>
         </div>
       )}
-      <div style={{ padding: '5px 7px 7px', fontSize: '12px', fontWeight: 500, color: 'var(--tp)', lineHeight: 1.3 }}>
+      <div style={{ padding: '5px 7px 7px', fontSize: '12px', fontWeight: 500, color: eatingOut ? 'var(--tm)' : 'var(--tp)', lineHeight: 1.3 }}>
         {name}
       </div>
+      {eatingOut && (
+        <div style={{
+          position: 'absolute', top: '5px', right: '5px',
+          background: 'rgba(20,24,32,0.72)',
+          borderRadius: '5px', padding: '2px 5px',
+          display: 'flex', alignItems: 'center', gap: '3px',
+          fontSize: '9px', fontWeight: 600, color: 'var(--ts)',
+        }}>
+          <Utensils size={8} /> Out
+        </div>
+      )}
     </div>
   )
 }
@@ -656,23 +648,22 @@ interface PopoverState {
   inputVal:         string
   selectedRecipeId: string | null
   confirmDeleteId:  string | null
-  isEatingOut:      boolean
 }
 
 function SlotPopover({
   popover, recipes, onInputChange, onAdd, onSelectRecipe,
-  onDeleteClick, onDeleteConfirm, onDeleteCancel, onClose, onToggleEatingOut,
+  onDeleteClick, onDeleteConfirm, onDeleteCancel, onClose, onToggleDishEatingOut,
 }: {
-  popover:            PopoverState
-  recipes:            { id: string; name: string; emoji: string | null }[]
-  onInputChange:      (v: string) => void
-  onAdd:              () => void
-  onSelectRecipe:     (r: { id: string; name: string }) => void
-  onDeleteClick:      (id: string) => void
-  onDeleteConfirm:    (id: string) => void
-  onDeleteCancel:     () => void
-  onClose:            () => void
-  onToggleEatingOut:  () => void
+  popover:                 PopoverState
+  recipes:                 { id: string; name: string; emoji: string | null }[]
+  onInputChange:           (v: string) => void
+  onAdd:                   () => void
+  onSelectRecipe:          (r: { id: string; name: string }) => void
+  onDeleteClick:           (id: string) => void
+  onDeleteConfirm:         (id: string) => void
+  onDeleteCancel:          () => void
+  onClose:                 () => void
+  onToggleDishEatingOut:   (dishId: string, isEatingOut: boolean) => void
 }) {
   const dayLabel  = new Date(popover.slotDate + 'T12:00:00').toLocaleString('default', { weekday: 'long' })
   const mealLabel = popover.mealType.charAt(0).toUpperCase() + popover.mealType.slice(1)
@@ -687,45 +678,15 @@ function SlotPopover({
       position: 'fixed',
       left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
       zIndex: 40,
-      width: 'min(300px, calc(100vw - 32px))',
+      width: 'min(320px, calc(100vw - 32px))',
       background: 'var(--dk2)',
       border: '0.5px solid var(--brh)',
       borderRadius: '14px',
       padding: '16px',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ts)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          {dayLabel} · {mealLabel}
-        </span>
-        {/* Eating-out toggle */}
-        <button
-          onClick={onToggleEatingOut}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '5px',
-            background: popover.isEatingOut ? 'rgba(168,152,128,0.18)' : 'none',
-            border: `0.5px solid ${popover.isEatingOut ? 'rgba(168,152,128,0.5)' : 'var(--br)'}`,
-            borderRadius: '8px', padding: '5px 9px',
-            cursor: 'pointer', fontFamily: 'inherit',
-            color: popover.isEatingOut ? 'var(--tp)' : 'var(--tm)',
-            fontSize: '12px', fontWeight: 500,
-            transition: 'all 0.15s',
-          }}
-        >
-          <Utensils size={11} />
-          {popover.isEatingOut ? 'Eating out ✓' : 'Eating out?'}
-        </button>
+      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ts)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+        {dayLabel} · {mealLabel}
       </div>
-
-      {popover.isEatingOut && (
-        <div style={{
-          fontSize: '12px', color: 'var(--ts)', fontStyle: 'italic',
-          marginBottom: '10px', paddingBottom: '10px',
-          borderBottom: '0.5px solid var(--br)',
-          lineHeight: 1.5,
-        }}>
-          Ingredients from this meal won't be added to your grocery list.
-        </div>
-      )}
 
       <div>
         {popover.dishes.length === 0 && (
@@ -733,9 +694,10 @@ function SlotPopover({
         )}
         {popover.dishes.map(d => {
           const isConfirming = popover.confirmDeleteId === d.id
+          const eatingOut    = d.is_eating_out
           return (
             <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0', borderBottom: '0.5px solid var(--br)' }}>
-              <span style={{ fontSize: '18px' }}>{dishEmoji(d)}</span>
+              <span style={{ fontSize: '18px', opacity: eatingOut ? 0.45 : 1 }}>{dishEmoji(d)}</span>
               {isConfirming ? (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <span style={{ fontSize: '13px', color: 'var(--ts)' }}>Remove "{dishDisplayName(d)}"?</span>
@@ -746,7 +708,31 @@ function SlotPopover({
                 </div>
               ) : (
                 <>
-                  <span style={{ flex: 1, fontSize: '14px', color: 'var(--tp)', fontWeight: 500 }}>{dishDisplayName(d)}</span>
+                  <span style={{
+                    flex: 1, fontSize: '14px', fontWeight: 500,
+                    color: eatingOut ? 'var(--tm)' : 'var(--tp)',
+                    textDecoration: eatingOut ? 'line-through' : 'none',
+                  }}>
+                    {dishDisplayName(d)}
+                  </span>
+                  {/* Eating-out toggle */}
+                  <button
+                    onClick={() => onToggleDishEatingOut(d.id, !eatingOut)}
+                    title={eatingOut ? 'Mark as cooking at home' : 'Mark as eating out'}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '3px',
+                      background: eatingOut ? 'rgba(168,152,128,0.18)' : 'none',
+                      border: `0.5px solid ${eatingOut ? 'rgba(168,152,128,0.45)' : 'var(--br)'}`,
+                      borderRadius: '6px', padding: '3px 6px',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      color: eatingOut ? 'var(--ts)' : 'var(--tm)',
+                      fontSize: '10px', fontWeight: 500,
+                      transition: 'all 0.15s', flexShrink: 0,
+                    }}
+                  >
+                    <Utensils size={9} />
+                    {eatingOut ? 'Out' : 'Out?'}
+                  </button>
                   <button onClick={() => onDeleteClick(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', fontSize: '16px', padding: '2px 4px' }}>✕</button>
                 </>
               )}
