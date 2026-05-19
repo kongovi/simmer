@@ -181,85 +181,114 @@ export function RecipeDetailScreen() {
     return result
   }
 
-  const SectionLabel = ({ name }: { name: string }) => (
-    <div style={{
-      padding: '6px 14px',
-      borderTop: '0.5px solid var(--br)', borderBottom: '0.5px solid var(--br)',
-      backgroundColor: 'rgba(255,255,255,0.025)',
-      fontSize: '10px', fontWeight: 700, color: 'var(--tm)',
-      letterSpacing: '0.7px', textTransform: 'uppercase',
-    }}>
-      {name}
+  const detailCardStyle: React.CSSProperties = { backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }
+
+  const ingItemRow = (row: IngredientRow, itemIdx: number, totalItems: number) => (
+    <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: itemIdx < totalItems - 1 ? '0.5px solid var(--br)' : 'none' }}>
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
+          <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', display: 'block' }} />
+        ) : (
+          <span style={{ fontSize: '20px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
+        )}
+        {row.ingredient?.image_status === 'generating' && (
+          <div style={{ position: 'absolute', bottom: 0, left: 0, width: '6px', height: '6px', borderRadius: '50%', background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite' }} />
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>{row.ingredient?.name ?? '—'}</div>
+        {row.prep_note && <div style={{ fontSize: '13px', color: 'var(--ts)' }}>{row.prep_note}</div>}
+        {row.serving_note && <div style={{ fontSize: '12px', color: 'var(--tm)', fontStyle: 'italic' }}>{row.serving_note}</div>}
+      </div>
+      <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500, flexShrink: 0 }}>
+        {scale(row.quantity, baseServings, currentServings)}{row.unit ? ` ${row.unit}` : ''}
+      </span>
     </div>
   )
 
-  const ingredientsList = (
-    <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
-      {ingRows.length === 0 && (
-        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No ingredients</div>
-      )}
-      {groupRows(ingRows).flatMap(({ section, items }) => {
-        const nodes: React.ReactNode[] = []
-        if (section !== null) nodes.push(<SectionLabel key={`ing-sec-${section}`} name={section} />)
-        items.forEach((row, itemIdx) => {
-          nodes.push(
-            <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: itemIdx < items.length - 1 ? '0.5px solid var(--br)' : 'none' }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
-                  <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', display: 'block' }} />
-                ) : (
-                  <span style={{ fontSize: '20px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
-                )}
-                {row.ingredient?.image_status === 'generating' && (
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '6px', height: '6px', borderRadius: '50%', background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite' }} />
-                )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>{row.ingredient?.name ?? '—'}</div>
-                {row.prep_note && <div style={{ fontSize: '13px', color: 'var(--ts)' }}>{row.prep_note}</div>}
-                {row.serving_note && <div style={{ fontSize: '12px', color: 'var(--tm)', fontStyle: 'italic' }}>{row.serving_note}</div>}
-              </div>
-              <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500, flexShrink: 0 }}>
-                {scale(row.quantity, baseServings, currentServings)}{row.unit ? ` ${row.unit}` : ''}
-              </span>
-            </div>
-          )
-        })
-        return nodes
-      })}
-    </div>
-  )
-
-  const instructionsList = (
-    <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
-      {stepRows.length === 0 && (
-        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No steps</div>
-      )}
-      {groupRows(stepRows).flatMap(({ section, items }) => {
-        const nodes: React.ReactNode[] = []
-        if (section !== null) nodes.push(<SectionLabel key={`step-sec-${section}`} name={section} />)
-        items.forEach((step, itemIdx) => {
-          nodes.push(
-            <div key={step.id} style={{ padding: '13px 14px', borderBottom: itemIdx < items.length - 1 ? '0.5px solid var(--br)' : 'none' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--am)', letterSpacing: '1px', marginBottom: '5px' }}>STEP {step.step_number}</div>
-              <p style={{ fontSize: '15px', color: 'var(--tp)', margin: 0, lineHeight: 1.6 }}>{step.instruction}</p>
-            </div>
-          )
-        })
-        return nodes
-      })}
-      {stepRows.length > 0 && (
-        <div style={{ padding: '12px 14px', borderTop: '0.5px solid var(--br)' }}>
-          <button
-            onClick={() => setCookingMode(true)}
-            style={{ width: '100%', padding: '12px', backgroundColor: 'var(--am)', color: '#1a1612', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-          >
-            <ChefHat size={16} /> Start cooking
-          </button>
+  const ingredientsList = (() => {
+    const groups = groupRows(ingRows)
+    if (allSections.length === 0) {
+      return (
+        <div style={detailCardStyle}>
+          {ingRows.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No ingredients</div>}
+          {groups.flatMap(({ items }) => items.map((row, i) => ingItemRow(row, i, items.length)))}
         </div>
-      )}
-    </div>
-  )
+      )
+    }
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {groups.filter(g => g.items.length > 0).map(({ section, items }) => (
+          <div key={section ?? '__none'} style={detailCardStyle}>
+            {section && (
+              <div style={{ padding: '8px 14px 7px', borderBottom: '0.5px solid var(--br)', fontSize: '10px', fontWeight: 700, color: 'var(--tm)', letterSpacing: '0.7px', textTransform: 'uppercase', backgroundColor: 'rgba(255,255,255,0.025)' }}>
+                {section}
+              </div>
+            )}
+            {items.map((row, i) => ingItemRow(row, i, items.length))}
+          </div>
+        ))}
+      </div>
+    )
+  })()
+
+  const instructionsList = (() => {
+    const groups = groupRows(stepRows)
+    const hasSections = allSections.length > 0
+
+    const stepRow = (step: StepRow, i: number, totalItems: number) => (
+      <div key={step.id} style={{ padding: '13px 14px', borderBottom: i < totalItems - 1 ? '0.5px solid var(--br)' : 'none' }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--am)', letterSpacing: '1px', marginBottom: '5px' }}>STEP {step.step_number}</div>
+        <p style={{ fontSize: '15px', color: 'var(--tp)', margin: 0, lineHeight: 1.6 }}>{step.instruction}</p>
+      </div>
+    )
+
+    const startCookingBtn = (
+      <button
+        onClick={() => setCookingMode(true)}
+        style={{ width: '100%', padding: '12px', backgroundColor: 'var(--am)', color: '#1a1612', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '10px' }}
+      >
+        <ChefHat size={16} /> Start cooking
+      </button>
+    )
+
+    if (!hasSections) {
+      return (
+        <div style={detailCardStyle}>
+          {stepRows.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No steps</div>}
+          {groups.flatMap(({ items }) => items.map((step, i) => stepRow(step, i, items.length)))}
+          {stepRows.length > 0 && (
+            <div style={{ padding: '12px 14px', borderTop: '0.5px solid var(--br)' }}>
+              <button
+                onClick={() => setCookingMode(true)}
+                style={{ width: '100%', padding: '12px', backgroundColor: 'var(--am)', color: '#1a1612', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                <ChefHat size={16} /> Start cooking
+              </button>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {groups.filter(g => g.items.length > 0).map(({ section, items }) => (
+            <div key={section ?? '__none'} style={detailCardStyle}>
+              {section && (
+                <div style={{ padding: '8px 14px 7px', borderBottom: '0.5px solid var(--br)', fontSize: '10px', fontWeight: 700, color: 'var(--tm)', letterSpacing: '0.7px', textTransform: 'uppercase', backgroundColor: 'rgba(255,255,255,0.025)' }}>
+                  {section}
+                </div>
+              )}
+              {items.map((step, i) => stepRow(step, i, items.length))}
+            </div>
+          ))}
+        </div>
+        {stepRows.length > 0 && startCookingBtn}
+      </>
+    )
+  })()
 
   const imageArea = (height: string | number, borderRadius?: string) => (
     <div style={{ width: '100%', height, backgroundColor: bg, overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius }}>

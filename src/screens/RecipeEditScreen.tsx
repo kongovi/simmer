@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Plus, Trash2, Columns } from 'lucide-react'
+import { ArrowLeft, Check, Plus, Trash2, Columns, GripVertical } from 'lucide-react'
+import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
 import { useRecipe, useRecipeIngredients, useRecipeSteps, useUpdateRecipe } from '../hooks/useRecipes'
 import { useIngredientsCatalog, matchIngredient } from '../hooks/useIngredientsCatalog'
 
@@ -67,6 +69,11 @@ export function RecipeEditScreen() {
   // "Add section" inline inputs
   const [newSectionDraft,   setNewSectionDraft]   = useState('')
   const [addingSectionFor,  setAddingSectionFor]  = useState<'ingredients' | 'steps' | null>(null)
+
+  // Drag-and-drop
+  const [activeIngDrag,  setActiveIngDrag]  = useState<number | null>(null)
+  const [activeStepDrag, setActiveStepDrag] = useState<number | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   // Populate state once all data is loaded
   useEffect(() => {
@@ -164,6 +171,26 @@ export function RecipeEditScreen() {
     setAddingSectionFor(null)
   }
 
+  function handleIngDragEnd(event: DragEndEvent) {
+    setActiveIngDrag(null)
+    const { active, over } = event
+    if (!over) return
+    const idx = parseInt((active.id as string).replace('ing-', ''))
+    if (isNaN(idx)) return
+    const newSection = over.id === 'ing-drop-null' ? null : (over.id as string).replace('ing-drop-', '')
+    updateIngSection(idx, newSection)
+  }
+
+  function handleStepDragEnd(event: DragEndEvent) {
+    setActiveStepDrag(null)
+    const { active, over } = event
+    if (!over) return
+    const idx = parseInt((active.id as string).replace('step-', ''))
+    if (isNaN(idx)) return
+    const newSection = over.id === 'step-drop-null' ? null : (over.id as string).replace('step-drop-', '')
+    updateStepSection(idx, newSection)
+  }
+
   // ── Ingredient helpers ──────────────────────────────────────────────────────
 
   function updateIngQty(idx: number, val: string) {
@@ -255,49 +282,7 @@ export function RecipeEditScreen() {
     }
   }
 
-  // ── Section chips — visible pill buttons, one per section ──────────────────
-  // Only rendered when at least one section exists.
-  // Tapping the active chip clears the assignment; tapping another assigns it.
-  function SectionChips({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
-    if (components.length === 0) return null
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '4px' }}>
-        <span style={{ fontSize: '10px', color: 'var(--tm)', flexShrink: 0 }}>Section:</span>
-        {components.map(sec => {
-          const active = value === sec
-          return (
-            <button
-              key={sec}
-              onClick={() => onChange(active ? null : sec)}
-              style={{
-                padding: '3px 9px', borderRadius: '10px', border: 'none',
-                fontSize: '11px', fontWeight: active ? 600 : 400,
-                cursor: 'pointer', fontFamily: 'inherit',
-                backgroundColor: active ? 'var(--am)' : 'var(--dk3)',
-                color: active ? '#1a1612' : 'var(--ts)',
-                transition: 'background 0.1s',
-              }}
-            >
-              {sec}
-            </button>
-          )
-        })}
-        {value !== null && (
-          <button
-            onClick={() => onChange(null)}
-            style={{
-              padding: '3px 9px', borderRadius: '10px',
-              border: '0.5px solid var(--br)',
-              background: 'none', fontSize: '11px', color: 'var(--tm)',
-              cursor: 'pointer', fontFamily: 'inherit',
-            }}
-          >
-            none
-          </button>
-        )}
-      </div>
-    )
-  }
+  // SectionChips is defined outside the component (see bottom of file)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--dk)' }}>
@@ -343,223 +328,171 @@ export function RecipeEditScreen() {
         </Section>
 
         {/* Ingredients */}
-        <Section title="Ingredients">
-          {groupBySection(ingredients, components).flatMap(({ section, items }) => {
-            const rows: React.ReactNode[] = []
-
-            if (section !== null) {
-              rows.push(
-                <SectionDivider
-                  key={`ing-sec-${section}`}
-                  name={section}
-                  onRename={n => renameSection(section, n)}
-                  onDelete={() => deleteSection(section)}
-                />
-              )
-            }
-
-            items.forEach(({ idx }, itemIdx) => {
-              const ing = ingredients[idx]
-              const catalogMatch = matchIngredient(ing.name, catalog)
-              const isNew = !catalogMatch && !ing.catalogId
-              rows.push(
-                <div
-                  key={idx}
-                  style={{
-                    padding: '10px 14px',
-                    borderBottom: itemIdx < items.length - 1 ? '0.5px solid var(--br)' : 'none',
-                    display: 'flex', flexDirection: 'column', gap: '6px',
-                  }}
-                >
-                  {/* Name row */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <input
-                          value={ing.name}
-                          onChange={e => updateIngName(idx, e.target.value)}
-                          placeholder="Ingredient name"
-                          style={{ ...inputStyle, padding: '4px 8px', fontSize: '13px' }}
+        <div style={{ padding: '20px 16px 0' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>Ingredients</div>
+          <DndContext sensors={sensors} onDragStart={e => setActiveIngDrag(parseInt((e.active.id as string).replace('ing-', '')))} onDragEnd={handleIngDragEnd}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {groupBySection(ingredients, components).map(({ section, items }) => {
+                const dropId = section === null ? 'ing-drop-null' : `ing-drop-${section}`
+                return (
+                  <IngDropZone key={section ?? '__none'} dropId={dropId}>
+                    {/* Section header */}
+                    {section !== null && (
+                      <SectionDivider
+                        name={section}
+                        onRename={n => renameSection(section, n)}
+                        onDelete={() => deleteSection(section)}
+                      />
+                    )}
+                    {/* Ingredient rows */}
+                    {items.map(({ idx }, itemIdx) => {
+                      const ing = ingredients[idx]
+                      const catalogMatch = matchIngredient(ing.name, catalog)
+                      const isNew = !catalogMatch && !ing.catalogId
+                      return (
+                        <DraggableIngRow
+                          key={idx}
+                          dragId={`ing-${idx}`}
+                          idx={idx}
+                          ing={ing}
+                          isNew={isNew}
+                          isLast={itemIdx === items.length - 1}
+                          components={components}
+                          onUpdateName={updateIngName}
+                          onUpdateQty={updateIngQty}
+                          onUpdateUnit={updateIngUnit}
+                          onUpdatePrepNote={updateIngPrepNote}
+                          onUpdateSection={updateIngSection}
+                          onRemove={removeIngredient}
                         />
-                        {!isNew && ing.name.trim() && <Check size={12} color="var(--gl)" style={{ flexShrink: 0 }} />}
-                        {isNew && ing.name.trim() && (
-                          <span style={{ fontSize: '9px', color: 'var(--gl)', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px', flexShrink: 0 }}>
-                            + new
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <button onClick={() => removeIngredient(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}>
-                      <Trash2 size={13} />
+                      )
+                    })}
+                    {/* Per-section add button */}
+                    <button
+                      onClick={() => addIngredient(section)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '5px', width: '100%', padding: '8px 14px 8px 38px', background: 'none', border: 'none', borderTop: items.length > 0 ? '0.5px solid var(--br)' : 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--tm)' }}
+                    >
+                      <Plus size={11} />
+                      {section ? `Add to ${section}` : 'Add ingredient'}
                     </button>
-                  </div>
-
-                  {/* Qty + unit + prep note */}
-                  <div style={{ display: 'flex', gap: '6px', paddingLeft: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    <input
-                      type="number"
-                      value={ing.quantity ?? ''}
-                      onChange={e => updateIngQty(idx, e.target.value)}
-                      placeholder="Qty"
-                      style={{ ...inputStyle, width: '60px', padding: '3px 7px', fontSize: '12px' }}
-                    />
-                    <input
-                      value={ing.unit ?? ''}
-                      onChange={e => updateIngUnit(idx, e.target.value)}
-                      placeholder="unit"
-                      style={{ ...inputStyle, width: '68px', padding: '3px 7px', fontSize: '12px' }}
-                    />
-                    <input
-                      value={ing.prep_note ?? ''}
-                      onChange={e => updateIngPrepNote(idx, e.target.value)}
-                      placeholder="prep note"
-                      style={{ ...inputStyle, flex: 1, minWidth: '80px', padding: '3px 7px', fontSize: '12px' }}
-                    />
-                  </div>
-                  {/* Section chips */}
-                  <div style={{ paddingLeft: '24px' }}>
-                    <SectionChips value={ing.section} onChange={v => updateIngSection(idx, v)} />
-                  </div>
-                </div>
-              )
-            })
-
-            // Per-section "Add ingredient" button
-            rows.push(
-              <button
-                key={`add-ing-${section ?? '__none'}`}
-                onClick={() => addIngredient(section)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '5px',
-                  width: '100%', padding: '8px 14px 8px 38px',
-                  background: 'none', border: 'none',
-                  borderTop: items.length > 0 ? '0.5px solid var(--br)' : 'none',
-                  cursor: 'pointer', fontSize: '11px', color: 'var(--tm)',
-                }}
-              >
-                <Plus size={11} />
-                {section ? `Add to ${section}` : 'Add ingredient'}
-              </button>
-            )
-
-            return rows
-          })}
-
-          {/* Add section footer */}
-          {addingSectionFor === 'ingredients' ? (
-            <div style={{ display: 'flex', gap: '6px', padding: '9px 14px', borderTop: '0.5px solid var(--br)' }}>
-              <input
-                autoFocus
-                value={newSectionDraft}
-                onChange={e => setNewSectionDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') commitNewSection(); if (e.key === 'Escape') { setNewSectionDraft(''); setAddingSectionFor(null) } }}
-                placeholder="Section name (e.g. Dough)"
-                style={{ flex: 1, background: 'var(--dk3)', border: '0.5px solid var(--brh)', borderRadius: '7px', padding: '6px 9px', fontSize: '12px', color: 'var(--tp)', fontFamily: 'inherit', outline: 'none' }}
-              />
-              <button onClick={commitNewSection} style={{ background: 'var(--am)', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: '#1a1612', cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
-              <button onClick={() => { setNewSectionDraft(''); setAddingSectionFor(null) }} style={{ background: 'none', border: '0.5px solid var(--br)', borderRadius: '7px', padding: '6px 10px', fontSize: '12px', color: 'var(--ts)', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+                  </IngDropZone>
+                )
+              })}
             </div>
-          ) : (
-            <button
-              onClick={() => setAddingSectionFor('ingredients')}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', padding: '9px 14px', background: 'none', border: 'none', borderTop: '0.5px solid var(--br)', cursor: 'pointer', fontSize: '11px', color: 'var(--tm)' }}
-            >
-              <Columns size={11} /> Add section
-            </button>
-          )}
-        </Section>
+            <DragOverlay>
+              {activeIngDrag !== null && ingredients[activeIngDrag] ? (
+                <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--am)', borderRadius: '10px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.95, boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                  <GripVertical size={13} color="var(--tm)" />
+                  <span style={{ fontSize: '15px' }}>{ingredients[activeIngDrag].emoji}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--tp)' }}>{ingredients[activeIngDrag].name || 'Ingredient'}</span>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+          {/* Add section footer */}
+          <div style={{ marginTop: '10px' }}>
+            {addingSectionFor === 'ingredients' ? (
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  autoFocus
+                  value={newSectionDraft}
+                  onChange={e => setNewSectionDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') commitNewSection(); if (e.key === 'Escape') { setNewSectionDraft(''); setAddingSectionFor(null) } }}
+                  placeholder="Section name (e.g. Dough)"
+                  style={{ flex: 1, background: 'var(--dk3)', border: '0.5px solid var(--brh)', borderRadius: '7px', padding: '6px 9px', fontSize: '12px', color: 'var(--tp)', fontFamily: 'inherit', outline: 'none' }}
+                />
+                <button onClick={commitNewSection} style={{ background: 'var(--am)', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: '#1a1612', cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+                <button onClick={() => { setNewSectionDraft(''); setAddingSectionFor(null) }} style={{ background: 'none', border: '0.5px solid var(--br)', borderRadius: '7px', padding: '6px 10px', fontSize: '12px', color: 'var(--ts)', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingSectionFor('ingredients')}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--tm)' }}
+              >
+                <Columns size={11} /> Add section
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Steps */}
-        <Section title="Steps">
-          {groupBySection(steps, components).flatMap(({ section, items }) => {
-            const rows: React.ReactNode[] = []
-
-            if (section !== null) {
-              rows.push(
-                <SectionDivider
-                  key={`step-sec-${section}`}
-                  name={section}
-                  onRename={n => renameSection(section, n)}
-                  onDelete={() => deleteSection(section)}
-                />
-              )
-            }
-
-            items.forEach(({ idx }, itemIdx) => {
-              const step = steps[idx]
-              rows.push(
-                <div
-                  key={idx}
-                  style={{ padding: '10px 14px', borderBottom: itemIdx < items.length - 1 ? '0.5px solid var(--br)' : 'none' }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                    <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--am)', letterSpacing: '0.8px', paddingTop: '3px', flexShrink: 0, minWidth: '40px' }}>
-                      STEP {step.step_number}
-                    </div>
-                    <div
-                      contentEditable
-                      suppressContentEditableWarning
-                      onBlur={e => updateStep(idx, e.currentTarget.textContent ?? '')}
-                      style={{ flex: 1, fontSize: '13px', color: 'var(--tp)', lineHeight: 1.5, outline: 'none', minHeight: '20px' }}
+        <div style={{ padding: '20px 16px 0' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>Steps</div>
+          <DndContext sensors={sensors} onDragStart={e => setActiveStepDrag(parseInt((e.active.id as string).replace('step-', '')))} onDragEnd={handleStepDragEnd}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {groupBySection(steps, components).map(({ section, items }) => {
+                const dropId = section === null ? 'step-drop-null' : `step-drop-${section}`
+                return (
+                  <StepDropZone key={section ?? '__none'} dropId={dropId}>
+                    {section !== null && (
+                      <SectionDivider
+                        name={section}
+                        onRename={n => renameSection(section, n)}
+                        onDelete={() => deleteSection(section)}
+                      />
+                    )}
+                    {items.map(({ idx }, itemIdx) => {
+                      const step = steps[idx]
+                      return (
+                        <DraggableStepRow
+                          key={idx}
+                          dragId={`step-${idx}`}
+                          idx={idx}
+                          step={step}
+                          isLast={itemIdx === items.length - 1}
+                          components={components}
+                          onUpdate={updateStep}
+                          onUpdateSection={updateStepSection}
+                          onRemove={removeStep}
+                        />
+                      )
+                    })}
+                    <button
+                      onClick={() => addStep(section)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '5px', width: '100%', padding: '8px 14px 8px 52px', background: 'none', border: 'none', borderTop: items.length > 0 ? '0.5px solid var(--br)' : 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--tm)' }}
                     >
-                      {step.instruction}
-                    </div>
-                    <button onClick={() => removeStep(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}>
-                      <Trash2 size={13} />
+                      <Plus size={11} />
+                      {section ? `Add step to ${section}` : 'Add a step'}
                     </button>
-                  </div>
-                  <div style={{ paddingLeft: '48px' }}>
-                    <SectionChips value={step.section} onChange={v => updateStepSection(idx, v)} />
-                  </div>
-                </div>
-              )
-            })
-
-            // Per-section "Add step" button
-            rows.push(
-              <button
-                key={`add-step-${section ?? '__none'}`}
-                onClick={() => addStep(section)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '5px',
-                  width: '100%', padding: '8px 14px 8px 52px',
-                  background: 'none', border: 'none',
-                  borderTop: items.length > 0 ? '0.5px solid var(--br)' : 'none',
-                  cursor: 'pointer', fontSize: '11px', color: 'var(--tm)',
-                }}
-              >
-                <Plus size={11} />
-                {section ? `Add step to ${section}` : 'Add a step'}
-              </button>
-            )
-
-            return rows
-          })}
-
-          {/* Add section footer */}
-          {addingSectionFor === 'steps' ? (
-            <div style={{ display: 'flex', gap: '6px', padding: '9px 14px', borderTop: '0.5px solid var(--br)' }}>
-              <input
-                autoFocus
-                value={newSectionDraft}
-                onChange={e => setNewSectionDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') commitNewSection(); if (e.key === 'Escape') { setNewSectionDraft(''); setAddingSectionFor(null) } }}
-                placeholder="Section name (e.g. Sauce)"
-                style={{ flex: 1, background: 'var(--dk3)', border: '0.5px solid var(--brh)', borderRadius: '7px', padding: '6px 9px', fontSize: '12px', color: 'var(--tp)', fontFamily: 'inherit', outline: 'none' }}
-              />
-              <button onClick={commitNewSection} style={{ background: 'var(--am)', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: '#1a1612', cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
-              <button onClick={() => { setNewSectionDraft(''); setAddingSectionFor(null) }} style={{ background: 'none', border: '0.5px solid var(--br)', borderRadius: '7px', padding: '6px 10px', fontSize: '12px', color: 'var(--ts)', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+                  </StepDropZone>
+                )
+              })}
             </div>
-          ) : (
-            <button
-              onClick={() => setAddingSectionFor('steps')}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', padding: '9px 14px', background: 'none', border: 'none', borderTop: '0.5px solid var(--br)', cursor: 'pointer', fontSize: '11px', color: 'var(--tm)' }}
-            >
-              <Columns size={11} /> Add section
-            </button>
-          )}
-        </Section>
+            <DragOverlay>
+              {activeStepDrag !== null && steps[activeStepDrag] ? (
+                <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--am)', borderRadius: '10px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.95, boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+                  <GripVertical size={13} color="var(--tm)" />
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--am)', letterSpacing: '0.8px' }}>STEP {steps[activeStepDrag].step_number}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--tp)', flex: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{steps[activeStepDrag].instruction}</span>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+          {/* Add section footer */}
+          <div style={{ marginTop: '10px' }}>
+            {addingSectionFor === 'steps' ? (
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <input
+                  autoFocus
+                  value={newSectionDraft}
+                  onChange={e => setNewSectionDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') commitNewSection(); if (e.key === 'Escape') { setNewSectionDraft(''); setAddingSectionFor(null) } }}
+                  placeholder="Section name (e.g. Sauce)"
+                  style={{ flex: 1, background: 'var(--dk3)', border: '0.5px solid var(--brh)', borderRadius: '7px', padding: '6px 9px', fontSize: '12px', color: 'var(--tp)', fontFamily: 'inherit', outline: 'none' }}
+                />
+                <button onClick={commitNewSection} style={{ background: 'var(--am)', border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, color: '#1a1612', cursor: 'pointer', fontFamily: 'inherit' }}>Add</button>
+                <button onClick={() => { setNewSectionDraft(''); setAddingSectionFor(null) }} style={{ background: 'none', border: '0.5px solid var(--br)', borderRadius: '7px', padding: '6px 10px', fontSize: '12px', color: 'var(--ts)', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingSectionFor('steps')}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 4px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--tm)' }}
+              >
+                <Columns size={11} /> Add section
+              </button>
+            )}
+          </div>
+        </div>
 
         {saveError && (
           <p style={{ fontSize: '12px', color: 'var(--rd)', padding: '0 16px 12px', margin: 0 }}>{saveError}</p>
@@ -676,4 +609,226 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
+}
+
+// ── Section chips (outside component so it doesn't re-mount on render) ─────────
+function SectionChips({ value, onChange, components }: {
+  value: string | null
+  onChange: (v: string | null) => void
+  components: string[]
+}) {
+  if (components.length === 0) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '4px' }}>
+      <span style={{ fontSize: '10px', color: 'var(--tm)', flexShrink: 0 }}>Section:</span>
+      {components.map(sec => {
+        const active = value === sec
+        return (
+          <button
+            key={sec}
+            onClick={() => onChange(active ? null : sec)}
+            style={{
+              padding: '3px 9px', borderRadius: '10px', border: 'none',
+              fontSize: '11px', fontWeight: active ? 600 : 400,
+              cursor: 'pointer', fontFamily: 'inherit',
+              backgroundColor: active ? 'var(--am)' : 'var(--dk3)',
+              color: active ? '#1a1612' : 'var(--ts)',
+              transition: 'background 0.1s',
+            }}
+          >
+            {sec}
+          </button>
+        )
+      })}
+      {value !== null && (
+        <button
+          onClick={() => onChange(null)}
+          style={{ padding: '3px 9px', borderRadius: '10px', border: '0.5px solid var(--br)', background: 'none', fontSize: '11px', color: 'var(--tm)', cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          none
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Droppable zone wrappers ─────────────────────────────────────────────────
+
+function IngDropZone({ dropId, children }: { dropId: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: dropId })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        backgroundColor: 'var(--dkc)',
+        border: `0.5px solid ${isOver ? 'var(--am)' : 'var(--br)'}`,
+        borderRadius: '12px',
+        overflow: 'hidden',
+        transition: 'border-color 0.15s',
+        boxShadow: isOver ? '0 0 0 1px var(--am)' : 'none',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function StepDropZone({ dropId, children }: { dropId: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: dropId })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        backgroundColor: 'var(--dkc)',
+        border: `0.5px solid ${isOver ? 'var(--am)' : 'var(--br)'}`,
+        borderRadius: '12px',
+        overflow: 'hidden',
+        transition: 'border-color 0.15s',
+        boxShadow: isOver ? '0 0 0 1px var(--am)' : 'none',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+// ── Draggable ingredient row ────────────────────────────────────────────────
+
+function DraggableIngRow({ dragId, idx, ing, isNew, isLast, components, onUpdateName, onUpdateQty, onUpdateUnit, onUpdatePrepNote, onUpdateSection, onRemove }: {
+  dragId: string
+  idx: number
+  ing: EditIngredient
+  isNew: boolean
+  isLast: boolean
+  components: string[]
+  onUpdateName: (idx: number, val: string) => void
+  onUpdateQty: (idx: number, val: string) => void
+  onUpdateUnit: (idx: number, val: string) => void
+  onUpdatePrepNote: (idx: number, val: string) => void
+  onUpdateSection: (idx: number, section: string | null) => void
+  onRemove: (idx: number) => void
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: dragId })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        padding: '10px 14px',
+        borderBottom: isLast ? 'none' : '0.5px solid var(--br)',
+        display: 'flex', flexDirection: 'column', gap: '6px',
+        opacity: isDragging ? 0.35 : 1,
+        transition: 'opacity 0.15s',
+      }}
+    >
+      {/* Name row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button
+          {...listeners}
+          {...attributes}
+          style={{ background: 'none', border: 'none', cursor: 'grab', color: 'var(--tm)', padding: '2px', flexShrink: 0, touchAction: 'none', lineHeight: 0 }}
+        >
+          <GripVertical size={13} />
+        </button>
+        <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <input
+              value={ing.name}
+              onChange={e => onUpdateName(idx, e.target.value)}
+              placeholder="Ingredient name"
+              style={{ ...inputStyle, padding: '4px 8px', fontSize: '13px' }}
+            />
+            {!isNew && ing.name.trim() && <Check size={12} color="var(--gl)" style={{ flexShrink: 0 }} />}
+            {isNew && ing.name.trim() && (
+              <span style={{ fontSize: '9px', color: 'var(--gl)', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px', flexShrink: 0 }}>
+                + new
+              </span>
+            )}
+          </div>
+        </div>
+        <button onClick={() => onRemove(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}>
+          <Trash2 size={13} />
+        </button>
+      </div>
+      {/* Qty + unit + prep note */}
+      <div style={{ display: 'flex', gap: '6px', paddingLeft: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          type="number"
+          value={ing.quantity ?? ''}
+          onChange={e => onUpdateQty(idx, e.target.value)}
+          placeholder="Qty"
+          style={{ ...inputStyle, width: '60px', padding: '3px 7px', fontSize: '12px' }}
+        />
+        <input
+          value={ing.unit ?? ''}
+          onChange={e => onUpdateUnit(idx, e.target.value)}
+          placeholder="unit"
+          style={{ ...inputStyle, width: '68px', padding: '3px 7px', fontSize: '12px' }}
+        />
+        <input
+          value={ing.prep_note ?? ''}
+          onChange={e => onUpdatePrepNote(idx, e.target.value)}
+          placeholder="prep note"
+          style={{ ...inputStyle, flex: 1, minWidth: '80px', padding: '3px 7px', fontSize: '12px' }}
+        />
+      </div>
+      {/* Section chips */}
+      <div style={{ paddingLeft: '24px' }}>
+        <SectionChips value={ing.section} onChange={v => onUpdateSection(idx, v)} components={components} />
+      </div>
+    </div>
+  )
+}
+
+// ── Draggable step row ───────────────────────────────────────────────────────
+
+function DraggableStepRow({ dragId, idx, step, isLast, components, onUpdate, onUpdateSection, onRemove }: {
+  dragId: string
+  idx: number
+  step: EditStep
+  isLast: boolean
+  components: string[]
+  onUpdate: (idx: number, instruction: string) => void
+  onUpdateSection: (idx: number, section: string | null) => void
+  onRemove: (idx: number) => void
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: dragId })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        padding: '10px 14px',
+        borderBottom: isLast ? 'none' : '0.5px solid var(--br)',
+        opacity: isDragging ? 0.35 : 1,
+        transition: 'opacity 0.15s',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+        <button
+          {...listeners}
+          {...attributes}
+          style={{ background: 'none', border: 'none', cursor: 'grab', color: 'var(--tm)', padding: '2px', flexShrink: 0, touchAction: 'none', lineHeight: 0, marginTop: '2px' }}
+        >
+          <GripVertical size={13} />
+        </button>
+        <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--am)', letterSpacing: '0.8px', paddingTop: '3px', flexShrink: 0, minWidth: '40px' }}>
+          STEP {step.step_number}
+        </div>
+        <div
+          contentEditable
+          suppressContentEditableWarning
+          onBlur={e => onUpdate(idx, e.currentTarget.textContent ?? '')}
+          style={{ flex: 1, fontSize: '13px', color: 'var(--tp)', lineHeight: 1.5, outline: 'none', minHeight: '20px' }}
+        >
+          {step.instruction}
+        </div>
+        <button onClick={() => onRemove(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}>
+          <Trash2 size={13} />
+        </button>
+      </div>
+      <div style={{ paddingLeft: '48px' }}>
+        <SectionChips value={step.section} onChange={v => onUpdateSection(idx, v)} components={components} />
+      </div>
+    </div>
+  )
 }
