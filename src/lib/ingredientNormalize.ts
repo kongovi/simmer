@@ -16,14 +16,31 @@
  *   "fresh ginger" ≠ "Ginger powder"  (fresh vs dried)
  *
  * ── Never normalized ────────────────────────────────────────────────────────
- *   "ground turkey" — meat word, stays unchanged
- *   "ground beef"   — meat word, stays unchanged
+ *   "ground turkey"  — meat, stays unchanged
+ *   "ground beef"    — meat, stays unchanged
+ *   "ground almonds" — nut meal/flour, not a spice powder; stays unchanged
+ *   "ground oats"    — grain, not a spice powder; stays unchanged
+ *   "powdered sugar" — sugar, stays unchanged (distinct catalog entry)
  */
 
-/** Meat words that should never be normalized even when preceded by "ground" */
-const MEAT_WORDS = new Set([
+/**
+ * Words that must never be normalised to "X powder" even when preceded by
+ * "ground" or "powdered".  Originally just meats; expanded to cover nuts,
+ * grains, and sugar — all of which produce distinct grocery items (almond
+ * meal, oat flour, powdered sugar) that are not equivalent to a spice powder.
+ */
+const NON_SPICE_WORDS = new Set([
+  // Meats
   'beef', 'chicken', 'turkey', 'pork', 'lamb', 'veal', 'bison', 'venison',
   'duck', 'buffalo', 'meat', 'moose', 'elk', 'rabbit', 'goat', 'mutton',
+  // Nuts — "ground almonds" = almond meal, not "Almonds powder"
+  'almond', 'almonds', 'cashew', 'cashews', 'walnut', 'walnuts',
+  'pecan', 'pecans', 'hazelnut', 'hazelnuts', 'pistachio', 'pistachios',
+  'macadamia', 'macadamias', 'peanut', 'peanuts',
+  // Grains — "ground oats" = oat flour, not "Oats powder"
+  'oat', 'oats', 'rice', 'wheat', 'corn', 'barley', 'rye', 'quinoa',
+  // Sugar — "powdered sugar" is its own distinct ingredient
+  'sugar',
 ])
 
 /**
@@ -91,7 +108,7 @@ export function normalizeIngredientName(name: string): string {
     const firstWord = words[0]
 
     // Never normalize meats
-    if (MEAT_WORDS.has(firstWord)) return trimmed
+    if (NON_SPICE_WORDS.has(firstWord)) return trimmed
 
     // Never normalize if rest contains a whole-form word (e.g. "ground flaxseed")
     if (hasWholeFormWord(words)) return trimmed
@@ -106,7 +123,7 @@ export function normalizeIngredientName(name: string): string {
     const words     = base.split(/\s+/)
     const firstWord = words[0]
 
-    if (!MEAT_WORDS.has(firstWord) && !hasWholeFormWord(words)) {
+    if (!NON_SPICE_WORDS.has(firstWord) && !hasWholeFormWord(words)) {
       return toTitleCase(base) + ' powder'
     }
   }

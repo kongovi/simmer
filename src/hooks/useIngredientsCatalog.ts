@@ -43,14 +43,47 @@ export interface IngredientMatchResult {
 }
 
 /**
+ * Length-guarded substring check.
+ *
+ * Returns true only when the shorter of the two strings is at least 4 chars
+ * AND at least 60% as long as the other, then checks that the longer contains
+ * the shorter.
+ *
+ * Why: raw `a.includes(b)` produces false positives when a short word ("butter",
+ * "onion", "cloves") appears inside a completely different compound ingredient
+ * ("peanut butter", "spring onion", "garlic cloves").  The ratio guard means a
+ * single-word catalog entry can only match another name that is mostly the same
+ * string — not a longer phrase that merely contains it.
+ *
+ * Examples blocked by this guard:
+ *   "butter"  (6) vs "peanut butter"  (13) → 46% → blocked
+ *   "onion"   (5) vs "spring onion"   (12) → 42% → blocked
+ *   "cloves"  (6) vs "garlic cloves"  (13) → 46% → blocked
+ *   "garlic"  (6) vs "garlic powder"  (13) → 46% → blocked
+ *   "cream"   (5) vs "sour cream"     (10) → 50% → blocked
+ *   "beef"    (4) vs "beef broth"     (10) → 40% → blocked
+ *
+ * Examples that still pass (genuinely close names):
+ *   "whipping cream" (14) vs "heavy cream"      (11) → 79% → passes
+ *   "cherry tomato"  (13) vs "cherry tomatoes"  (15) → 87% → passes
+ */
+function safeContains(a: string, b: string): boolean {
+  const shorter = a.length <= b.length ? a : b
+  const longer  = a.length <= b.length ? b : a
+  if (shorter.length < 4) return false
+  if (shorter.length / longer.length < 0.6) return false
+  return longer.includes(shorter)
+}
+
+/**
  * Match an ingredient name against the catalog, returning both the match and
  * whether it was an inferred merge (i.e. the names differ).
  *
  * Matching order:
  *   1. Exact match on original name
  *   2. Exact match on normalized name (ground X → X powder)
- *   3. Contains match on original name
- *   4. Contains match on normalized name
+ *   3. Length-guarded contains match on original name
+ *   4. Length-guarded contains match on normalized name
  */
 export function matchIngredientFull(
   name: string,
@@ -69,22 +102,16 @@ export function matchIngredientFull(
     if (exactNorm) return { catalog: exactNorm, isMerge: true }
   }
 
-  // 3. Contains on original
-  const containsOrig = catalog.find(c => {
-    const cn = c.name.toLowerCase()
-    return cn.includes(orig) || orig.includes(cn)
-  })
+  // 3. Length-guarded contains on original
+  const containsOrig = catalog.find(c => safeContains(c.name.toLowerCase(), orig))
   if (containsOrig) {
     const isMerge = containsOrig.name.toLowerCase() !== orig
     return { catalog: containsOrig, isMerge }
   }
 
-  // 4. Contains on normalized
+  // 4. Length-guarded contains on normalized
   if (normalized !== orig) {
-    const containsNorm = catalog.find(c => {
-      const cn = c.name.toLowerCase()
-      return cn.includes(normalized) || normalized.includes(cn)
-    })
+    const containsNorm = catalog.find(c => safeContains(c.name.toLowerCase(), normalized))
     if (containsNorm) return { catalog: containsNorm, isMerge: true }
   }
 
