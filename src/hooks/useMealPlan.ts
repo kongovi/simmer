@@ -97,6 +97,27 @@ export function useRemoveDish() {
   })
 }
 
+export function useMoveDish() {
+  const queryClient = useQueryClient()
+  const familyId    = useAppStore(s => s.familyId)
+
+  return useMutation({
+    mutationFn: async ({ id, slotDate, mealType, weekStart }: {
+      id: string; slotDate: string; mealType: string; weekStart: string
+    }) => {
+      const { error } = await supabase
+        .from('meal_plan_slots')
+        .update({ slot_date: slotDate, meal_type: mealType })
+        .eq('id', id)
+      if (error) throw error
+      return weekStart
+    },
+    onSuccess: (_ws, payload) => {
+      queryClient.invalidateQueries({ queryKey: ['meal-plan', familyId, payload.weekStart] })
+    },
+  })
+}
+
 export function useClearWeekPlan() {
   const queryClient = useQueryClient()
   const familyId    = useAppStore(s => s.familyId)

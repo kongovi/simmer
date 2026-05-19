@@ -43,6 +43,22 @@ export function StagingScreen() {
   // Zone 3 Other: ingredient_ids the user chose "Need it" — default: none (all Skip)
   const [zone3OtherNeedIt,   setZone3OtherNeedIt]   = useState<Set<string>>(new Set())
 
+  // ── Zone 1 / 2 manual additions ──
+  const [zone1Manual, setZone1Manual] = useState<StagingIngredient[]>([])
+  const [zone2Manual, setZone2Manual] = useState<StagingIngredient[]>([])
+
+  function addManual(zone: 1 | 2, item: StagingIngredient) {
+    const setter = zone === 1 ? setZone1Manual : setZone2Manual
+    const existing = zone === 1 ? [...zone1Items, ...zone1Manual] : [...zone2Items, ...zone2Manual]
+    if (existing.some(i => i.ingredient_id === item.ingredient_id)) return // already present
+    setter(prev => [...prev, item])
+  }
+
+  function removeManual(zone: 1 | 2, ingredientId: string) {
+    const setter = zone === 1 ? setZone1Manual : setZone2Manual
+    setter(prev => prev.filter(i => i.ingredient_id !== ingredientId))
+  }
+
   // ── Zone 1 item swap ──
   // Maps original ingredient_id → replacement catalog item
   type Zone1Override = Pick<StagingIngredient, 'ingredient_id' | 'name' | 'emoji' | 'image_url' | 'image_status' | 'default_store' | 'aisle_order'>
@@ -108,13 +124,19 @@ export function StagingScreen() {
       {
         weekStart:      weekStart!,
         from,
-        zone1Items:     zone1Items
-          .filter(i => !zone1Skip.has(i.ingredient_id))
-          .map(i => {
-            const ov = zone1Overrides.get(i.ingredient_id)
-            return ov ? { ...i, ...ov } : i
-          }),
-        zone2Selected:  zone2Items.filter(i => zone2NeedIt.has(i.ingredient_id)),
+        zone1Items:     [
+          ...zone1Items
+            .filter(i => !zone1Skip.has(i.ingredient_id))
+            .map(i => {
+              const ov = zone1Overrides.get(i.ingredient_id)
+              return ov ? { ...i, ...ov } : i
+            }),
+          ...zone1Manual,
+        ],
+        zone2Selected:  [
+          ...zone2Items.filter(i => zone2NeedIt.has(i.ingredient_id)),
+          ...zone2Manual,
+        ],
         zone3Selected: [
           ...zone3PredictedItems.filter(i => !zone3PredictedSkip.has(i.ingredient_id)),
           ...zone3OtherItems.filter(i => zone3OtherNeedIt.has(i.ingredient_id)),
@@ -249,6 +271,29 @@ export function StagingScreen() {
                   </ZoneItem>
                 )
               })}
+              {zone1Manual.map(item => (
+                <ZoneItem
+                  key={`manual-${item.ingredient_id}`}
+                  emoji={item.emoji}
+                  name={item.name}
+                  note="Added manually"
+                  imageUrl={item.image_url}
+                  imageStatus={item.image_status}
+                >
+                  <button
+                    onClick={() => removeManual(1, item.ingredient_id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px 4px', flexShrink: 0 }}
+                    title="Remove"
+                  >
+                    <X size={14} />
+                  </button>
+                </ZoneItem>
+              ))}
+              <ZoneAddInput
+                placeholder="Add item from catalog…"
+                onAdd={item => addManual(1, item)}
+                existingIds={[...zone1Items.map(i => i.ingredient_id), ...zone1Manual.map(i => i.ingredient_id)]}
+              />
             </Zone>
 
             {/* ── Zone 2 — Check your pantry ── */}
@@ -274,6 +319,29 @@ export function StagingScreen() {
                   </ZoneItem>
                 )
               })}
+              {zone2Manual.map(item => (
+                <ZoneItem
+                  key={`manual-${item.ingredient_id}`}
+                  emoji={item.emoji}
+                  name={item.name}
+                  note="Added manually"
+                  imageUrl={item.image_url}
+                  imageStatus={item.image_status}
+                >
+                  <button
+                    onClick={() => removeManual(2, item.ingredient_id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px 4px', flexShrink: 0 }}
+                    title="Remove"
+                  >
+                    <X size={14} />
+                  </button>
+                </ZoneItem>
+              ))}
+              <ZoneAddInput
+                placeholder="Add pantry item from catalog…"
+                onAdd={item => addManual(2, item)}
+                existingIds={[...zone2Items.map(i => i.ingredient_id), ...zone2Manual.map(i => i.ingredient_id)]}
+              />
             </Zone>
 
             {/* ── Zone 3 — Staples ── */}
@@ -761,6 +829,119 @@ function YNButtons({
       >
         {rightLabel}
       </button>
+    </div>
+  )
+}
+
+// ── ZoneAddInput ──────────────────────────────────────────────────────────────
+
+function ZoneAddInput({
+  placeholder = 'Add item from catalog…',
+  onAdd,
+  existingIds = [],
+}: {
+  placeholder?: string
+  onAdd:        (item: StagingIngredient) => void
+  existingIds?: string[]
+}) {
+  const [query,    setQuery]    = useState('')
+  const [showSugg, setShowSugg] = useState(false)
+
+  const { data: rawSugg = [] } = useIngredientSuggestions(query)
+  // Filter out items already present in the zone
+  const suggestions = rawSugg.filter(s => !existingIds.includes(s.id)).slice(0, 6)
+
+  function selectSuggestion(sug: typeof rawSugg[number]) {
+    onAdd({
+      ingredient_id: sug.id,
+      name:          sug.name,
+      emoji:         sug.emoji,
+      image_url:     sug.image_url     ?? null,
+      image_status:  sug.image_status  ?? null,
+      quantity:      0,
+      unit:          null,
+      recipe_note:   null,
+      aisle_order:   sug.default_aisle_order ?? detectAisleOrder(sug.name, sug.emoji),
+      default_store: sug.default_store ?? null,
+    })
+    setQuery('')
+    setShowSugg(false)
+  }
+
+  return (
+    <div style={{ position: 'relative', marginTop: '8px' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '6px',
+        background: 'rgba(255,255,255,0.04)',
+        border: '0.5px dashed rgba(255,255,255,0.15)',
+        borderRadius: '8px', padding: '6px 10px',
+      }}>
+        <span style={{ fontSize: '13px', color: 'var(--tm)' }}>+</span>
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onFocus={() => setShowSugg(true)}
+          onBlur={() => setTimeout(() => setShowSugg(false), 150)}
+          placeholder={placeholder}
+          autoComplete="off"
+          style={{
+            flex: 1, background: 'none', border: 'none', outline: 'none',
+            color: 'var(--tp)', fontSize: '13px', fontFamily: 'inherit',
+          }}
+        />
+        {query.length > 0 && (
+          <button
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => setQuery('')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: 0 }}
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+
+      {showSugg && query.length > 0 && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 3px)', left: 0, right: 0, zIndex: 20,
+          background: 'var(--dk2)',
+          border: '0.5px solid var(--brh)',
+          borderRadius: '9px',
+          overflow: 'hidden',
+          boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+        }}>
+          {suggestions.length === 0 ? (
+            <div style={{ padding: '9px 12px', fontSize: '13px', color: 'var(--tm)', fontStyle: 'italic' }}>
+              No matches in catalog
+            </div>
+          ) : (
+            suggestions.map((sug, idx) => (
+              <button
+                key={sug.id}
+                onMouseDown={e => { e.preventDefault(); selectSuggestion(sug) }}
+                style={{
+                  width: '100%', textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: '9px',
+                  padding: '8px 12px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  borderTop: idx > 0 ? '0.5px solid var(--br)' : 'none',
+                  color: 'var(--tp)', fontSize: '13px', fontFamily: 'inherit',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--dkc)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={{ fontSize: '16px', width: '20px', textAlign: 'center', flexShrink: 0 }}>
+                  {sug.emoji ?? '🛒'}
+                </span>
+                <span style={{ flex: 1, fontWeight: 500 }}>{sug.name}</span>
+                {existingIds.includes(sug.id) && (
+                  <span style={{ fontSize: '11px', color: 'var(--tm)' }}>already added</span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }

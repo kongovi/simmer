@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Sparkles, Flame, Copy, Check, Trash2 } from 'lucide-react'
+import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
 import { useAIModelLabel } from '../lib/ai/modelLabel'
 import { Screen } from '../components/layout/Screen'
 import { useUserSettings, useUpdatePlanStartDow } from '../hooks/useUserSettings'
-import { useSlotsForWeek, useAddDish, useRemoveDish, useClearWeekPlan, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
+import { useSlotsForWeek, useAddDish, useRemoveDish, useMoveDish, useClearWeekPlan, groupBySlot, dishDisplayName, dishEmoji } from '../hooks/useMealPlan'
 import type { SlotDish } from '../hooks/useMealPlan'
 import { useRecipes } from '../hooks/useRecipes'
 import {
@@ -105,7 +107,26 @@ export function PlannerScreen() {
   const slotMap = useMemo(() => groupBySlot(slots), [slots])
   const addDish    = useAddDish()
   const removeDish = useRemoveDish()
+  const moveDish   = useMoveDish()
   const { data: allRecipes = [] } = useRecipes({})
+
+  // Drag-and-drop
+  const [activeDish, setActiveDish] = useState<SlotDish | null>(null)
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+
+  function handleDishDragEnd(event: DragEndEvent) {
+    setActiveDish(null)
+    const { active, over } = event
+    if (!over || !active.data.current) return
+    const dish      = active.data.current.dish as SlotDish
+    const overId    = over.id as string              // slot-{date}-{mealType}
+    const parts     = overId.replace('slot-', '').split('-')
+    // overId format: slot-2026-05-19-dinner → date = parts[0..2], meal = parts[3]
+    const newMeal   = parts[parts.length - 1] as string
+    const newDate   = parts.slice(0, -1).join('-')
+    if (newDate === dish.slot_date && newMeal === dish.meal_type) return
+    moveDish.mutate({ id: dish.id, slotDate: newDate, mealType: newMeal, weekStart })
+  }
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -329,6 +350,7 @@ export function PlannerScreen() {
           )}
 
           {/* ── Planner grid ── */}
+          <DndContext sensors={dndSensors} onDragStart={e => setActiveDish(e.active.data.current?.dish ?? null)} onDragEnd={handleDishDragEnd}>
           <div
             style={{ opacity: slotsLoading ? 0.4 : 1, transition: 'opacity 0.2s' }}
             onTouchStart={!isWide ? handleTouchStart : undefined}
@@ -360,7 +382,6 @@ export function PlannerScreen() {
                     gridTemplateColumns: gridCols,
                     gap: '6px',
                     alignItems: 'start',
-                    // Alternating row tint + top border to visually separate days
                     borderTop: dayIdx > 0 ? '0.5px solid var(--br)' : 'none',
                     background: dayIdx % 2 === 1 ? 'rgba(255,255,255,0.018)' : 'transparent',
                     borderRadius: '6px',
@@ -386,8 +407,9 @@ export function PlannerScreen() {
                   {displayCols.map(m => {
                     const dishes = slotMap.get(`${dateStr}_${m.key}`) ?? []
                     return (
-                      <MealCell
+                      <DroppableMealCell
                         key={m.key}
+                        dropId={`slot-${dateStr}-${m.key}`}
                         dishes={dishes}
                         onOpen={() => openSlot(dateStr, m.key)}
                       />
@@ -397,6 +419,27 @@ export function PlannerScreen() {
               )
             })}
           </div>
+          <DragOverlay>
+            {activeDish ? (
+              <div style={{
+                background: 'var(--dkc)', border: '0.5px solid var(--am)',
+                borderRadius: '10px', overflow: 'hidden', width: '120px',
+                boxShadow: '0 6px 20px rgba(0,0,0,0.5)', opacity: 0.95,
+              }}>
+                {activeDish.recipe?.image_status === 'done' && activeDish.recipe.image_url ? (
+                  <img src={activeDish.recipe.image_url} alt={dishDisplayName(activeDish)} style={{ width: '120px', display: 'block' }} />
+                ) : (
+                  <div style={{ width: '120px', height: '80px', background: 'var(--dk3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '32px' }}>{dishEmoji(activeDish)}</span>
+                  </div>
+                )}
+                <div style={{ padding: '4px 7px 6px', fontSize: '11px', fontWeight: 500, color: 'var(--tp)', lineHeight: 1.3 }}>
+                  {dishDisplayName(activeDish)}
+                </div>
+              </div>
+            ) : null}
+          </DragOverlay>
+          </DndContext>
         </div>
 
         {/* Pinned bottom bar — Plan + Generate */}
@@ -492,11 +535,24 @@ export function PlannerScreen() {
   )
 }
 
-// ── MealCell ──────────────────────────────────────────────────────────────────
+// ── DroppableMealCell ─────────────────────────────────────────────────────────
 
-function MealCell({ dishes, onOpen }: { dishes: SlotDish[]; onOpen: () => void }) {
+function DroppableMealCell({ dropId, dishes, onOpen }: { dropId: string; dishes: SlotDish[]; onOpen: () => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: dropId })
   return (
-    <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '6px', alignItems: 'flex-start' }}>
+    <div
+      ref={setNodeRef}
+      style={{
+        display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '6px',
+        alignItems: 'flex-start',
+        minHeight: '48px',
+        borderRadius: '8px',
+        padding: '4px',
+        background: isOver ? 'rgba(123,175,138,0.12)' : 'transparent',
+        border: isOver ? '0.5px dashed var(--am)' : '0.5px dashed transparent',
+        transition: 'background 0.15s, border-color 0.15s',
+      }}
+    >
       {dishes.map(d => (
         <DishTile key={d.id} dish={d} onClick={onOpen} />
       ))}
@@ -514,18 +570,28 @@ function DishTile({ dish, onClick }: { dish: SlotDish; onClick: () => void }) {
   const imgUrl = dish.recipe?.image_status === 'done' ? dish.recipe.image_url : null
   const emoji  = dishEmoji(dish)
 
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id:   dish.id,
+    data: { dish },
+  })
+
   return (
     <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
       onClick={onClick}
       style={{
         width: '120px',
         background: 'var(--dkc)',
-        border: '0.5px solid var(--brh)',
+        border: isDragging ? '0.5px solid var(--am)' : '0.5px solid var(--brh)',
         borderRadius: '10px',
         overflow: 'hidden',
-        cursor: 'pointer',
+        cursor: isDragging ? 'grabbing' : 'pointer',
         flexShrink: 0,
-        transition: 'border-color 0.15s',
+        transition: 'border-color 0.15s, opacity 0.15s',
+        opacity: isDragging ? 0.35 : 1,
+        touchAction: 'none',
       }}
     >
       {imgUrl ? (
