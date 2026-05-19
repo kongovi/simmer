@@ -1033,6 +1033,12 @@ export function CatalogScreen() {
 
   const selectedItems = items.filter(i => selectedIds.has(i.id))
 
+  // Build name → emoji lookup from the family's saved store list
+  const storeEmojiMap = new Map<string, string>()
+  for (const s of storeRows) {
+    if (s.emoji) storeEmojiMap.set(s.name.toLowerCase(), s.emoji)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--dk)' }}>
       {/* ── Sticky header + search ── */}
@@ -1255,7 +1261,7 @@ export function CatalogScreen() {
                           minWidth: '24px', textAlign: 'center',
                         }}
                       >
-                        {storeAbbr(item.default_store)}
+                        {storeEmojiMap.get(item.default_store.toLowerCase()) ?? storeAbbr(item.default_store)}
                       </div>
                     )}
                     {item.is_pantry_staple && (
