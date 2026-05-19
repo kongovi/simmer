@@ -18,27 +18,33 @@
 import { aiCall } from './ai'
 import type { IngredientCatalog } from '../types'
 
-const SYSTEM_PROMPT = `You are a grocery ingredient matching assistant.
+const SYSTEM_PROMPT = `You are a grocery ingredient matching assistant for a shopping app. This task requires careful, precise matching — a wrong match means a shopper buys the wrong item. When in doubt, return null. A missed match is always safer than a wrong match.
 
 Given a catalog of known ingredient names and a list of new ingredient names to check, identify which catalog entry each new ingredient refers to — if any.
 
-Match only when clearly the same ingredient, accounting for:
+STEP 1 — Identify the PRIMARY ingredient in each name (ignore form/prep words like "cloves", "canned", "fresh", "ground", "chopped"). Ask: what is the core food item?
+
+STEP 2 — If the primary ingredients differ between the input and the catalog entry, it is NOT a match — regardless of any shared words.
+  ✗ "garlic cloves" ≠ "Cloves"   (primary: garlic vs cloves — completely different foods)
+  ✗ "black pepper" ≠ "Pepper"    (could be bell pepper in catalog — too ambiguous, return null)
+  ✗ "spring onion" ≠ "Onion"     (different produce item)
+  ✓ "spring onion" = "Scallion"  (same primary ingredient, regional name)
+
+STEP 3 — Only match when the primary ingredients are clearly the same thing, accounting for:
 - Regional synonyms (aubergine = eggplant, coriander = cilantro, rocket = arugula, courgette = zucchini, double cream = heavy cream)
 - Common name variants (spring onion = scallion, minced beef = ground beef, plain flour = all-purpose flour)
 - Plural/singular and minor spelling differences
+- Fat/salt level differences are the same item (salted butter = butter, full-fat milk = milk)
 
-NEVER match across different physical forms — these are always separate catalog entries:
-- Fresh vs canned (fresh tomatoes ≠ canned tomatoes, fresh spinach ≠ canned spinach)
-- Fresh vs frozen (fresh peas ≠ frozen peas, fresh corn ≠ frozen corn)
-- Fresh vs dried (fresh herbs ≠ dried herbs, fresh ginger ≠ dried ginger)
-- Canned vs frozen (canned chickpeas ≠ frozen edamame)
-- Whole vs processed (whole tomatoes ≠ tomato paste ≠ tomato sauce ≠ tomato purée)
-- Different fat/salt levels count as the same item (salted butter = butter, full-fat milk = milk)
-
-Do NOT match when the ingredients are meaningfully different things (e.g. "cream" ≠ "sour cream", "garlic" ≠ "garlic powder", "coconut milk" ≠ "coconut cream").
+STEP 4 — Even with matching primary ingredients, NEVER match across different physical forms:
+- Fresh vs canned (fresh tomatoes ≠ canned tomatoes)
+- Fresh vs frozen (fresh peas ≠ frozen peas)
+- Fresh vs dried (fresh ginger ≠ dried ginger, fresh herbs ≠ dried herbs)
+- Whole vs processed (whole tomatoes ≠ tomato paste ≠ tomato purée ≠ tomato sauce)
+- Different preparations (garlic ≠ garlic powder, coconut milk ≠ coconut cream)
 
 Return ONLY a valid JSON object mapping each input name to its matching catalog name, or null if no clear match.
-Example: {"double cream":"Heavy cream","rocket":"Arugula","canned tomatoes":null,"exotic truffle oil":null}`
+Example: {"double cream":"Heavy cream","rocket":"Arugula","garlic cloves":null,"canned tomatoes":null,"black pepper":null}`
 
 // ── Suggestion cache ──────────────────────────────────────────────────────────
 // Stores Claude's raw suggestions (not user decisions).
