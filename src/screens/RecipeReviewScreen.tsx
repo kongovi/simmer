@@ -50,6 +50,7 @@ export function RecipeReviewScreen() {
   const [saveError, setSaveError]   = useState<string | null>(null)
   const placeholderColor            = useRef(tempColor())
   const matchesInitialized          = useRef(false)
+  const prepNotesInitialized        = useRef(false)
 
   // AI-suggested merges for ingredients that had no deterministic match
   // idx → catalogId (only positive suggestions stored; absence = no suggestion yet)
@@ -84,6 +85,10 @@ export function RecipeReviewScreen() {
     // Clear any "keep separate" override — user has now chosen an explicit merge target
     setKeepSeparate(prev => { const s = new Set(prev); s.delete(idx); return s })
     setManualMerge(prev => new Map(prev).set(idx, catalogId))
+    // Seed the prep note with the original ingredient name if it isn't already set
+    setIngredients(prev => prev.map((ing, i) =>
+      i === idx && !ing.prep_note ? { ...ing, prep_note: ing.name } : ing
+    ))
     setMergePickerIdx(null)
     setMergeSearch('')
   }
@@ -192,6 +197,19 @@ export function RecipeReviewScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog, familyId]) // intentionally omits manualMerge/keepSeparate — runs once after init
 
+  // ── Seed prep notes for auto-fuzzy merged ingredients ─────────────────────
+  // When catalog first loads, set prep_note = original ingredient name for any
+  // ingredient that will be fuzzy-merged, so the note field is pre-filled.
+  useEffect(() => {
+    if (!catalog.length || prepNotesInitialized.current) return
+    prepNotesInitialized.current = true
+    setIngredients(prev => prev.map(ing => {
+      if (ing.prep_note) return ing  // don't overwrite an existing note
+      const { isMerge, catalog: match } = matchIngredientFull(ing.name, catalog)
+      return isMerge && match ? { ...ing, prep_note: ing.name } : ing
+    }))
+  }, [catalog])
+
   const mergePickerResults = mergePickerIdx !== null
     ? catalog.filter(c => c.name.toLowerCase().includes(mergeSearch.toLowerCase())).slice(0, 8)
     : []
@@ -223,6 +241,16 @@ export function RecipeReviewScreen() {
   }
   function removeIngredient(idx: number) {
     setIngredients(prev => prev.filter((_, i) => i !== idx))
+  }
+  function updateIngredientName(idx: number, n: string) {
+    setIngredients(prev => prev.map((ing, i) =>
+      i === idx ? { ...ing, name: n } : ing
+    ))
+  }
+  function updateIngredientPrepNote(idx: number, note: string) {
+    setIngredients(prev => prev.map((ing, i) =>
+      i === idx ? { ...ing, prep_note: note || null } : ing
+    ))
   }
 
   // ── Step helpers ─────────────────────────────────────────────────
@@ -418,9 +446,9 @@ export function RecipeReviewScreen() {
                   borderBottom: idx < ingredients.length - 1 ? '0.5px solid var(--br)' : 'none',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                   {/* Status icon */}
-                  <div style={{ width: '16px', flexShrink: 0 }}>
+                  <div style={{ width: '16px', flexShrink: 0, paddingTop: '1px' }}>
                     {needsReview ? (
                       <AlertTriangle size={13} color="var(--am)" />
                     ) : showMergeAlert ? (
@@ -430,27 +458,56 @@ export function RecipeReviewScreen() {
                     )}
                   </div>
 
-                  {/* Emoji + name */}
+                  {/* Emoji + name + note */}
                   <span style={{ fontSize: '16px', flexShrink: 0 }}>{ing.emoji}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
-                      {ing.name}
-                      {effectiveIsNew && !showMergeAlert && (
-                        <span style={{ fontSize: '9px', color: 'var(--gl)', marginLeft: '5px', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px' }}>
+                    {/* Name — editable for new ingredients, static when merged */}
+                    {effectiveIsNew && !showAiSuggestion ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <input
+                          value={ing.name}
+                          onChange={e => updateIngredientName(idx, e.target.value)}
+                          style={{
+                            flex: 1, minWidth: 0,
+                            background: 'none', border: 'none',
+                            borderBottom: '0.5px solid var(--am)',
+                            outline: 'none', padding: '0 0 1px',
+                            fontSize: '13px', fontWeight: 500,
+                            color: 'var(--tp)', fontFamily: 'inherit',
+                          }}
+                        />
+                        <span style={{ fontSize: '9px', color: 'var(--gl)', backgroundColor: 'rgba(93,202,165,0.12)', borderRadius: '3px', padding: '1px 4px', flexShrink: 0 }}>
                           + new
                         </span>
-                      )}
-                    </div>
-                    {ing.prep_note && (
-                      <div style={{ fontSize: '11px', color: 'var(--ts)' }}>{ing.prep_note}</div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '13px', color: 'var(--tp)', fontWeight: 500 }}>
+                        {ing.name}
+                      </div>
                     )}
+                    {/* Prep note — always editable */}
+                    <input
+                      value={ing.prep_note ?? ''}
+                      onChange={e => updateIngredientPrepNote(idx, e.target.value)}
+                      placeholder="add a note…"
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        background: 'none', border: 'none',
+                        borderBottom: '0.5px solid transparent',
+                        outline: 'none', padding: '2px 0 1px',
+                        fontSize: '11px', color: 'var(--ts)',
+                        fontFamily: 'inherit', marginTop: '1px',
+                      }}
+                      onFocus={e  => (e.currentTarget.style.borderBottomColor = 'var(--br)')}
+                      onBlur={e   => (e.currentTarget.style.borderBottomColor = 'transparent')}
+                    />
                     {needsReview && (
                       <div style={{ fontSize: '10px', color: 'var(--am)', marginTop: '1px' }}>confirm quantity</div>
                     )}
                   </div>
 
                   {/* Quantity + Unit */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0, paddingTop: '1px' }}>
                     <input
                       type="number"
                       value={ing.quantity ?? ''}
@@ -506,7 +563,7 @@ export function RecipeReviewScreen() {
                   {/* Remove */}
                   <button
                     onClick={() => removeIngredient(idx)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0 }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tm)', padding: '2px', flexShrink: 0, paddingTop: '3px' }}
                   >
                     <Trash2 size={13} />
                   </button>
