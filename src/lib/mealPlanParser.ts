@@ -46,11 +46,3 @@ export async function parseMealPlanText(text: string): Promise<ParsedMealEntry[]
   if (!Array.isArray(parsed)) throw new Error('Unexpected response format')
   return parsed
 }
-
-// ── NOTE FOR FUTURE SESSION ───────────────────────────────────────────────────
-// parseMealPlanText() currently stores everything as freeform_name on the slot.
-// A future session should add catalog matching: after parsing, attempt to match
-// each dish name against the family's recipes (ingredients_catalog) and set
-// recipe_id on the slot when a match is found. This enables the grocery list
-// generator to pull structured ingredient data for AI-planned meals.
-// ─────────────────────────────────────────────────────────────────────────────

@@ -2,9 +2,43 @@ import { useState, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react'
 import { useAddDish } from '../hooks/useMealPlan'
+import { useRecipes } from '../hooks/useRecipes'
 import { parseMealPlanText } from '../lib/mealPlanParser'
 import { dayNameToDate, getWeekDays, getWeekStart, toISODate } from '../lib/weekUtils'
 import { useUserSettings } from '../hooks/useUserSettings'
+import type { Recipe } from '../types'
+
+// ── Recipe fuzzy matcher ───────────────────────────────────────────────────────
+// Returns the recipe ID of the best match, or null if no confident match found.
+function matchRecipe(dishName: string, recipes: Recipe[]): string | null {
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+
+  const dishNorm  = normalize(dishName)
+  const dishWords = dishNorm.split(' ').filter(w => w.length > 2)
+
+  let bestId    = null as string | null
+  let bestScore = 0
+
+  for (const recipe of recipes) {
+    const recipeNorm  = normalize(recipe.name)
+    const recipeWords = recipeNorm.split(' ').filter(w => w.length > 2)
+
+    // Exact match — return immediately
+    if (dishNorm === recipeNorm) return recipe.id
+
+    // One name fully contains the other
+    if (dishNorm.includes(recipeNorm) || recipeNorm.includes(dishNorm)) return recipe.id
+
+    // Word overlap score: fraction of recipe words that appear in the dish name
+    const overlap = recipeWords.filter(w => dishWords.includes(w)).length
+    const score   = overlap / Math.max(dishWords.length, recipeWords.length)
+    if (score > bestScore) { bestScore = score; bestId = recipe.id }
+  }
+
+  // Require at least 50% word overlap to avoid spurious matches
+  return bestScore >= 0.5 ? bestId : null
+}
 
 export function PlanWithClaudeScreen() {
   const navigate  = useNavigate()
@@ -27,6 +61,7 @@ export function PlanWithClaudeScreen() {
 
   const addDish  = useAddDish()
   const didRun   = useRef(false)
+  const { data: allRecipes = [] } = useRecipes()
 
   async function handleFill() {
     if (!text.trim() || loading) return
@@ -39,7 +74,7 @@ export function PlanWithClaudeScreen() {
     try {
       const entries = await parseMealPlanText(text.trim())
 
-      // Insert each dish into the DB
+      // Insert each dish into the DB, linking to a saved recipe when possible
       for (const entry of entries) {
         const date = dayNameToDate(entry.day, weekDays)
         if (!date) continue
@@ -48,12 +83,14 @@ export function PlanWithClaudeScreen() {
         const mealType  = entry.meal_type
 
         for (let i = 0; i < entry.dishes.length; i++) {
-          const dish = entry.dishes[i]
+          const dish     = entry.dishes[i]
+          const recipeId = matchRecipe(dish.name, allRecipes)
           await addDish.mutateAsync({
             weekStart,
             slotDate,
             mealType,
             freeformName: dish.name,
+            recipeId:     recipeId ?? undefined,
             sortOrder:    i,
           })
         }
@@ -149,7 +186,7 @@ export function PlanWithClaudeScreen() {
         </button>
 
         <p style={{ fontSize: '11px', color: 'var(--tm)', textAlign: 'center', margin: 0 }}>
-          Dishes are added as freeform entries. Recipe linking coming in a future update.
+          Matches dishes to your saved recipes automatically
         </p>
       </div>
     </div>

@@ -3,7 +3,7 @@ export type MealType = 'breakfast' | 'lunch' | 'dinner'
 export type GrocerySource = 'meal_plan' | 'staple' | 'manual'
 export type PurchaseSource = 'grocery_list' | 'order_import' | 'manual'
 export type ImageStatus = 'pending' | 'generating' | 'done' | 'failed'
-export type AITask = 'recipe_structuring' | 'grocery_intelligence' | 'meal_plan_parsing' | 'staple_prediction'
+export type AITask = 'recipe_structuring' | 'grocery_intelligence' | 'meal_plan_parsing' | 'staple_prediction' | 'ingredient_matching'
 export type AIModel = 'claude' | 'gpt4' | 'gemini' | 'local'
 export type ImageModel = 'nano-banana-2' | 'nano-banana-pro' | 'nano-banana' | 'dalle' | 'flux'
 

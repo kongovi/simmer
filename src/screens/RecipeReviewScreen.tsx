@@ -1,10 +1,24 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Check, AlertTriangle, Plus, Trash2, GitMerge } from 'lucide-react'
 import type { ParsedRecipe, ParsedIngredient, ParsedStep } from '../lib/recipeParser'
 import { useSaveRecipe } from '../hooks/useRecipes'
 import { useIngredientsCatalog, matchIngredientFull } from '../hooks/useIngredientsCatalog'
 import { useEscapeKey } from '../lib/useEscapeKey'
+import { useAppStore } from '../stores/appStore'
+import { aiMatchIngredients, getAiSuggestionCache, saveAiSuggestionCache } from '../lib/ingredientAiMatch'
+
+// ── Learned-match persistence ──────────────────────────────────────────────────
+// Stores explicit user decisions across sessions, keyed by family.
+// Value = catalog UUID → always merge; null → always keep separate.
+function getStoredMatches(familyId: string): Record<string, string | null> {
+  try { return JSON.parse(localStorage.getItem(`simmer_ingredient_matches_${familyId}`) ?? '{}') }
+  catch { return {} }
+}
+function saveStoredMatches(familyId: string, matches: Record<string, string | null>) {
+  try { localStorage.setItem(`simmer_ingredient_matches_${familyId}`, JSON.stringify(matches)) }
+  catch { /* storage full — ignore */ }
+}
 
 // 6 card colors — pick same one used by RecipeCard
 const CARD_COLORS = ['#d4e8d4', '#f0e8d0', '#f0e0d8', '#d8e0ea', '#dce8e0', '#ecdae2']
@@ -16,6 +30,7 @@ export function RecipeReviewScreen() {
   const state      = location.state as { parsed?: ParsedRecipe; rawText?: string; sourceUrl?: string; partial?: boolean } | null
 
   const parsed     = state?.parsed
+  const familyId   = useAppStore(s => s.familyId)
   const { data: catalog = [] } = useIngredientsCatalog()
   const saveRecipe = useSaveRecipe()
 
@@ -34,6 +49,12 @@ export function RecipeReviewScreen() {
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState<string | null>(null)
   const placeholderColor            = useRef(tempColor())
+  const matchesInitialized          = useRef(false)
+
+  // AI-suggested merges for ingredients that had no deterministic match
+  // idx → catalogId (only positive suggestions stored; absence = no suggestion yet)
+  const [aiSuggestions, setAiSuggestions] = useState<Map<number, string>>(new Map())
+  const [aiLoading,     setAiLoading]     = useState(false)
 
   // Indices where the user chose "Keep separate" — override any inferred merge
   const [keepSeparate, setKeepSeparate] = useState<Set<number>>(new Set())
@@ -60,6 +81,8 @@ export function RecipeReviewScreen() {
   }, [mergePickerIdx, navigate]))
 
   function pickManualMerge(idx: number, catalogId: string) {
+    // Clear any "keep separate" override — user has now chosen an explicit merge target
+    setKeepSeparate(prev => { const s = new Set(prev); s.delete(idx); return s })
     setManualMerge(prev => new Map(prev).set(idx, catalogId))
     setMergePickerIdx(null)
     setMergeSearch('')
@@ -67,6 +90,107 @@ export function RecipeReviewScreen() {
   function clearManualMerge(idx: number) {
     setManualMerge(prev => { const m = new Map(prev); m.delete(idx); return m })
   }
+
+  // ── Pre-populate merge decisions from previous sessions ────────────────────
+  useEffect(() => {
+    if (!catalog.length || !familyId || matchesInitialized.current) return
+    matchesInitialized.current = true
+
+    const stored = getStoredMatches(familyId)
+    const newManual   = new Map<number, string>()
+    const newSeparate = new Set<number>()
+
+    ingredients.forEach((ing, idx) => {
+      const norm = ing.name.toLowerCase().trim()
+      if (!(norm in stored)) return
+      const decision = stored[norm]
+      if (decision === null) {
+        newSeparate.add(idx)
+      } else {
+        // Only apply if the catalog item still exists
+        if (catalog.find(c => c.id === decision)) newManual.set(idx, decision)
+      }
+    })
+
+    if (newManual.size > 0)
+      setManualMerge(prev => {
+        const next = new Map(prev)
+        for (const [idx, id] of newManual) {
+          if (!next.has(idx)) next.set(idx, id) // never overwrite a decision made this session
+        }
+        return next
+      })
+    if (newSeparate.size > 0)
+      setKeepSeparate(prev => {
+        const next = new Set(prev)
+        for (const idx of newSeparate) next.add(idx)
+        return next
+      })
+  }, [catalog, familyId, ingredients])
+
+  // ── AI synonym matching for unresolved ingredients ─────────────────────────
+  useEffect(() => {
+    if (!catalog.length || !familyId || !matchesInitialized.current) return
+
+    const storedDecisions = getStoredMatches(familyId)
+    const aiCache         = getAiSuggestionCache(familyId)
+
+    // Find indices that still have no resolution
+    const needsLookup: { idx: number; name: string }[] = []
+    const fromCache:   { idx: number; catalogId: string }[] = []
+
+    ingredients.forEach((ing, idx) => {
+      const { catalog: autoMatch } = matchIngredientFull(ing.name, catalog)
+      const norm = ing.name.toLowerCase().trim()
+      // Skip if already resolved: auto-match, manual merge, keep-separate, or user decision
+      if (autoMatch) return
+      if (manualMerge.has(idx)) return
+      if (keepSeparate.has(idx)) return
+      if (norm in storedDecisions) return
+
+      // Check the AI suggestions cache first
+      if (norm in aiCache) {
+        const cachedId = aiCache[norm]
+        if (cachedId) fromCache.push({ idx, catalogId: cachedId })
+        return // null means Claude found no match — nothing to show
+      }
+
+      needsLookup.push({ idx, name: ing.name })
+    })
+
+    // Apply any cached suggestions immediately
+    if (fromCache.length > 0) {
+      setAiSuggestions(prev => {
+        const next = new Map(prev)
+        for (const { idx, catalogId } of fromCache) {
+          if (!next.has(idx)) next.set(idx, catalogId)
+        }
+        return next
+      })
+    }
+
+    // Fire AI call for any remaining unknowns
+    if (needsLookup.length === 0) return
+    const names = needsLookup.map(n => n.name)
+
+    setAiLoading(true)
+    aiMatchIngredients(names, catalog).then(results => {
+      const updatedCache = { ...getAiSuggestionCache(familyId) }
+      const newSuggestions = new Map<number, string>()
+
+      for (const { idx, name } of needsLookup) {
+        const norm     = name.toLowerCase().trim()
+        const catalogId = results.get(name) ?? null
+        updatedCache[norm] = catalogId          // cache even nulls so we don't re-query
+        if (catalogId) newSuggestions.set(idx, catalogId)
+      }
+
+      saveAiSuggestionCache(familyId, updatedCache)
+      if (newSuggestions.size > 0)
+        setAiSuggestions(prev => new Map([...prev, ...newSuggestions]))
+    }).finally(() => setAiLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, familyId]) // intentionally omits manualMerge/keepSeparate — runs once after init
 
   const mergePickerResults = mergePickerIdx !== null
     ? catalog.filter(c => c.name.toLowerCase().includes(mergeSearch.toLowerCase())).slice(0, 8)
@@ -117,6 +241,26 @@ export function RecipeReviewScreen() {
     if (!name.trim()) return
     setSaving(true)
     setSaveError(null)
+
+    // Persist explicit user decisions so future imports start smarter
+    if (familyId) {
+      const stored = getStoredMatches(familyId)
+      ingredients.forEach((ing, idx) => {
+        const norm = ing.name.toLowerCase().trim()
+        const manualId = manualMerge.get(idx)
+        const { catalog: autoMatch } = matchIngredientFull(ing.name, catalog)
+        if (manualId) {
+          // User explicitly chose (or confirmed via re-merge) a specific catalog item
+          stored[norm] = manualId
+        } else if (keepSeparate.has(idx) && autoMatch) {
+          // User explicitly rejected an auto-match — remember to never merge this name
+          stored[norm] = null
+        }
+        // Accepted auto-match silently: no change (auto-matching handles it already)
+      })
+      saveStoredMatches(familyId, stored)
+    }
+
     try {
       const id = await saveRecipe.mutateAsync({
         name: name.trim(),
@@ -246,7 +390,7 @@ export function RecipeReviewScreen() {
         </Section>
 
         {/* Ingredients */}
-        <Section title={`Ingredients — tap to edit qty & unit`}>
+        <Section title={`Ingredients — tap to edit qty & unit`} loading={aiLoading}>
           {ingredients.map((ing, idx) => {
             const { catalog: catalogMatch, isMerge } = matchIngredientFull(ing.name, catalog)
             const userKeptSeparate  = keepSeparate.has(idx)
@@ -258,9 +402,13 @@ export function RecipeReviewScreen() {
             const showMergeAlert    = !manualCatalogId && isMerge && !!catalogMatch && !userKeptSeparate
             // Exact match: show subtle "Linked to catalog" row so user can opt out
             const showExactMatch    = !manualCatalogId && !isMerge && !!catalogMatch && !userKeptSeparate
-            // Kept separate confirmation (covers both fuzzy and exact)
-            const showKeptSeparate  = userKeptSeparate && !!catalogMatch
+            // Kept separate confirmation — only when no manual merge has overridden it
+            const showKeptSeparate  = userKeptSeparate && !!catalogMatch && !manualCatalogId
             const needsReview       = ing.flag === 'confirm_quantity'
+            // AI synonym suggestion — shown only when nothing else resolved this ingredient
+            const aiSuggestedId   = aiSuggestions.get(idx)
+            const aiSuggestedItem = aiSuggestedId ? catalog.find(c => c.id === aiSuggestedId) : null
+            const showAiSuggestion = !!aiSuggestedItem && !manualCatalogId && !userKeptSeparate && !catalogMatch
 
             return (
               <div
@@ -445,7 +593,7 @@ export function RecipeReviewScreen() {
                 )}
 
                 {/* New ingredient — offer to merge with existing */}
-                {effectiveIsNew && !manualCatalogItem && (
+                {effectiveIsNew && !manualCatalogItem && !showAiSuggestion && (
                   <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     marginTop: '5px', marginLeft: '26px',
@@ -461,6 +609,46 @@ export function RecipeReviewScreen() {
                     >
                       Merge with existing →
                     </button>
+                  </div>
+                )}
+
+                {/* AI synonym suggestion — opt-in, distinct from auto fuzzy match */}
+                {showAiSuggestion && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginTop: '5px', marginLeft: '26px',
+                    background: 'rgba(138,149,168,0.10)',
+                    border: '0.5px solid rgba(138,149,168,0.30)',
+                    borderRadius: '6px', padding: '4px 8px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+                      <span style={{ fontSize: '9px', color: 'var(--ts)', flexShrink: 0 }}>✦ AI match →</span>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tp)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {aiSuggestedItem!.name}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginLeft: '8px' }}>
+                      <button
+                        onClick={() => pickManualMerge(idx, aiSuggestedId!)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: '10px', color: 'var(--am)', fontFamily: 'inherit',
+                          padding: '0 2px', textDecoration: 'underline',
+                        }}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => toggleKeepSeparate(idx)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: '10px', color: 'var(--ts)', fontFamily: 'inherit',
+                          padding: '0 2px', textDecoration: 'underline',
+                        }}
+                      >
+                        Keep separate
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -687,11 +875,12 @@ export function RecipeReviewScreen() {
 }
 
 // ── Small UI helpers ───────────────────────────────────────────
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, loading }: { title: string; children: React.ReactNode; loading?: boolean }) {
   return (
     <div style={{ padding: '20px 16px 0' }}>
-      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
+      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tm)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
         {title}
+        {loading && <span style={{ fontSize: '10px', color: 'var(--ts)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>✦ matching…</span>}
       </div>
       <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
         {children}
