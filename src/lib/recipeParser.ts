@@ -47,6 +47,7 @@ RULES:
 - For flag: set "confirm_quantity" when the original text had vague measures like "a knob of", "to taste", "some", "handful", or any non-numeric amount. Leave null otherwise.
 - For difficulty: "Easy", "Medium", or "Hard". Null if unclear.
 - For meal_type: infer from context if not stated. Null if genuinely ambiguous.
+- PRESERVE FORM QUALIFIERS in ingredient names — the form is part of the ingredient identity. Write "canned tomatoes" not "tomatoes", "frozen peas" not "peas", "dried apricots" not "apricots", "fresh ginger" not "ginger", "coconut milk" not "coconut", "tomato paste" not "tomatoes". Never strip the qualifier to a bare ingredient name.
 - MULTI-COMPONENT RECIPES: If the recipe has distinct components that are made separately (e.g. Pizza → Dough + Sauce + Assembly; Burger → Patty + Bun + Assembly; Layer cake → Sponge + Frosting + Assembly), add a "components" array naming each part in logical order, and set the "section" field on every ingredient and step to the matching component name. For simple single-step recipes, omit "components" entirely and leave "section" as null on all items.`
 
 const USER_PROMPT_TEMPLATE = `Structure this recipe into JSON matching this exact schema:

@@ -320,14 +320,17 @@ export function RecipeReviewScreen() {
         const norm = ing.name.toLowerCase().trim()
         const manualId = manualMerge.get(idx)
         const { catalog: autoMatch } = matchIngredientFull(ing.name, catalog)
+        const aiId = aiSuggestions.get(idx)
         if (manualId) {
-          // User explicitly chose (or confirmed via re-merge) a specific catalog item
           stored[norm] = manualId
-        } else if (keepSeparate.has(idx) && autoMatch) {
-          // User explicitly rejected an auto-match — remember to never merge this name
+        } else if (keepSeparate.has(idx) && (autoMatch || aiId)) {
+          // User explicitly rejected a match — remember to never auto-merge this name
           stored[norm] = null
+        } else if (!autoMatch && aiId && !keepSeparate.has(idx)) {
+          // AI match was auto-applied — persist like a manual merge so future imports use it
+          stored[norm] = aiId
         }
-        // Accepted auto-match silently: no change (auto-matching handles it already)
+        // Accepted deterministic auto-match: no change needed (deterministic handles it)
       })
       saveStoredMatches(familyId, stored)
     }
@@ -342,10 +345,11 @@ export function RecipeReviewScreen() {
         difficulty: parsed?.difficulty ?? null,
         ingredients: ingredients.map((ing, idx) => {
           const { catalog: match } = matchIngredientFull(ing.name, catalog)
-          // Priority: manual merge > auto-match (unless user kept separate) > new
-          const manualId = manualMerge.get(idx)
-          const autoId   = match && !keepSeparate.has(idx) ? match.id : undefined
-          const catalogId = manualId ?? autoId
+          // Priority: manual merge > deterministic auto-match > AI match > new (all respect keepSeparate)
+          const manualId  = manualMerge.get(idx)
+          const autoId    = match && !keepSeparate.has(idx) ? match.id : undefined
+          const aiId      = !match && !keepSeparate.has(idx) ? aiSuggestions.get(idx) : undefined
+          const catalogId = manualId ?? autoId ?? aiId
           return {
             catalogId,
             name: ing.name,
@@ -485,14 +489,15 @@ export function RecipeReviewScreen() {
               const userKeptSeparate  = keepSeparate.has(idx)
               const manualCatalogId   = manualMerge.get(idx)
               const manualCatalogItem = manualCatalogId ? catalog.find(c => c.id === manualCatalogId) : null
-              const effectiveIsNew    = !manualCatalogId && (!catalogMatch || userKeptSeparate)
-              const showMergeAlert    = !manualCatalogId && isMerge && !!catalogMatch && !userKeptSeparate
-              const showExactMatch    = !manualCatalogId && !isMerge && !!catalogMatch && !userKeptSeparate
-              const showKeptSeparate  = userKeptSeparate && !!catalogMatch && !manualCatalogId
               const needsReview       = ing.flag === 'confirm_quantity'
               const aiSuggestedId     = aiSuggestions.get(idx)
               const aiSuggestedItem   = aiSuggestedId ? catalog.find(c => c.id === aiSuggestedId) : null
-              const showAiSuggestion  = !!aiSuggestedItem && !manualCatalogId && !userKeptSeparate && !catalogMatch
+              // AI suggestions are auto-applied (same as fuzzy matches) — user can opt out with Keep separate
+              const effectiveIsNew    = !manualCatalogId && (!catalogMatch || userKeptSeparate) && (!aiSuggestedItem || userKeptSeparate)
+              const showMergeAlert    = !manualCatalogId && isMerge && !!catalogMatch && !userKeptSeparate
+              const showAiMerge       = !manualCatalogId && !!aiSuggestedItem && !catalogMatch && !userKeptSeparate
+              const showExactMatch    = !manualCatalogId && !isMerge && !!catalogMatch && !userKeptSeparate
+              const showKeptSeparate  = userKeptSeparate && !!(catalogMatch ?? aiSuggestedItem) && !manualCatalogId
               // Show a border unless this is the last item AND there's nothing after this group
               const isLastItem = itemIdx === items.length - 1
               rows.push(
@@ -508,7 +513,7 @@ export function RecipeReviewScreen() {
                     <div style={{ width: '16px', flexShrink: 0, paddingTop: '1px' }}>
                       {needsReview ? (
                         <AlertTriangle size={13} color="var(--am)" />
-                      ) : showMergeAlert ? (
+                      ) : (showMergeAlert || showAiMerge) ? (
                         <GitMerge size={13} color="#c97d2a" />
                       ) : (
                         <Check size={13} color={effectiveIsNew ? 'var(--ts)' : 'var(--gl)'} />
@@ -669,24 +674,20 @@ export function RecipeReviewScreen() {
                     </div>
                   )}
 
-                  {/* AI suggestion */}
-                  {showAiSuggestion && (
+                  {/* AI auto-merge (same visual as fuzzy merge, with ✦ AI badge) */}
+                  {showAiMerge && (
                     <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       marginTop: '5px', marginLeft: '26px',
-                      background: 'rgba(138,149,168,0.10)', border: '0.5px solid rgba(138,149,168,0.30)',
+                      background: 'rgba(201,125,42,0.1)', border: '0.5px solid rgba(201,125,42,0.35)',
                       borderRadius: '6px', padding: '4px 8px',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
-                        <span style={{ fontSize: '9px', color: 'var(--ts)', flexShrink: 0 }}>✦ AI match →</span>
-                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--tp)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {aiSuggestedItem!.name}
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ fontSize: '10px', color: '#c97d2a' }}>Merging with existing →</span>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#c97d2a' }}>{aiSuggestedItem!.name}</span>
+                        <span style={{ fontSize: '8px', color: 'var(--ts)', backgroundColor: 'rgba(138,149,168,0.15)', borderRadius: '3px', padding: '1px 4px', flexShrink: 0 }}>✦ AI</span>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginLeft: '8px' }}>
-                        <button onClick={() => pickManualMerge(idx, aiSuggestedId!)} style={{ ...subBtnStyle, color: 'var(--am)' }}>Accept</button>
-                        <button onClick={() => toggleKeepSeparate(idx)} style={subBtnStyle}>Keep separate</button>
-                      </div>
+                      <button onClick={() => toggleKeepSeparate(idx)} style={subBtnStyle}>Keep separate</button>
                     </div>
                   )}
 

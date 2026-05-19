@@ -42,6 +42,7 @@ STEP 4 — Even with matching primary ingredients, NEVER match across different 
 - Fresh vs dried (fresh ginger ≠ dried ginger, fresh herbs ≠ dried herbs)
 - Whole vs processed (whole tomatoes ≠ tomato paste ≠ tomato purée ≠ tomato sauce)
 - Different preparations (garlic ≠ garlic powder, coconut milk ≠ coconut cream)
+- Qualified vs unqualified: if the input has a form qualifier (canned, frozen, dried, fresh) and the catalog entry does NOT have that same qualifier, return null — the qualifier is part of the ingredient identity. "canned tomatoes" ≠ "Tomatoes" even if both are tomatoes. The shopper needs the canned version, not fresh produce.
 
 Return ONLY a valid JSON object mapping each input name to its matching catalog name, or null if no clear match.
 Example: {"double cream":"Heavy cream","rocket":"Arugula","garlic cloves":null,"canned tomatoes":null,"black pepper":null}`
