@@ -388,7 +388,7 @@ export function GroceryScreen() {
           {unchecked.length > 0 && (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, 122px)',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
               gap: '8px',
               marginBottom: '14px',
             }}>
@@ -417,7 +417,7 @@ export function GroceryScreen() {
               </div>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, 122px)',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
                 gap: '8px',
               }}>
                 {checked.map(item => (
