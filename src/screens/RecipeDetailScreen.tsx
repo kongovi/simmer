@@ -48,9 +48,10 @@ type IngredientRow = {
   unit: string | null
   prep_note: string | null
   serving_note: string | null
+  section: string | null
   ingredient: { id: string; name: string; emoji: string | null; image_url?: string | null; image_status?: string | null } | null
 }
-type StepRow = { id: string; step_number: number; instruction: string; ingredient_ids: string[] }
+type StepRow = { id: string; step_number: number; instruction: string; ingredient_ids: string[]; section: string | null }
 
 export function RecipeDetailScreen() {
   const { id }    = useParams<{ id: string }>()
@@ -156,48 +157,98 @@ export function RecipeDetailScreen() {
     </div>
   )
 
+  // Build section-grouped ingredient and step lists
+  const ingRows    = (ingredients ?? []) as IngredientRow[]
+  const stepRows   = (steps ?? []) as StepRow[]
+  const allSections = (() => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    ;[...ingRows, ...stepRows].forEach(r => {
+      if (r.section && !seen.has(r.section)) { seen.add(r.section); out.push(r.section) }
+    })
+    return out
+  })()
+
+  function groupRows<T extends { section: string | null }>(rows: T[]) {
+    const buckets = new Map<string | null, T[]>()
+    buckets.set(null, [])
+    for (const s of allSections) buckets.set(s, [])
+    rows.forEach(r => (buckets.get(r.section) ?? buckets.get(null)!).push(r))
+    const result: { section: string | null; items: T[] }[] = []
+    const nullItems = buckets.get(null)!
+    if (nullItems.length > 0 || allSections.length === 0) result.push({ section: null, items: nullItems })
+    for (const s of allSections) result.push({ section: s, items: buckets.get(s)! })
+    return result
+  }
+
+  const SectionLabel = ({ name }: { name: string }) => (
+    <div style={{
+      padding: '6px 14px',
+      borderTop: '0.5px solid var(--br)', borderBottom: '0.5px solid var(--br)',
+      backgroundColor: 'rgba(255,255,255,0.025)',
+      fontSize: '10px', fontWeight: 700, color: 'var(--tm)',
+      letterSpacing: '0.7px', textTransform: 'uppercase',
+    }}>
+      {name}
+    </div>
+  )
+
   const ingredientsList = (
     <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
-      {(ingredients ?? []).map((row: IngredientRow, idx: number) => (
-        <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: idx < (ingredients?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none' }}>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
-              <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', display: 'block' }} />
-            ) : (
-              <span style={{ fontSize: '20px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
-            )}
-            {row.ingredient?.image_status === 'generating' && (
-              <div style={{ position: 'absolute', bottom: 0, left: 0, width: '6px', height: '6px', borderRadius: '50%', background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite' }} />
-            )}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>{row.ingredient?.name ?? '—'}</div>
-            {row.prep_note && <div style={{ fontSize: '13px', color: 'var(--ts)' }}>{row.prep_note}</div>}
-            {row.serving_note && <div style={{ fontSize: '12px', color: 'var(--tm)', fontStyle: 'italic' }}>{row.serving_note}</div>}
-          </div>
-          <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500, flexShrink: 0 }}>
-            {scale(row.quantity, baseServings, currentServings)}{row.unit ? ` ${row.unit}` : ''}
-          </span>
-        </div>
-      ))}
-      {(ingredients ?? []).length === 0 && (
+      {ingRows.length === 0 && (
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No ingredients</div>
       )}
+      {groupRows(ingRows).flatMap(({ section, items }) => {
+        const nodes: React.ReactNode[] = []
+        if (section !== null) nodes.push(<SectionLabel key={`ing-sec-${section}`} name={section} />)
+        items.forEach((row, itemIdx) => {
+          nodes.push(
+            <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderBottom: itemIdx < items.length - 1 ? '0.5px solid var(--br)' : 'none' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                {row.ingredient?.image_status === 'done' && row.ingredient.image_url ? (
+                  <img src={row.ingredient.image_url} alt={row.ingredient.name ?? ''} style={{ width: '28px', height: '28px', objectFit: 'contain', display: 'block' }} />
+                ) : (
+                  <span style={{ fontSize: '20px', display: 'block' }}>{row.ingredient?.emoji ?? '🥄'}</span>
+                )}
+                {row.ingredient?.image_status === 'generating' && (
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '6px', height: '6px', borderRadius: '50%', background: 'var(--am)', animation: 'nb2-pulse 1.2s ease-in-out infinite' }} />
+                )}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500 }}>{row.ingredient?.name ?? '—'}</div>
+                {row.prep_note && <div style={{ fontSize: '13px', color: 'var(--ts)' }}>{row.prep_note}</div>}
+                {row.serving_note && <div style={{ fontSize: '12px', color: 'var(--tm)', fontStyle: 'italic' }}>{row.serving_note}</div>}
+              </div>
+              <span style={{ fontSize: '15px', color: 'var(--tp)', fontWeight: 500, flexShrink: 0 }}>
+                {scale(row.quantity, baseServings, currentServings)}{row.unit ? ` ${row.unit}` : ''}
+              </span>
+            </div>
+          )
+        })
+        return nodes
+      })}
     </div>
   )
 
   const instructionsList = (
     <div style={{ backgroundColor: 'var(--dkc)', border: '0.5px solid var(--br)', borderRadius: '12px', overflow: 'hidden' }}>
-      {(steps ?? []).map((step: StepRow, idx: number) => (
-        <div key={step.id} style={{ padding: '13px 14px', borderBottom: idx < (steps?.length ?? 0) - 1 ? '0.5px solid var(--br)' : 'none' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--am)', letterSpacing: '1px', marginBottom: '5px' }}>STEP {step.step_number}</div>
-          <p style={{ fontSize: '15px', color: 'var(--tp)', margin: 0, lineHeight: 1.6 }}>{step.instruction}</p>
-        </div>
-      ))}
-      {(steps ?? []).length === 0 && (
+      {stepRows.length === 0 && (
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--ts)', fontSize: '15px' }}>No steps</div>
       )}
-      {(steps ?? []).length > 0 && (
+      {groupRows(stepRows).flatMap(({ section, items }) => {
+        const nodes: React.ReactNode[] = []
+        if (section !== null) nodes.push(<SectionLabel key={`step-sec-${section}`} name={section} />)
+        items.forEach((step, itemIdx) => {
+          nodes.push(
+            <div key={step.id} style={{ padding: '13px 14px', borderBottom: itemIdx < items.length - 1 ? '0.5px solid var(--br)' : 'none' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--am)', letterSpacing: '1px', marginBottom: '5px' }}>STEP {step.step_number}</div>
+              <p style={{ fontSize: '15px', color: 'var(--tp)', margin: 0, lineHeight: 1.6 }}>{step.instruction}</p>
+            </div>
+          )
+        })
+        return nodes
+      })}
+      {stepRows.length > 0 && (
         <div style={{ padding: '12px 14px', borderTop: '0.5px solid var(--br)' }}>
           <button
             onClick={() => setCookingMode(true)}

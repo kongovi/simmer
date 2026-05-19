@@ -398,6 +398,7 @@ export function useUpdateRecipe() {
             prep_note:     ing.prep_note,
             serving_note:  ing.serving_note,
             sort_order:    i,
+            section:       ing.section ?? null,
           }))
         )
         if (riErr) throw riErr
@@ -413,6 +414,7 @@ export function useUpdateRecipe() {
             instruction:    s.instruction,
             ingredient_ids: matchIngredientIds(s.instruction, payload.ingredients, ingredientIds),
             sort_order:     i,
+            section:        s.section ?? null,
           }))
         )
         if (sErr) throw sErr
