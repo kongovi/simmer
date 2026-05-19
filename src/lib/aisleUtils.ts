@@ -3,8 +3,8 @@ export const AISLE_LABELS: Record<number, string> = {
   2:  '🥩 Meat & Fish',
   3:  '🧊 Frozen',
   4:  '🍿 Snacks',
-  5:  '🥫 Canned & Dry',
-  6:  '🫒 Oils & Spices',
+  5:  '🥫 Pantry',
+  6:  '🫒 Spices & Condiments',
   7:  '🥛 Dairy & Eggs',
   8:  '🍞 Bread & Bakery',
   9:  '🥪 Deli & Prepared',
@@ -19,8 +19,8 @@ export const AISLE_NAMES: Record<number, string> = {
   2:  'Meat & Fish',
   3:  'Frozen',
   4:  'Snacks',
-  5:  'Canned & Dry',
-  6:  'Oils & Spices',
+  5:  'Pantry',
+  6:  'Spices & Condiments',
   7:  'Dairy & Eggs',
   8:  'Bread & Bakery',
   9:  'Deli & Prepared',
@@ -30,8 +30,8 @@ export const AISLE_NAMES: Record<number, string> = {
 }
 
 /** Silently assign aisle sort order from ingredient name/emoji.
- *  1=Produce  2=Meat&Fish  3=Frozen  4=Snacks  5=Canned&Dry
- *  6=Oils&Spices  7=Dairy&Eggs  8=Bread&Bakery  9=Deli&Prepared
+ *  1=Produce  2=Meat&Fish  3=Frozen  4=Snacks  5=Pantry
+ *  6=Spices&Condiments  7=Dairy&Eggs  8=Bread&Bakery  9=Deli&Prepared
  *  10=Beverages  11=Household  12=Other */
 export function detectAisleOrder(name: string, emoji: string | null): number {
   const n = name.toLowerCase()
@@ -54,10 +54,10 @@ export function detectAisleOrder(name: string, emoji: string | null): number {
   // Beverages
   if (/\b(coffee|tea|juice|water|soda|beer|wine|drink|beverage|kombucha|oat milk|almond milk|soy milk|coconut water|sparkling)\b/.test(n)) return 10
 
-  // Oils & Spices
+  // Spices & Condiments
   if (/\b(oil|vinegar|sauce|spice|salt|pepper|cumin|coriander|turmeric|paprika|cinnamon|bay|oregano|thyme|rosemary|sumac|urfa|zaatar|garam|masala|seasoning|powder|dried|chili|chilli|cayenne|cardamom|clove|nutmeg|saffron|vanilla|extract|mustard|ketchup|mayo|mayonnaise|hot sauce|soy sauce|fish sauce|worcestershire|sriracha|tahini|miso|hoisin|oyster sauce)\b/.test(n)) return 6
 
-  // Canned & Dry
+  // Pantry
   if (/\b(canned|can|paste|broth|stock|beans|lentils|pasta|rice|flour|sugar|honey|syrup|coconut milk|tomato sauce|noodle|cereal|oat|oats|barley|quinoa|couscous|chickpea|lentil|black bean|kidney bean|chickpeas)\b/.test(n)) return 5
 
   // Dairy & Eggs

@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Search, Store, RefreshCw, Trash2, GitMerge, Check, X } from 'lucide-react'
-import { Screen } from '../components/layout/Screen'
+import { ArrowLeft, Search, RefreshCw, Trash2, GitMerge, Check, X } from 'lucide-react'
 import { useCatalogItems, useUpdateCatalogItem, useDeleteCatalogItem, useMergeIngredients, useBulkUpdateCatalogItems } from '../hooks/useCatalog'
 import { useFamilyStores } from '../hooks/useFamilyStores'
 import { useIsAdmin } from '../hooks/useFamilyMembers'
@@ -10,6 +9,38 @@ import { useIngredientImageRealtime } from '../hooks/useIngredientImages'
 import { generateIngredientImage } from '../lib/images'
 import { detectAisleOrder, AISLE_LABELS, AISLE_NAMES, AISLE_IMAGES } from '../lib/aisleUtils'
 import type { IngredientCatalog } from '../types'
+
+// ── Store display helpers ─────────────────────────────────────────────────────
+
+/** Known store name → emoji mapping */
+const STORE_EMOJI: Record<string, string> = {
+  "trader joe's": '🌸', "trader joes": '🌸',
+  "whole foods":  '🌿', "whole foods market": '🌿',
+  "costco":       '📦',
+  "target":       '🎯',
+  "walmart":      '🔵',
+  "safeway":      '🛒',
+  "kroger":       '🏪',
+  "sprouts":      '🌱',
+  "aldi":         '🅰️',
+  "publix":       '🟢',
+  "heb":          '🤠',
+  "wegmans":      '🏬',
+  "instacart":    '🛍️',
+  "amazon":       '📦',
+  "fresh market": '🌻',
+}
+
+/** Returns emoji if known, else 2-char uppercase abbreviation */
+function storeAbbr(name: string): string {
+  const key = name.toLowerCase()
+  if (STORE_EMOJI[key]) return STORE_EMOJI[key]
+  // Build initials from words (skip "the", "and", "&")
+  const skip = new Set(['the', 'and', '&', 'of'])
+  const words = key.split(/[\s'-]+/).filter(w => w && !skip.has(w))
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
 
 // ── Edit sheet ────────────────────────────────────────────────────────────────
 
@@ -34,7 +65,6 @@ function EditSheet({
   const [store,            setStore]            = useState(item.default_store ?? '')
   const [brandNote,        setBrandNote]        = useState(item.brand_note ?? '')
   const [isPantry,         setIsPantry]         = useState(item.is_pantry_staple)
-  const [isBulk,           setIsBulk]           = useState(item.is_bulk_staple)
   const [regenStatus,      setRegenStatus]      = useState<'idle' | 'busy'>('idle')
   const [confirmDelete,    setConfirmDelete]    = useState(false)
   const [regenExpanded,    setRegenExpanded]    = useState(false)
@@ -61,7 +91,6 @@ function EditSheet({
         default_store:      store    || null,
         brand_note:         brandNote || null,
         is_pantry_staple:   isPantry,
-        is_bulk_staple:     isBulk,
         default_aisle_order: aisle,
       },
     })
@@ -295,7 +324,6 @@ function EditSheet({
         {/* Toggles */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
           <Toggle label="Pantry staple" checked={isPantry} onToggle={() => setIsPantry(p => !p)} />
-          <Toggle label="Bulk staple"   checked={isBulk}   onToggle={() => setIsBulk(p => !p)} />
         </div>
 
         {/* Save */}
@@ -1006,8 +1034,16 @@ export function CatalogScreen() {
   const selectedItems = items.filter(i => selectedIds.has(i.id))
 
   return (
-    <Screen>
-      <div style={{ padding: '16px 16px 0', maxWidth: '480px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: 'var(--dk)' }}>
+      {/* ── Sticky header + search ── */}
+      <div style={{
+        flexShrink: 0,
+        padding: '16px 16px 0',
+        maxWidth: '480px', width: '100%', margin: '0 auto',
+        boxSizing: 'border-box',
+        backgroundColor: 'var(--dk)',
+        zIndex: 10,
+      }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
           {selectMode ? (
@@ -1100,6 +1136,14 @@ export function CatalogScreen() {
             Tap ingredients to select them. Tap <strong>Edit</strong> to bulk-edit staple/aisle/store, or <strong>Merge</strong> (2+) to combine duplicates.
           </div>
         )}
+      </div>
+
+      {/* ── Scrollable ingredient list ── */}
+      <div style={{
+        flex: 1, overflowY: 'auto',
+        paddingBottom: 'calc(68px + env(safe-area-inset-bottom))',
+      }}>
+      <div style={{ padding: '0 16px', maxWidth: '480px', margin: '0 auto', boxSizing: 'border-box' }}>
 
         {/* Loading */}
         {isLoading && (
@@ -1202,13 +1246,16 @@ export function CatalogScreen() {
                       )}
                     </div>
                     {item.default_store && (
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: '4px',
-                        background: 'rgba(255,255,255,0.05)', borderRadius: '6px',
-                        padding: '3px 7px', flexShrink: 0,
-                      }}>
-                        <Store size={10} color="var(--ts)" />
-                        <span style={{ fontSize: '12px', color: 'var(--ts)' }}>{item.default_store}</span>
+                      <div
+                        title={item.default_store}
+                        style={{
+                          background: 'rgba(255,255,255,0.07)', borderRadius: '6px',
+                          padding: '2px 6px', flexShrink: 0,
+                          fontSize: '13px', lineHeight: '20px',
+                          minWidth: '24px', textAlign: 'center',
+                        }}
+                      >
+                        {storeAbbr(item.default_store)}
                       </div>
                     )}
                     {item.is_pantry_staple && (
@@ -1225,6 +1272,7 @@ export function CatalogScreen() {
             </div>
           </div>
         ))}
+      </div>
       </div>
 
       {/* Edit sheet */}
@@ -1256,6 +1304,6 @@ export function CatalogScreen() {
           onDone={() => { setMerging(false); exitSelectMode() }}
         />
       )}
-    </Screen>
+    </div>
   )
 }
